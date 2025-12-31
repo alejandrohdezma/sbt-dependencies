@@ -24,6 +24,7 @@ import sbt.internal.util.complete.Parser
 import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.string.box._
 
 /** SBT input tasks for managing dependencies. */
 @SuppressWarnings(Array("scalafix:Disable.scala.collection.parallel"))
@@ -75,6 +76,54 @@ class Tasks {
     val updated = dependencies.filterNot(_.isSameArtifact(dependency)) :+ dependency
 
     DependenciesFile.write(updated, file)
+  }
+
+  /** Shows the library dependencies for the current project in a formatted, colored output. */
+  val showLibraryDependencies = Def.task {
+    val projectName = name.value
+
+    // Get inherited dependencies from projects this one depends on
+    val inheritedDependencies = Keys.inheritedDependencies.value
+
+    val allDependencies = libraryDependencies.value ++ inheritedDependencies
+
+    val (maxOrgLength, maxNameLength, maxVersionLength) =
+      allDependencies.foldLeft((0, 0, 0)) { case ((org, name, rev), dep) =>
+        (org.max(dep.organization.length), name.max(dep.name.length), rev.max(dep.revision.length))
+      }
+
+    val directDependencies = libraryDependencies.value.map(m => (m.organization, m.name)).toSet
+
+    val dependencies = allDependencies
+      .map(Dependency.fromModuleID(_, Settings.currentGroup.value))
+      .flatMap(_.toList)
+      .distinct
+      .sortBy(dep => (dep.organization, dep.name))
+      .groupBy(_.configuration)
+      .toList
+      .sortBy(_._1)
+      .map { case (configurations, deps) =>
+        val config =
+          if (configurations === "compile") ""
+          else s"$CYAN% $YELLOW${configurations.capitalize}$RESET"
+
+        deps.map { dep =>
+          val organization = s""""${dep.organization}"""".padTo(maxOrgLength + 2, ' ')
+          val cross        = if (dep.isCross) s"$CYAN%%$RESET" else s"$CYAN %$RESET"
+          val depName      = s""""${dep.name}"""".padTo(maxNameLength + 2, ' ')
+          val version      = s""""${dep.version.toVersionString}"""".padTo(maxVersionLength + 2, ' ')
+
+          if (directDependencies.contains((dep.organization, dep.name)))
+            s"$GREEN$organization$RESET $cross $GREEN$depName$RESET $CYAN%$RESET $GREEN$version$RESET $config"
+          else
+            s"$YELLOW$organization$RESET $cross $YELLOW$depName$RESET $CYAN%$RESET $YELLOW$version$RESET $config"
+        }.mkString("\n")
+      }
+      .mkString("\n")
+
+    val legend = s"$GREEN▇$RESET = Direct dependency\n$YELLOW▇$RESET = Inherited from other projects"
+
+    streams.value.log.info(s"$UNDERLINED$BOLD$MAGENTA$projectName$RESET\n\n$dependencies\n\n$legend".boxed)
   }
 
   /** Parser for updateDependencies filter: `[org:artifact]`, `[org:]`, `[:artifact]`, or empty for all */

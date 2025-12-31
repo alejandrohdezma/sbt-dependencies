@@ -1,7 +1,7 @@
 ThisBuild / scalaVersion                  := _root_.scalafix.sbt.BuildInfo.scala212
 ThisBuild / organization                  := "com.alejandrohdezma"
 ThisBuild / pluginCrossBuild / sbtVersion := "1.4.0"
-ThisBuild / versionPolicyIntention        := Compatibility.BinaryAndSourceCompatible
+ThisBuild / versionPolicyIntention        := Compatibility.None
 
 // Simplify testing the plugin in its own build
 addCommandAlias("reloadSelf", "reload; clean; publishLocal; updateSbtDependenciesPlugin; reload")
@@ -17,20 +17,6 @@ lazy val `sbt-dependencies` = module
   .enablePlugins(SbtPlugin)
   .settings(scriptedLaunchOpts += s"-Dplugin.version=${version.value}")
   .settings(scriptedBufferLog := false)
-  .settings(Compile / sourceGenerators += buildInfo.taskValue)
-
-val buildInfo = Def.task {
-  val file = (Compile / sourceManaged).value / "BuildInfo.scala"
-
-  IO.write(
-    file,
-    s"""package com.alejandrohdezma.sbt.dependencies
-       |
-       |object BuildInfo {
-       |  val version: String = "${version.value}"
-       |}
-       |""".stripMargin
-  )
-
-  Seq(file)
-}
+  .enablePlugins(BuildInfoPlugin)
+  .settings(buildInfoKeys := Seq[BuildInfoKey](version))
+  .settings(buildInfoPackage := "com.alejandrohdezma.sbt.dependencies")

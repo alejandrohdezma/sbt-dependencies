@@ -110,6 +110,18 @@ final case class Dependency(
 
 object Dependency {
 
+  def fromModuleID(moduleID: ModuleID, group: String): Option[Dependency] =
+    Version.from(moduleID.revision, Version.Marker.NoMarker).map { version =>
+      Dependency(
+        moduleID.organization,
+        moduleID.name,
+        version,
+        moduleID.crossVersion != CrossVersion.disabled, // scalafix:ok
+        group,
+        moduleID.configurations.getOrElse("compile")
+      )
+    }
+
   /** Known Scala version suffixes for artifact names */
   val scalaVersionSuffixes: List[String] = List("2.13", "2.12", "2.11", "2.10", "3")
 
