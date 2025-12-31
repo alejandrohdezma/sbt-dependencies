@@ -23,12 +23,61 @@ import sbt._
 import sbt.internal.util.complete.Parser
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.Eq._
 
 /** SBT commands for managing dependencies. */
 class Commands {
 
   /** All commands provided by this plugin. */
-  val all = Seq(updateAllDependencies, updateSbtDependenciesPlugin, updateBuildDependencies, installBuildDependencies)
+  val all = Seq(
+    initDependenciesFile, updateAllDependencies, updateSbtDependenciesPlugin, updateBuildDependencies,
+    installBuildDependencies
+  )
+
+  /** Creates (or recreates) the dependencies.yaml file based on current project dependencies. */
+  lazy val initDependenciesFile = Command.command("initDependenciesFile") { state =>
+    implicit val logger: Logger = state.log
+
+    implicit val versionFinder: Utils.VersionFinder = (_, _, _, _) => List.empty
+
+    val project = Project.extract(state)
+
+    val base = project.get(ThisBuild / baseDirectory)
+
+    val isSbtBuild = base.name.equalsIgnoreCase("project")
+
+    val newGroups = project.structure.allProjectRefs.map { ref =>
+      if (isSbtBuild) "sbt-build" else project.get(ref / name)
+    }.toSet
+
+    val newDependencies = project.structure.allProjectRefs.flatMap { ref =>
+      val group = if (isSbtBuild) "sbt-build" else project.get(ref / name)
+
+      project
+        .get(ref / libraryDependencies)
+        .flatMap(Dependency.fromModuleID(_, group))
+    }.toList
+      .filterNot(d => d.organization === "com.alejandrohdezma" && d.name === "sbt-dependencies")
+
+    val file =
+      if (isSbtBuild) base / "dependencies.yaml"
+      else base / "project" / "dependencies.yaml"
+
+    // Keep existing dependencies from other groups, replace only the groups we're updating
+    val existingDependencies =
+      if (!file.exists()) Nil
+      else DependenciesFile.read(file).filterNot(d => newGroups.contains(d.group))
+
+    DependenciesFile.write(existingDependencies ++ newDependencies, file)
+
+    if (isSbtBuild) {
+      logger.info("➕ Adding SBT plugins")
+      state
+    } else {
+      logger.info(s"📝 Created ${file.relativeTo(base).getOrElse(file)}")
+      runCommand("reload plugins; initDependenciesFile; reload return")(state)
+    }
+  }
 
   /** Updates all dependencies: plugin, build dependencies, and project dependencies. */
   lazy val updateAllDependencies = Command.command("updateAllDependencies") { state =>
