@@ -17,20 +17,6 @@ lazy val `sbt-dependencies` = module
   .enablePlugins(SbtPlugin)
   .settings(scriptedLaunchOpts += s"-Dplugin.version=${version.value}")
   .settings(scriptedBufferLog := false)
-  .settings(Compile / sourceGenerators += buildInfo.taskValue)
-
-val buildInfo = Def.task {
-  val file = (Compile / sourceManaged).value / "BuildInfo.scala"
-
-  IO.write(
-    file,
-    s"""package com.alejandrohdezma.sbt.dependencies
-       |
-       |object BuildInfo {
-       |  val version: String = "${version.value}"
-       |}
-       |""".stripMargin
-  )
-
-  Seq(file)
-}
+  .enablePlugins(BuildInfoPlugin)
+  .settings(buildInfoKeys := Seq[BuildInfoKey](version))
+  .settings(buildInfoPackage := "com.alejandrohdezma.sbt.dependencies")
