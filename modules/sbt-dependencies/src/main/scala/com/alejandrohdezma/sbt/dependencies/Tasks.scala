@@ -50,7 +50,7 @@ class Tasks {
               dep
 
             case latest =>
-              logger.info(s" ↳ ⬆️  $YELLOW${dep.toLine}$RESET -> $CYAN$latest$RESET")
+              logger.info(s" ↳ ⬆️  $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
               dep.withVersion(latest)
           }
         case dep => dep
