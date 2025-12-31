@@ -28,7 +28,7 @@ object DependenciesFile {
 
   /** Reads dependencies from the given YAML file.
     *
-    * If the file does not exist, it will be created as an empty file and an empty list will be returned.
+    * If the file does not exist an empty list will be returned.
     *
     * The file format is YAML with group names as top-level keys and lists of dependency strings as values:
     * {{{
@@ -47,8 +47,8 @@ object DependenciesFile {
     */
   def read(file: File)(implicit versionFinder: Utils.VersionFinder, logger: Logger): List[Dependency] =
     if (!file.exists()) {
-      IO.touch(file)
-      List.empty
+      logger.warn(s"${file.getName} not found. Run `initDependenciesFile` to create it from existing dependencies.")
+      Nil
     } else {
       val yaml    = new Yaml()
       val content = IO.read(file)

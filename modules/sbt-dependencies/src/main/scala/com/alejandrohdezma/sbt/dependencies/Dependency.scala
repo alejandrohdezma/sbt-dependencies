@@ -112,13 +112,20 @@ object Dependency {
 
   def fromModuleID(moduleID: ModuleID, group: String): Option[Dependency] =
     Version.from(moduleID.revision, Version.Marker.NoMarker).map { version =>
+      // Detect sbt plugins by checking for sbtVersion in extraAttributes
+      val isSbtPlugin = moduleID.extraAttributes.contains("e:sbtVersion")
+
+      val configuration =
+        if (isSbtPlugin) "sbt-plugin"
+        else moduleID.configurations.getOrElse("compile")
+
       Dependency(
         moduleID.organization,
         moduleID.name,
         version,
         moduleID.crossVersion != CrossVersion.disabled, // scalafix:ok
         group,
-        moduleID.configurations.getOrElse("compile")
+        configuration
       )
     }
 
