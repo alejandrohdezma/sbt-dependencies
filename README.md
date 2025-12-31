@@ -5,7 +5,7 @@ Manage SBT dependencies from a single YAML file with version markers, auto-updat
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.1.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.2.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to 
@@ -75,6 +75,17 @@ Control how dependencies are updated using version markers:
 | `~` | `~2.10.0` | Update within minor version only (2.10.x) |
 
 ## Commands & Tasks
+
+### `showLibraryDependencies`
+
+Displays the library dependencies for the current project in a formatted, colored output. Shows both direct dependencies and those inherited from dependent projects (via `.dependsOn`).
+
+```bash
+sbt> showLibraryDependencies
+```
+
+- Green = direct dependencies
+- Yellow = inherited from other projects
 
 ### `updateDependencies [filter]`
 
