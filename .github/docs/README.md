@@ -76,6 +76,17 @@ Control how dependencies are updated using version markers:
 
 ## Commands & Tasks
 
+### `showLibraryDependencies`
+
+Displays the library dependencies for the current project in a formatted, colored output. Shows both direct dependencies and those inherited from dependent projects (via `.dependsOn`).
+
+```bash
+sbt> showLibraryDependencies
+```
+
+- Green = direct dependencies
+- Yellow = inherited from other projects
+
 ### `updateDependencies [filter]`
 
 Updates dependencies in the current project to their latest versions.
