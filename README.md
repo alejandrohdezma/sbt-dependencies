@@ -15,7 +15,7 @@ addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.2.0")
 
 ### The `dependencies.yaml` file
 
-Create a `project/dependencies.yaml` file listing your dependencies:
+Create a `project/dependencies.yaml` file listing your dependencies (or run `initDependenciesFile` to generate it from your existing `libraryDependencies`):
 
 ```yaml
 sbt-build:
@@ -139,6 +139,20 @@ Updates the `sbt-dependencies` plugin itself in `project/project/plugins.sbt`.
 ```bash
 sbt> updateSbtDependenciesPlugin
 ```
+
+### `initDependenciesFile`
+
+Creates (or recreates) the `project/dependencies.yaml` file based on your current `libraryDependencies`. This is useful when first adopting the plugin or when you want to migrate existing dependencies from `build.sbt` to the YAML format.
+
+```bash
+sbt> initDependenciesFile
+```
+
+The command will:
+- Read all `libraryDependencies` from your projects
+- Create groups for each project (using the project name)
+- Also populate the `sbt-build` group with your SBT plugins
+- Preserve any existing dependencies in groups that aren't being updated
 
 ## Contributors to this project
 
