@@ -24,6 +24,8 @@ class Keys {
 
   val updateDependencies = inputKey[Unit]("Update dependencies to their latest versions")
 
+  val inheritedDependencies = settingKey[Seq[ModuleID]]("Inherited dependencies from other projects")
+
   val install = inputKey[Unit]("Add new dependencies")
 
 }

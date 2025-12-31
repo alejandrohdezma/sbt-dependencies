@@ -50,6 +50,41 @@ class Settings {
     DependenciesFile.read(dependenciesFile.value)
   }
 
+  /** Gets the inherited dependencies from other projects (recursively). */
+  val inheritedDependencies = Def.settingDyn {
+    thisProject.value.dependencies.foldLeft(Def.setting(Seq.empty[ModuleID])) { (acc, classPathDependency) =>
+      Def.setting {
+        val configuration: PartialFunction[String, String] = classPathDependency.configuration.map { c =>
+          c.split(';')
+            .map(_.trim())
+            .map {
+              case configRegex(from, to) =>
+                { case s if s === from => to }: PartialFunction[String, String]
+              case value =>
+                { case s if value.contains(s) => value }: PartialFunction[String, String]
+            }
+            .reduceLeft(_ orElse _)
+        }.getOrElse({ case "compile" => "compile" }: PartialFunction[String, String])
+
+        def filterByConfiguration(modules: Seq[ModuleID]): Seq[ModuleID] =
+          modules.flatMap {
+            case module if configuration.isDefinedAt(module.configurations.getOrElse("compile")) =>
+              List(module.withConfigurations(Some(configuration(module.configurations.getOrElse("compile")))))
+            case _ =>
+              Nil
+          }
+
+        // Direct dependencies from the dependent project
+        val direct = filterByConfiguration((classPathDependency.project / sbt.Keys.libraryDependencies).value)
+
+        // Transitive dependencies (what the dependent project inherited)
+        val transitive = filterByConfiguration((classPathDependency.project / Keys.inheritedDependencies).value)
+
+        acc.value ++ direct ++ transitive
+      }
+    }
+  }
+
   /** The list of library dependencies to add to the project. */
   val libraryDependencies: Def.Initialize[Seq[ModuleID]] = Def.setting {
     val sbtV   = (pluginCrossBuild / sbtBinaryVersion).value
@@ -68,6 +103,9 @@ class Settings {
     // in the build definition
     dependencies ++ (if (isSbtBuild.value) Seq(self) else Seq.empty)
   }
+
+  /** Regex to match configuration transformations like `test->test`. */
+  private val configRegex = """(.*)->(.*)""".r
 
 }
 
