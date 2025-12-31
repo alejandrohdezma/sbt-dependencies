@@ -45,11 +45,12 @@ object DependenciesPlugin extends AutoPlugin {
 
   /** Project settings: wires libraryDependencies and registers tasks. */
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    libraryDependencies := Settings.libraryDependencies.value,
+    libraryDependencies     := Settings.libraryDependencies.value,
     inheritedDependencies   := Settings.inheritedDependencies.value,
-    updateDependencies  := Tasks.updateDependencies.tag(Exclusive).evaluated,
-    install             := Tasks.install.tag(Exclusive).evaluated,
-    install / aggregate := false
+    showLibraryDependencies := Tasks.showLibraryDependencies.tag(Exclusive).value,
+    updateDependencies      := Tasks.updateDependencies.tag(Exclusive).evaluated,
+    install                 := Tasks.install.tag(Exclusive).evaluated,
+    install / aggregate     := false
   )
 
 }

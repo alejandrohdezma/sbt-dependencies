@@ -28,6 +28,8 @@ class Keys {
 
   val install = inputKey[Unit]("Add new dependencies")
 
+  val showLibraryDependencies = taskKey[Unit]("Show the library dependencies for the project")
+
 }
 
 object Keys extends Keys
