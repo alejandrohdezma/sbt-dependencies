@@ -20,6 +20,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import sbt.util.Logger
 
+import coursier.cache.FileCache
 import coursier.{Dependency => _, _}
 
 /** Utility functions for dependency resolution. */
@@ -54,6 +55,7 @@ object Utils {
 
     private def findVersionsUsingCoursier(module: Module): List[Dependency.Version] =
       Versions()
+        .withCache(FileCache().noCredentials.withTtl(None))
         .withModule(module)
         .versions()
         .unsafeRun()

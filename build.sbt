@@ -18,9 +18,6 @@ lazy val `sbt-dependencies` = module
   .settings(scriptedLaunchOpts += s"-Dplugin.version=${version.value}")
   .settings(scriptedBufferLog := false)
   .settings(Compile / sourceGenerators += buildInfo.taskValue)
-  .settings(libraryDependencies += "io.get-coursier" %% "coursier" % "2.1.24")
-  .settings(libraryDependencies += "org.yaml" % "snakeyaml" % "2.5")
-  .settings(libraryDependencies += "org.scalameta" %% "munit" % "1.2.1" % Test)
 
 val buildInfo = Def.task {
   val file = (Compile / sourceManaged).value / "BuildInfo.scala"

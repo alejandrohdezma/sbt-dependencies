@@ -76,11 +76,11 @@ class Commands {
           }
 
         if (latest.isSameVersion(current)) {
-          logger.info(s" ↳ ✅ $GREEN$current$RESET")
+          logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
           line
         } else {
-          logger.info(s" ↳ ⬆️  $YELLOW$current$RESET -> $CYAN$latest$RESET")
-          s"""addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "$latest")"""
+          logger.info(s" ↳ ⬆️  $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+          s"""addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "${latest.show}")"""
         }
       case line => line
     }
