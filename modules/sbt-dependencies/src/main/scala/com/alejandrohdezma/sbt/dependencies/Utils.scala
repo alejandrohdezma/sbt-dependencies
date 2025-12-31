@@ -20,8 +20,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import sbt.util.Logger
 
-import coursier.{Dependency => _, _}
 import coursier.cache.FileCache
+import coursier.{Dependency => _, _}
 
 /** Utility functions for dependency resolution. */
 object Utils {

@@ -131,7 +131,7 @@ class DependencySuite extends munit.FunSuite {
     assertEquals(module.name, "sbt-scalafix")
     assertEquals(module.revision, "0.14.5")
     // sbt plugins get extra attributes via sbtPluginExtra
-    assert(module.extraAttributes.nonEmpty || module.crossVersion != CrossVersion.disabled)
+    assert(module.extraAttributes.nonEmpty || module.crossVersion != CrossVersion.disabled) // scalafix:ok
   }
 
   // --- isSameArtifact tests ---
