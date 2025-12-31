@@ -55,7 +55,7 @@ class Commands {
 
       project
         .get(ref / libraryDependencies)
-        .flatMap(Dependency.fromModuleID(_, group))
+        .flatMap(Dependency.fromModuleID(_, group).toList)
     }.toList
       .filterNot(d => d.organization === "com.alejandrohdezma" && d.name === "sbt-dependencies")
 
@@ -71,10 +71,10 @@ class Commands {
     DependenciesFile.write(existingDependencies ++ newDependencies, file)
 
     if (isSbtBuild) {
-      logger.info("➕ Adding SBT plugins")
+      logger.info("📝 Created project/dependencies.yaml file with your dependencies")
+      logger.info("💡 Remember to remove any `libraryDependencies +=` or `addSbtPlugin` settings from your build files")
       state
     } else {
-      logger.info(s"📝 Created ${file.relativeTo(base).getOrElse(file)}")
       runCommand("reload plugins; initDependenciesFile; reload return")(state)
     }
   }
