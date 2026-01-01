@@ -161,17 +161,19 @@ object Dependency {
     *   - `org:name:version` (java with version)
     *   - `org:name:version:config` (java with version and configuration)
     *
+    * Whitespace around components is automatically trimmed.
+    *
     * Groups: (1) organization, (2) separator, (3) name, (4) version?, (5) config?
     */
-  val dependencyRegex = """^([^:]+)(::?)([^:]+)(?::([^:]+)(?::([^:]+))?)?$""".r
+  val dependencyRegex = """^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$""".r
 
   /** Parses a dependency line into a dependency */
   def parse(line: String, group: String)(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency =
     line match {
       case dependencyRegex(org, sep, name, null, _) => // scalafix:ok
-        Dependency.withLatestStableVersion(org.trim(), name.trim(), isCross = sep === "::", group)
+        Dependency.withLatestStableVersion(org, name, isCross = sep === "::", group)
       case dependencyRegex(org, sep, name, Version(version), config) =>
-        Dependency(org.trim(), name.trim(), version, isCross = sep === "::", group, Option(config).getOrElse("compile"))
+        Dependency(org, name, version, isCross = sep === "::", group, Option(config).getOrElse("compile"))
       case _ =>
         Utils.fail(s"$line is not a valid dependency")
     }
