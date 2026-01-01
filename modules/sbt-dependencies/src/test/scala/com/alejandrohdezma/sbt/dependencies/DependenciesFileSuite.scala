@@ -39,7 +39,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   // Dummy VersionFinder that always returns 0.1.0
   implicit val dummyVersionFinder: Utils.VersionFinder = (_, _, _, _) =>
-    List(Version(List(0, 1, 0), None, Version.Marker.NoMarker))
+    List(Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker))
 
   def withDependenciesFile(content: String): FunFixture[File] = FunFixture[File](
     setup = { _ =>
@@ -96,13 +96,13 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(result, List.empty)
   }
 
-  nonExistentFile.test("read non-existent file creates it and returns empty list") { file =>
+  nonExistentFile.test("read non-existent file returns empty list without creating file") { file =>
     assert(!file.exists(), "File should not exist before read")
 
     val result = DependenciesFile.read(file)
 
     assertEquals(result, List.empty)
-    assert(file.exists(), "File should be created after read")
+    assert(!file.exists(), "File should not be created by read")
   }
 
   withDependenciesFile {
@@ -125,14 +125,14 @@ class DependenciesFileSuite extends munit.FunSuite {
       Dependency(
         "org.typelevel",
         "cats-core",
-        Version(List(2, 10, 0), None, Version.Marker.NoMarker),
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = true,
         "my-project"
       ),
       Dependency(
         "ch.epfl.scala",
         "sbt-scalafix",
-        Version(List(0, 14, 5), None, Version.Marker.NoMarker),
+        Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
         isCross = false,
         "sbt-build",
         "sbt-plugin"
@@ -140,7 +140,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       Dependency(
         "io.get-coursier",
         "coursier",
-        Version(List(2, 1, 24), None, Version.Marker.NoMarker),
+        Version.Numeric(List(2, 1, 24), None, Version.Numeric.Marker.NoMarker),
         isCross = true,
         "sbt-build"
       )
@@ -167,21 +167,21 @@ class DependenciesFileSuite extends munit.FunSuite {
       Dependency(
         "org.typelevel",
         "cats-core",
-        Version(List(2, 10, 0), None, Version.Marker.NoMarker),
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = true,
         "project-a"
       ),
       Dependency(
         "com.google.guava",
         "guava",
-        Version(List(32, 1, 0), Some("-jre"), Version.Marker.NoMarker),
+        Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
         isCross = false,
         "project-b"
       ),
       Dependency(
         "org.scalameta",
         "munit",
-        Version(List(1, 2, 1), None, Version.Marker.NoMarker),
+        Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
         isCross = true,
         "project-a",
         "test"
@@ -196,15 +196,36 @@ class DependenciesFileSuite extends munit.FunSuite {
     original.foreach { dep =>
       val found = result.find(_.isSameArtifact(dep))
       assert(found.isDefined, s"Expected to find ${dep.toLine}")
-      assert(found.get.version.isSameVersion(dep.version), s"Version mismatch for ${dep.toLine}")
+      assert(
+        found.get.version.asInstanceOf[Version.Numeric].isSameVersion(dep.version.asInstanceOf[Version.Numeric]),
+        s"Version mismatch for ${dep.toLine}"
+      )
     }
   }
 
   withDependenciesFile("").test("write sorts groups alphabetically") { file =>
     val dependencies = List(
-      Dependency("org", "z-lib", Version(List(1, 0, 0), None, Version.Marker.NoMarker), isCross = false, "z-group"),
-      Dependency("org", "a-lib", Version(List(1, 0, 0), None, Version.Marker.NoMarker), isCross = false, "a-group"),
-      Dependency("org", "m-lib", Version(List(1, 0, 0), None, Version.Marker.NoMarker), isCross = false, "m-group")
+      Dependency(
+        "org",
+        "z-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "z-group"
+      ),
+      Dependency(
+        "org",
+        "a-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "a-group"
+      ),
+      Dependency(
+        "org",
+        "m-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "m-group"
+      )
     )
 
     DependenciesFile.write(dependencies, file)
@@ -217,9 +238,27 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write sorts dependencies within group alphabetically") { file =>
     val dependencies = List(
-      Dependency("org", "z-lib", Version(List(1, 0, 0), None, Version.Marker.NoMarker), isCross = false, "group"),
-      Dependency("org", "a-lib", Version(List(1, 0, 0), None, Version.Marker.NoMarker), isCross = false, "group"),
-      Dependency("org", "m-lib", Version(List(1, 0, 0), None, Version.Marker.NoMarker), isCross = false, "group")
+      Dependency(
+        "org",
+        "z-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group"
+      ),
+      Dependency(
+        "org",
+        "a-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group"
+      ),
+      Dependency(
+        "org",
+        "m-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group"
+      )
     )
 
     DependenciesFile.write(dependencies, file)
@@ -240,13 +279,13 @@ class DependenciesFileSuite extends munit.FunSuite {
     val result = DependenciesFile.read(file)
 
     val catsCore = result.find(_.name === "cats-core").get
-    assertEquals(catsCore.version.marker, Version.Marker.Exact)
+    assertEquals(catsCore.version.asInstanceOf[Version.Numeric].marker, Version.Numeric.Marker.Exact)
 
     val catsEffect = result.find(_.name === "cats-effect").get
-    assertEquals(catsEffect.version.marker, Version.Marker.Major)
+    assertEquals(catsEffect.version.asInstanceOf[Version.Numeric].marker, Version.Numeric.Marker.Major)
 
     val fs2Core = result.find(_.name === "fs2-core").get
-    assertEquals(fs2Core.version.marker, Version.Marker.Minor)
+    assertEquals(fs2Core.version.asInstanceOf[Version.Numeric].marker, Version.Numeric.Marker.Minor)
   }
 
   withDependenciesFile("").test("write preserves version markers") { file =>
@@ -254,21 +293,21 @@ class DependenciesFileSuite extends munit.FunSuite {
       Dependency(
         "org.typelevel",
         "cats-core",
-        Version(List(2, 10, 0), None, Version.Marker.Exact),
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
         isCross = true,
         "my-project"
       ),
       Dependency(
         "org.typelevel",
         "cats-effect",
-        Version(List(3, 5, 0), None, Version.Marker.Major),
+        Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.Major),
         isCross = true,
         "my-project"
       ),
       Dependency(
         "org.typelevel",
         "fs2-core",
-        Version(List(3, 9, 0), None, Version.Marker.Minor),
+        Version.Numeric(List(3, 9, 0), None, Version.Numeric.Marker.Minor),
         isCross = true,
         "my-project"
       )

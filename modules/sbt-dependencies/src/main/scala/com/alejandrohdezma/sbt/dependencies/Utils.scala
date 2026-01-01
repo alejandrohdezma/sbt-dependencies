@@ -47,20 +47,20 @@ object Utils {
         name: String,
         isCross: Boolean,
         isSbtPlugin: Boolean
-    ): List[Dependency.Version]
+    ): List[Dependency.Version.Numeric]
 
   }
 
   object VersionFinder {
 
-    private def findVersionsUsingCoursier(module: Module): List[Dependency.Version] =
+    private def findVersionsUsingCoursier(module: Module): List[Dependency.Version.Numeric] =
       Versions()
         .withCache(FileCache().noCredentials.withTtl(None))
         .withModule(module)
         .versions()
         .unsafeRun()
         .available
-        .collect { case Dependency.Version(v: Dependency.Version) => v }
+        .collect { case Dependency.Version.Numeric(v) => v }
 
     /** Creates a VersionFinder that uses Coursier to resolve versions. */
     def fromCoursier(scalaBinaryVersion: String): VersionFinder = {
@@ -96,8 +96,8 @@ object Utils {
     *   The latest valid version.
     */
   def findLatestVersion(organization: String, name: String, isCross: Boolean, isSbtPlugin: Boolean)(
-      validate: Dependency.Version => Boolean
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.Version =
+      validate: Dependency.Version.Numeric => Boolean
+  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.Version.Numeric =
     versionFinder
       .findVersions(organization, name, isCross, isSbtPlugin)
       .filter(validate)

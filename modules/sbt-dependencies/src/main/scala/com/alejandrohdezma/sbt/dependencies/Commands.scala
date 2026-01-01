@@ -22,7 +22,7 @@ import sbt.Keys._
 import sbt._
 import sbt.internal.util.complete.Parser
 
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.Eq._
 
 /** SBT commands for managing dependencies. */
@@ -113,7 +113,7 @@ class Commands {
     implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
 
     val updatedLines = lines.map {
-      case line @ pluginRegex(Version(current)) =>
+      case line @ pluginRegex(Numeric(current)) =>
         val latest =
           Utils.findLatestVersion(
             organization = "com.alejandrohdezma",
