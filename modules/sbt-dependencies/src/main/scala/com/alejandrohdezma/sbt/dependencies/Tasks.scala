@@ -45,7 +45,7 @@ class Tasks {
     val updated =
       dependencies.par.map {
         case dep if filter.matches(dep) && dep.group === group =>
-          val latest = dep.update
+          val latest = dep.findLatestVersion
 
           dep.version match {
             case numeric: Dependency.Version.Numeric if latest.isSameVersion(numeric) =>

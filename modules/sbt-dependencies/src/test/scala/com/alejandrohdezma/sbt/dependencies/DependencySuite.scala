@@ -315,9 +315,9 @@ class DependencySuite extends munit.FunSuite {
     assertEquals(dep.toLine, "org.typelevel::cats-core:=2.10.0")
   }
 
-  // --- update tests ---
+  // --- findLatestVersion tests ---
 
-  test("update returns same version when marker is Exact") {
+  test("findLatestVersion returns same version when marker is Exact") {
     implicit val versionFinder: Utils.VersionFinder =
       (_, _, _, _) => List(Version.Numeric(List(3, 0, 0), None, Version.Numeric.Marker.NoMarker))
 
@@ -329,13 +329,13 @@ class DependencySuite extends munit.FunSuite {
       "test"
     )
 
-    val result = dep.update
+    val result = dep.findLatestVersion
 
     assertEquals(result.toVersionString, "2.10.0")
     assertEquals(result.marker, Version.Numeric.Marker.Exact)
   }
 
-  test("update finds latest version and preserves marker") {
+  test("findLatestVersion finds latest version and preserves marker") {
     implicit val versionFinder: Utils.VersionFinder = (_, _, _, _) =>
       List(
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -351,13 +351,13 @@ class DependencySuite extends munit.FunSuite {
       "test"
     )
 
-    val result = dep.update
+    val result = dep.findLatestVersion
 
     assertEquals(result.toVersionString, "2.12.0")
     assertEquals(result.marker, Version.Numeric.Marker.Major)
   }
 
-  test("update respects major version constraint") {
+  test("findLatestVersion respects major version constraint") {
     implicit val versionFinder: Utils.VersionFinder = (_, _, _, _) =>
       List(
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -373,12 +373,12 @@ class DependencySuite extends munit.FunSuite {
       "test"
     )
 
-    val result = dep.update
+    val result = dep.findLatestVersion
 
     assertEquals(result.toVersionString, "2.11.0")
   }
 
-  test("update respects minor version constraint") {
+  test("findLatestVersion respects minor version constraint") {
     implicit val versionFinder: Utils.VersionFinder = (_, _, _, _) =>
       List(
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -394,7 +394,7 @@ class DependencySuite extends munit.FunSuite {
       "test"
     )
 
-    val result = dep.update
+    val result = dep.findLatestVersion
 
     assertEquals(result.toVersionString, "2.10.5")
   }

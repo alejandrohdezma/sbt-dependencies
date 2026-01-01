@@ -68,12 +68,12 @@ final case class Dependency(
   def isSameArtifact(other: Dependency): Boolean =
     organization === other.organization && name === other.name && isCross === other.isCross && group === other.group
 
-  /** Updates the dependency to the latest version.
+  /** Finds the latest version for this dependency.
     *
     * @return
     *   The latest version for this dependency.
     */
-  def update(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.Version.Numeric =
+  def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.Version.Numeric =
     version match {
       case numeric: Dependency.Version.Numeric =>
         if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) numeric
