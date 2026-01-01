@@ -78,11 +78,7 @@ final case class Dependency(
       case numeric: Dependency.Version.Numeric =>
         if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) numeric
         else {
-          val latestVersion =
-            Utils.findLatestVersion(organization, name, isCross, configuration === "sbt-plugin")(
-              numeric.isValidCandidate
-            )
-
+          val latestVersion = Utils.findLatestVersion(this)(numeric.isValidCandidate)
           latestVersion.copy(marker = numeric.marker)
         }
     }

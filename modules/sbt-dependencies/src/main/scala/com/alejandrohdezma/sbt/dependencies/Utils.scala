@@ -20,6 +20,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.Eq._
 import coursier.cache.FileCache
 import coursier.{Dependency => _, _}
 
@@ -79,6 +80,25 @@ object Utils {
     }
 
   }
+
+  /** Finds the latest version of a dependency that passes the validation function.
+    *
+    * @param dependency
+    *   The dependency to find the latest version of.
+    * @param validate
+    *   Function to filter valid candidate versions.
+    * @return
+    *   The latest valid version.
+    */
+  def findLatestVersion(dependency: Dependency)(
+      validate: Dependency.Version.Numeric => Boolean
+  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.Version.Numeric =
+    findLatestVersion(
+      dependency.organization,
+      dependency.name,
+      dependency.isCross,
+      dependency.configuration === "sbt-plugin"
+    )(validate)
 
   /** Finds the latest version of a dependency that passes the validation function.
     *
