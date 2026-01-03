@@ -38,8 +38,6 @@ class Commands {
   lazy val initDependenciesFile = Command.command("initDependenciesFile") { state =>
     implicit val logger: Logger = state.log
 
-    implicit val versionFinder: Utils.VersionFinder = (_, _, _, _) => List.empty
-
     val project = Project.extract(state)
 
     val base = project.get(ThisBuild / baseDirectory)
@@ -63,12 +61,11 @@ class Commands {
       if (isSbtBuild) base / "dependencies.yaml"
       else base / "project" / "dependencies.yaml"
 
-    // Keep existing dependencies from other groups, replace only the groups we're updating
-    val existingDependencies =
-      if (!file.exists()) Nil
-      else DependenciesFile.read(file).filterNot(d => newGroups.contains(d.group))
-
-    DependenciesFile.write(existingDependencies ++ newDependencies, file)
+    // Write each group's dependencies (preserves other groups automatically)
+    newGroups.foreach { group =>
+      val deps = newDependencies.filter(_.group === group)
+      DependenciesFile.write(file, group, deps)
+    }
 
     if (isSbtBuild) {
       logger.info("📝 Created project/dependencies.yaml file with your dependencies")

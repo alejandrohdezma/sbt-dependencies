@@ -36,15 +36,15 @@ class Tasks {
     implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
 
     val file         = Settings.dependenciesFile.value
-    val dependencies = DependenciesFile.read(file)
-    val filter       = updateFilterParser.parsed
     val group        = Settings.currentGroup.value
+    val dependencies = DependenciesFile.read(file, group)
+    val filter       = updateFilterParser.parsed
 
     logger.info(s"\n🔄 Updating ${filter.show} dependencies for `$group`\n")
 
     val updated =
       dependencies.par.map {
-        case dep if filter.matches(dep) && dep.group === group =>
+        case dep if filter.matches(dep) =>
           val latest = dep.findLatestVersion
 
           dep.version match {
@@ -59,7 +59,7 @@ class Tasks {
         case dep => dep
       }.toList
 
-    DependenciesFile.write(updated, file)
+    DependenciesFile.write(file, group, updated)
   }
 
   /** Installs a dependency, validating if the provided version is available or finding the latest version if version is
@@ -70,14 +70,15 @@ class Tasks {
     implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
 
     val file         = Settings.dependenciesFile.value
-    val dependencies = DependenciesFile.read(file)
-    val dependency   = Dependency.parse(installParser.parsed, Settings.currentGroup.value)
+    val group        = Settings.currentGroup.value
+    val dependencies = DependenciesFile.read(file, group)
+    val dependency   = Dependency.parse(installParser.parsed, group)
 
-    logger.info(s"➕ [${dependency.group}] $YELLOW${dependency.toLine}$RESET")
+    logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 
     val updated = dependencies.filterNot(_.isSameArtifact(dependency)) :+ dependency
 
-    DependenciesFile.write(updated, file)
+    DependenciesFile.write(file, group, updated)
   }
 
   /** Shows the library dependencies for the current project in a formatted, colored output. */

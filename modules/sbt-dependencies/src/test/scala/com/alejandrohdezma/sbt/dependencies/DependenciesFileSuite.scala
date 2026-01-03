@@ -74,24 +74,19 @@ class DependenciesFileSuite extends munit.FunSuite {
        |sbt-dependencies:
        |  - org.scalameta::munit:1.2.1:test
        |""".stripMargin
-  }.test("read YAML file with multiple groups") { file =>
-    val result = DependenciesFile.read(file)
-
-    assertEquals(result.length, 3)
-    assertEquals(result.map(_.group).distinct.sorted, List("sbt-build", "sbt-dependencies"))
-
-    val sbtBuildDeps = result.filter(_.group === "sbt-build")
+  }.test("read YAML file returns only specified group") { file =>
+    val sbtBuildDeps = DependenciesFile.read(file, "sbt-build")
     assertEquals(sbtBuildDeps.length, 2)
     assertEquals(sbtBuildDeps.map(_.name).sorted, List("coursier", "sbt-scalafix"))
 
-    val sbtDepsDeps = result.filter(_.group === "sbt-dependencies")
+    val sbtDepsDeps = DependenciesFile.read(file, "sbt-dependencies")
     assertEquals(sbtDepsDeps.length, 1)
     assertEquals(sbtDepsDeps.head.name, "munit")
     assertEquals(sbtDepsDeps.head.configuration, "test")
   }
 
   withDependenciesFile("").test("read empty YAML file returns empty list") { file =>
-    val result = DependenciesFile.read(file)
+    val result = DependenciesFile.read(file, "any-group")
 
     assertEquals(result, List.empty)
   }
@@ -99,7 +94,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   nonExistentFile.test("read non-existent file returns empty list without creating file") { file =>
     assert(!file.exists(), "File should not exist before read")
 
-    val result = DependenciesFile.read(file)
+    val result = DependenciesFile.read(file, "any-group")
 
     assertEquals(result, List.empty)
     assert(!file.exists(), "File should not be created by read")
@@ -110,7 +105,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |  - org.typelevel::cats-core:2.10.0
        |""".stripMargin
   }.test("read YAML file with single group") { file =>
-    val result = DependenciesFile.read(file)
+    val result = DependenciesFile.read(file, "my-project")
 
     assertEquals(result.length, 1)
     assertEquals(result.head.organization, "org.typelevel")
@@ -120,15 +115,28 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(result.head.group, "my-project")
   }
 
+  withDependenciesFile {
+    """|my-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("read YAML file with non-existent group returns empty list") { file =>
+    val result = DependenciesFile.read(file, "other-project")
+
+    assertEquals(result, List.empty)
+  }
+
   withDependenciesFile("").test("write dependencies creates properly formatted YAML") { file =>
-    val dependencies = List(
+    val myProjectDeps = List(
       Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = true,
         "my-project"
-      ),
+      )
+    )
+
+    val sbtBuildDeps = List(
       Dependency(
         "ch.epfl.scala",
         "sbt-scalafix",
@@ -146,7 +154,8 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile.write(dependencies, file)
+    DependenciesFile.write(file, "my-project", myProjectDeps)
+    DependenciesFile.write(file, "sbt-build", sbtBuildDeps)
 
     val content = IO.read(file)
 
@@ -163,20 +172,13 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile("").test("write then read round-trip preserves dependencies") { file =>
-    val original = List(
+    val projectADeps = List(
       Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = true,
         "project-a"
-      ),
-      Dependency(
-        "com.google.guava",
-        "guava",
-        Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "project-b"
       ),
       Dependency(
         "org.scalameta",
@@ -188,13 +190,27 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile.write(original, file)
-    val result = DependenciesFile.read(file)
+    val projectBDeps = List(
+      Dependency(
+        "com.google.guava",
+        "guava",
+        Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "project-b"
+      )
+    )
 
-    assertEquals(result.length, original.length)
+    DependenciesFile.write(file, "project-a", projectADeps)
+    DependenciesFile.write(file, "project-b", projectBDeps)
 
-    original.foreach { dep =>
-      val found = result.find(_.isSameArtifact(dep))
+    val resultA = DependenciesFile.read(file, "project-a")
+    val resultB = DependenciesFile.read(file, "project-b")
+
+    assertEquals(resultA.length, projectADeps.length)
+    assertEquals(resultB.length, projectBDeps.length)
+
+    projectADeps.foreach { dep =>
+      val found = resultA.find(_.isSameArtifact(dep))
       assert(found.isDefined, s"Expected to find ${dep.toLine}")
       assert(
         found.get.version.asInstanceOf[Version.Numeric].isSameVersion(dep.version.asInstanceOf[Version.Numeric]),
@@ -204,31 +220,46 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile("").test("write sorts groups alphabetically") { file =>
-    val dependencies = List(
-      Dependency(
-        "org",
-        "z-lib",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "z-group"
-      ),
-      Dependency(
-        "org",
-        "a-lib",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "a-group"
-      ),
-      Dependency(
-        "org",
-        "m-lib",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "m-group"
+    // Write groups in reverse alphabetical order
+    DependenciesFile.write(
+      file,
+      "z-group",
+      List(
+        Dependency(
+          "org",
+          "z-lib",
+          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+          false,
+          "z-group"
+        )
       )
     )
-
-    DependenciesFile.write(dependencies, file)
+    DependenciesFile.write(
+      file,
+      "a-group",
+      List(
+        Dependency(
+          "org",
+          "a-lib",
+          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+          false,
+          "a-group"
+        )
+      )
+    )
+    DependenciesFile.write(
+      file,
+      "m-group",
+      List(
+        Dependency(
+          "org",
+          "m-lib",
+          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+          false,
+          "m-group"
+        )
+      )
+    )
 
     val content    = IO.read(file)
     val groupOrder = content.linesIterator.filter(_.endsWith(":")).map(_.dropRight(1)).toList
@@ -238,30 +269,12 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write sorts dependencies within group alphabetically") { file =>
     val dependencies = List(
-      Dependency(
-        "org",
-        "z-lib",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "group"
-      ),
-      Dependency(
-        "org",
-        "a-lib",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "group"
-      ),
-      Dependency(
-        "org",
-        "m-lib",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "group"
-      )
+      Dependency("org", "z-lib", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), false, "group"),
+      Dependency("org", "a-lib", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), false, "group"),
+      Dependency("org", "m-lib", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), false, "group")
     )
 
-    DependenciesFile.write(dependencies, file)
+    DependenciesFile.write(file, "group", dependencies)
 
     val content  = IO.read(file)
     val depOrder = content.linesIterator.filter(_.startsWith("  - ")).map(_.drop(4)).toList
@@ -276,7 +289,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |  - org.typelevel::fs2-core:~3.9.0
        |""".stripMargin
   }.test("read preserves version markers") { file =>
-    val result = DependenciesFile.read(file)
+    val result = DependenciesFile.read(file, "my-project")
 
     val catsCore = result.find(_.name === "cats-core").get
     assertEquals(catsCore.version.asInstanceOf[Version.Numeric].marker, Version.Numeric.Marker.Exact)
@@ -313,7 +326,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile.write(dependencies, file)
+    DependenciesFile.write(file, "my-project", dependencies)
 
     val content = IO.read(file)
 
@@ -324,12 +337,12 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   // --- Edge cases ---
 
-  withDependenciesFile("").test("write empty list creates empty file") { file =>
-    DependenciesFile.write(List.empty, file)
+  withDependenciesFile("").test("write empty list creates group with no dependencies") { file =>
+    DependenciesFile.write(file, "empty-group", List.empty)
 
     val content = IO.read(file)
 
-    assertEquals(content, "\n")
+    assertEquals(content, "empty-group:\n\n")
   }
 
   withDependenciesFile {
@@ -338,7 +351,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |  - org.typelevel::cats-core:2.10.0
        |""".stripMargin
   }.test("read ignores YAML comments") { file =>
-    val result = DependenciesFile.read(file)
+    val result = DependenciesFile.read(file, "my-project")
 
     assertEquals(result.length, 1)
     assertEquals(result.head.name, "cats-core")
@@ -352,11 +365,11 @@ class DependenciesFileSuite extends munit.FunSuite {
        |  - org.scalameta::munit:1.2.1
        |""".stripMargin
   }.test("read handles YAML without blank lines between groups") { file =>
-    val result = DependenciesFile.read(file)
+    val myProjectDeps   = DependenciesFile.read(file, "my-project")
+    val anotherProjDeps = DependenciesFile.read(file, "another-project")
 
-    assertEquals(result.length, 3)
-    assertEquals(result.filter(_.group === "my-project").length, 2)
-    assertEquals(result.filter(_.group === "another-project").length, 1)
+    assertEquals(myProjectDeps.length, 2)
+    assertEquals(anotherProjDeps.length, 1)
   }
 
   withDependenciesFile {
@@ -364,10 +377,36 @@ class DependenciesFileSuite extends munit.FunSuite {
        |- org.typelevel::cats-core:2.10.0
        |""".stripMargin
   }.test("read handles YAML without indentation") { file =>
-    val result = DependenciesFile.read(file)
+    val result = DependenciesFile.read(file, "my-project")
 
     assertEquals(result.length, 1)
     assertEquals(result.head.name, "cats-core")
+  }
+
+  withDependenciesFile {
+    """|existing-group:
+       |  - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("write preserves other groups") { file =>
+    val newDeps = List(
+      Dependency(
+        "org.scalameta",
+        "munit",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        true,
+        "new-group",
+        "test"
+      )
+    )
+
+    DependenciesFile.write(file, "new-group", newDeps)
+
+    val content = IO.read(file)
+
+    assert(content.contains("existing-group:"), "Expected existing group to be preserved")
+    assert(content.contains("org.typelevel::cats-core:2.10.0"), "Expected existing dependency to be preserved")
+    assert(content.contains("new-group:"), "Expected new group to be added")
+    assert(content.contains("org.scalameta::munit:1.0.0:test"), "Expected new dependency to be added")
   }
 
 }
