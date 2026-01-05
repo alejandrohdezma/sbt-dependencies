@@ -34,6 +34,8 @@ Groups correspond to:
 
 The plugin automatically populates `libraryDependencies` for each project based on its group.
 
+> **Tip:** Run `initDependenciesFile` to automatically generate this file from your existing `libraryDependencies` and `addSbtPlugin` settings.
+
 ### Dependency format
 
 Dependencies follow this format:
@@ -74,7 +76,56 @@ Control how dependencies are updated using version markers:
 | `^` | `^2.10.0` | Update within major version only (2.x.x) |
 | `~` | `~2.10.0` | Update within minor version only (2.10.x) |
 
+### Variable versions
+
+You can use variable syntax to reference versions defined (or computed) in your build:
+
+```yaml
+my-project:
+  - org.typelevel::cats-core:{{catsVersion}}
+  - org.typelevel::cats-effect:{{catsVersion}}
+```
+
+Define variable resolvers in your `build.sbt`:
+
+```scala
+dependencyVersionVariables := Map(
+  "catsVersion" -> { artifact => artifact % "2.10.0" }
+)
+```
+
+When running `updateDependencies`, variable-based dependencies show their resolved version and the latest available version, but the variable reference is preserved in the YAML file.
+
+#### Example: Using with [here-sbt-bom](https://github.com/heremaps/here-sbt-bom)
+
+The `here-sbt-bom` plugin reads Maven BOM files and exposes version constants. You can reference these in your `dependencies.yaml`:
+
+```yaml
+my-project:
+  - com.fasterxml.jackson.core:jackson-core:{{jackson}}
+  - com.fasterxml.jackson.core:jackson-databind:{{jackson}}
+```
+
+```scala
+// build.sbt
+val jacksonBom = Bom("com.fasterxml.jackson" % "jackson-bom" % "2.14.2")
+
+dependencyVersionVariables := Map(
+  "jackson" -> { artifact => artifact % jacksonBom.key.value }
+)
+```
+
 ## Commands & Tasks
+
+### `initDependenciesFile`
+
+Creates (or recreates) the `dependencies.yaml` file based on your current `libraryDependencies` and `addSbtPlugin` settings. This is useful when migrating an existing project to use this plugin.
+
+```bash
+sbt> initDependenciesFile
+```
+
+After running this command, remember to remove the `libraryDependencies +=` and `addSbtPlugin` lines from your build files, as the plugin will now manage them via `dependencies.yaml`.
 
 ### `showLibraryDependencies`
 

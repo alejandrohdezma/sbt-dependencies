@@ -18,16 +18,16 @@ package com.alejandrohdezma.sbt.dependencies
 
 import scala.math.Ordering.Implicits._
 
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Marker
+import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric.Marker
 
 class VersionOrderingSuite extends munit.FunSuite {
 
-  private def v(parts: Int*): Version =
-    Version(parts.toList, None, Marker.NoMarker)
+  private def v(parts: Int*): Numeric =
+    Numeric(parts.toList, None, Marker.NoMarker)
 
-  private def v(parts: List[Int], suffix: String): Version =
-    Version(parts, Some(suffix), Marker.NoMarker)
+  private def v(parts: List[Int], suffix: String): Numeric =
+    Numeric(parts, Some(suffix), Marker.NoMarker)
 
   test("compare major versions") {
     assert(v(1, 0, 0) < v(2, 0, 0))
@@ -47,8 +47,8 @@ class VersionOrderingSuite extends munit.FunSuite {
   }
 
   test("equal versions") {
-    assertEquals(Ordering[Version].compare(v(1, 0, 0), v(1, 0, 0)), 0)
-    assertEquals(Ordering[Version].compare(v(2, 3, 4), v(2, 3, 4)), 0)
+    assertEquals(Ordering[Numeric].compare(v(1, 0, 0), v(1, 0, 0)), 0)
+    assertEquals(Ordering[Numeric].compare(v(2, 3, 4), v(2, 3, 4)), 0)
   }
 
   test("two-part versions") {
@@ -62,8 +62,8 @@ class VersionOrderingSuite extends munit.FunSuite {
   }
 
   test("different number of parts (treat missing as 0)") {
-    assertEquals(Ordering[Version].compare(v(1, 0), v(1, 0, 0)), 0)
-    assertEquals(Ordering[Version].compare(v(1, 0, 0), v(1, 0)), 0)
+    assertEquals(Ordering[Numeric].compare(v(1, 0), v(1, 0, 0)), 0)
+    assertEquals(Ordering[Numeric].compare(v(1, 0, 0), v(1, 0)), 0)
     assert(v(1, 0) < v(1, 0, 1))
     assert(v(1, 0, 1) > v(1, 0))
   }
@@ -76,12 +76,12 @@ class VersionOrderingSuite extends munit.FunSuite {
   }
 
   test("suffixes without numbers are equal") {
-    assertEquals(Ordering[Version].compare(v(List(1, 0, 0), "-rc"), v(List(1, 0, 0), "-rc")), 0)
-    assertEquals(Ordering[Version].compare(v(List(1, 0, 0), "-jre"), v(List(1, 0, 0), "-jre")), 0)
+    assertEquals(Ordering[Numeric].compare(v(List(1, 0, 0), "-rc"), v(List(1, 0, 0), "-rc")), 0)
+    assertEquals(Ordering[Numeric].compare(v(List(1, 0, 0), "-jre"), v(List(1, 0, 0), "-jre")), 0)
   }
 
   test("no suffix equals no suffix") {
-    assertEquals(Ordering[Version].compare(v(1, 0, 0), v(1, 0, 0)), 0)
+    assertEquals(Ordering[Numeric].compare(v(1, 0, 0), v(1, 0, 0)), 0)
   }
 
   test("sorting versions with same suffix type") {

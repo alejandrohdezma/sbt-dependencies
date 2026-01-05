@@ -36,28 +36,43 @@ class Tasks {
     implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
 
     val file         = Settings.dependenciesFile.value
-    val dependencies = DependenciesFile.read(file)
-    val filter       = updateFilterParser.parsed
     val group        = Settings.currentGroup.value
+    val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
+    val filter       = updateFilterParser.parsed
 
     logger.info(s"\n🔄 Updating ${filter.show} dependencies for `$group`\n")
 
     val updated =
       dependencies.par.map {
-        case dep if filter.matches(dep) && dep.group === group =>
-          dep.update match {
-            case latest if dep.version === latest =>
+        case dep if filter.matches(dep) =>
+          val latest = dep.findLatestVersion
+
+          dep.version match {
+            case numeric: Dependency.Version.Numeric if latest.isSameVersion(numeric) =>
               logger.info(s" ↳ ✅ $GREEN${dep.toLine}$RESET")
               dep
 
-            case latest =>
-              logger.info(s" ↳ ⬆️  $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
+            case _: Dependency.Version.Numeric =>
+              logger.info(s" ↳ ⬆️ $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
               dep.withVersion(latest)
+
+            case variable: Dependency.Version.Variable if latest.isSameVersion(variable.resolved) =>
+              logger.info {
+                s" ↳ ✅ $GREEN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`)"
+              }
+              dep
+
+            case variable: Dependency.Version.Variable =>
+              logger.info {
+                s" ↳ 🔗 $CYAN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`, " +
+                  s"latest: `$YELLOW${latest.toVersionString}$RESET`)"
+              }
+              dep
           }
         case dep => dep
       }.toList
 
-    DependenciesFile.write(updated, file)
+    DependenciesFile.write(file, group, updated)
   }
 
   /** Installs a dependency, validating if the provided version is available or finding the latest version if version is
@@ -68,14 +83,15 @@ class Tasks {
     implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
 
     val file         = Settings.dependenciesFile.value
-    val dependencies = DependenciesFile.read(file)
-    val dependency   = Dependency.parse(installParser.parsed, Settings.currentGroup.value)
+    val group        = Settings.currentGroup.value
+    val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
+    val dependency   = Dependency.parse(installParser.parsed, group)
 
-    logger.info(s"➕ [${dependency.group}] $YELLOW${dependency.toLine}$RESET")
+    logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 
     val updated = dependencies.filterNot(_.isSameArtifact(dependency)) :+ dependency
 
-    DependenciesFile.write(updated, file)
+    DependenciesFile.write(file, group, updated)
   }
 
   /** Shows the library dependencies for the current project in a formatted, colored output. */

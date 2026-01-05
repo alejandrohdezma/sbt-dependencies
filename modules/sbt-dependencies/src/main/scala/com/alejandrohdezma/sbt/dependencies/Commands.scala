@@ -22,7 +22,7 @@ import sbt.Keys._
 import sbt._
 import sbt.internal.util.complete.Parser
 
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.Eq._
 
 /** SBT commands for managing dependencies. */
@@ -37,8 +37,6 @@ class Commands {
   /** Creates (or recreates) the dependencies.yaml file based on current project dependencies. */
   lazy val initDependenciesFile = Command.command("initDependenciesFile") { state =>
     implicit val logger: Logger = state.log
-
-    implicit val versionFinder: Utils.VersionFinder = (_, _, _, _) => List.empty
 
     val project = Project.extract(state)
 
@@ -63,12 +61,11 @@ class Commands {
       if (isSbtBuild) base / "dependencies.yaml"
       else base / "project" / "dependencies.yaml"
 
-    // Keep existing dependencies from other groups, replace only the groups we're updating
-    val existingDependencies =
-      if (!file.exists()) Nil
-      else DependenciesFile.read(file).filterNot(d => newGroups.contains(d.group))
-
-    DependenciesFile.write(existingDependencies ++ newDependencies, file)
+    // Write each group's dependencies (preserves other groups automatically)
+    newGroups.foreach { group =>
+      val deps = newDependencies.filter(_.group === group)
+      DependenciesFile.write(file, group, deps)
+    }
 
     if (isSbtBuild) {
       logger.info("📝 Created project/dependencies.yaml file with your dependencies")
@@ -113,7 +110,7 @@ class Commands {
     implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
 
     val updatedLines = lines.map {
-      case line @ pluginRegex(Version(current)) =>
+      case line @ pluginRegex(Numeric(current)) =>
         val latest =
           Utils.findLatestVersion(
             organization = "com.alejandrohdezma",

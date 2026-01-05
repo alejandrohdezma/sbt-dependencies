@@ -17,6 +17,7 @@
 package com.alejandrohdezma.sbt.dependencies
 
 import sbt._
+import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 
 class Keys {
 
@@ -29,6 +30,24 @@ class Keys {
   val install = inputKey[Unit]("Add new dependencies")
 
   val showLibraryDependencies = taskKey[Unit]("Show the library dependencies for the project")
+
+  /** Map of variable names to resolver functions for variable-based dependency versions.
+    *
+    * The key is the variable name (without braces), and the value is a function that takes an OrganizationArtifactName
+    * (from `"org" % "name"` or `"org" %% "name"`) and returns a ModuleID with the appropriate version.
+    *
+    * Example usage in build.sbt:
+    * {{{
+    * dependencyVersionVariables := Map(
+    *   "zioVersion" -> { orgArtifact => orgArtifact % zio.zioVersion },
+    *   "catsVersion" -> { orgArtifact => orgArtifact % "2.10.0" }
+    * )
+    * }}}
+    */
+  val dependencyVersionVariables =
+    settingKey[Map[String, OrganizationArtifactName => ModuleID]](
+      "Map of variable names to resolver functions for variable-based dependency versions"
+    )
 
 }
 

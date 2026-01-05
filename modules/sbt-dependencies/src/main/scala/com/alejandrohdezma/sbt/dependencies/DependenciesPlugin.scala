@@ -38,13 +38,17 @@ object DependenciesPlugin extends AutoPlugin {
 
   /** Global settings: reads dependencies file and registers commands. */
   override def globalSettings: Seq[Def.Setting[_]] = Seq(
-    dependenciesFromFile   := Settings.dependenciesFromFile.value,
     concurrentRestrictions += Tags.limit(Exclusive, 1),
     commands              ++= Commands.all
   )
 
+  override def buildSettings: Seq[Setting[_]] = Seq(
+    dependencyVersionVariables := Map.empty
+  )
+
   /** Project settings: wires libraryDependencies and registers tasks. */
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
+    dependenciesFromFile    := Settings.dependenciesFromFile.value,
     libraryDependencies     := Settings.libraryDependencies.value,
     inheritedDependencies   := Settings.inheritedDependencies.value,
     showLibraryDependencies := Tasks.showLibraryDependencies.tag(Exclusive).value,

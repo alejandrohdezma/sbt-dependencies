@@ -17,70 +17,70 @@
 package com.alejandrohdezma.sbt.dependencies
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Marker
+import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric.Marker
 
 class VersionParseSuite extends munit.FunSuite {
 
   test("parse standard Version") {
-    val result = Version.unapply("1.2.3")
+    val result = Version.Numeric.unapply("1.2.3")
 
-    val expected = Version(List(1, 2, 3), None, Marker.NoMarker)
+    val expected = Version.Numeric(List(1, 2, 3), None, Marker.NoMarker)
 
     assertEquals(result, Some(expected))
   }
 
   test("parse two-part version") {
-    val result = Version.unapply("1.0")
+    val result = Version.Numeric.unapply("1.0")
 
-    val expected = Version(List(1, 0), None, Marker.NoMarker)
+    val expected = Version.Numeric(List(1, 0), None, Marker.NoMarker)
 
     assertEquals(result, Some(expected))
   }
 
   test("parse four-part version") {
-    val result = Version.unapply("3.2.14.0")
+    val result = Version.Numeric.unapply("3.2.14.0")
 
-    val expected = Version(List(3, 2, 14, 0), None, Marker.NoMarker)
+    val expected = Version.Numeric(List(3, 2, 14, 0), None, Marker.NoMarker)
 
     assertEquals(result, Some(expected))
   }
 
   test("parse version with dot-suffix") {
-    val result = Version.unapply("4.2.7.Final")
+    val result = Version.Numeric.unapply("4.2.7.Final")
 
-    val expected = Version(List(4, 2, 7), Some(".Final"), Marker.NoMarker)
+    val expected = Version.Numeric(List(4, 2, 7), Some(".Final"), Marker.NoMarker)
 
     assertEquals(result, Some(expected))
   }
 
   test("parse version with hyphen-suffix") {
-    val result = Version.unapply("1.0.0-rc1")
+    val result = Version.Numeric.unapply("1.0.0-rc1")
 
-    val expected = Version(List(1, 0, 0), Some("-rc1"), Marker.NoMarker)
+    val expected = Version.Numeric(List(1, 0, 0), Some("-rc1"), Marker.NoMarker)
 
     assertEquals(result, Some(expected))
   }
 
   test("parse exact marker") {
-    val result = Version.unapply("=1.2.3")
+    val result = Version.Numeric.unapply("=1.2.3")
 
-    val expected = Version(List(1, 2, 3), None, Marker.Exact)
+    val expected = Version.Numeric(List(1, 2, 3), None, Marker.Exact)
 
     assertEquals(result, Some(expected))
   }
 
   test("parse major marker") {
-    val result = Version.unapply("^1.2.3")
+    val result = Version.Numeric.unapply("^1.2.3")
 
-    val expected = Version(List(1, 2, 3), None, Marker.Major)
+    val expected = Version.Numeric(List(1, 2, 3), None, Marker.Major)
 
     assertEquals(result, Some(expected))
   }
 
   test("parse minor marker") {
-    val result = Version.unapply("~1.2.3")
+    val result = Version.Numeric.unapply("~1.2.3")
 
-    val expected = Version(List(1, 2, 3), None, Marker.Minor)
+    val expected = Version.Numeric(List(1, 2, 3), None, Marker.Minor)
 
     assertEquals(result, Some(expected))
   }
