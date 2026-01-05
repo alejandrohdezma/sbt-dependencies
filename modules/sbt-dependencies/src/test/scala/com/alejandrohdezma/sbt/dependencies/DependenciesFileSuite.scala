@@ -231,21 +231,39 @@ class DependenciesFileSuite extends munit.FunSuite {
       file,
       "z-group",
       List(
-        Dependency("org", "z-lib", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), false, "z-group")
+        Dependency(
+          "org",
+          "z-lib",
+          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+          false,
+          "z-group"
+        )
       )
     )
     DependenciesFile.write(
       file,
       "a-group",
       List(
-        Dependency("org", "a-lib", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), false, "a-group")
+        Dependency(
+          "org",
+          "a-lib",
+          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+          false,
+          "a-group"
+        )
       )
     )
     DependenciesFile.write(
       file,
       "m-group",
       List(
-        Dependency("org", "m-lib", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), false, "m-group")
+        Dependency(
+          "org",
+          "m-lib",
+          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+          false,
+          "m-group"
+        )
       )
     )
 
@@ -362,7 +380,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |  - org.scalameta::munit:1.2.1
        |""".stripMargin
   }.test("read handles YAML without blank lines between groups") { file =>
-    val myProjectDeps    = DependenciesFile.read(file, "my-project", variableResolvers)
+    val myProjectDeps   = DependenciesFile.read(file, "my-project", variableResolvers)
     val anotherProjDeps = DependenciesFile.read(file, "another-project", variableResolvers)
 
     assertEquals(myProjectDeps.length, 2)
@@ -386,7 +404,14 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves other groups") { file =>
     val newDeps = List(
-      Dependency("org.scalameta", "munit", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), true, "new-group", "test")
+      Dependency(
+        "org.scalameta",
+        "munit",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        true,
+        "new-group",
+        "test"
+      )
     )
 
     DependenciesFile.write(file, "new-group", newDeps)
