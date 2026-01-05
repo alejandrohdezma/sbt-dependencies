@@ -41,13 +41,15 @@ class Settings {
     else (ThisBuild / baseDirectory).value / "project" / "dependencies.yaml"
   }
 
-  /** The list of dependencies read from the file for the current group. */
+  /** The list of dependencies read from the file (with variables resolved). */
   val dependenciesFromFile: Def.Initialize[List[Dependency]] = Def.setting {
     implicit val logger: Logger = sLog.value
 
     implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
 
-    DependenciesFile.read(dependenciesFile.value, currentGroup.value)
+    val variableResolvers = Keys.dependencyVersionVariables.value
+
+    DependenciesFile.read(dependenciesFile.value, currentGroup.value, variableResolvers)
   }
 
   /** Gets the inherited dependencies from other projects (recursively). */

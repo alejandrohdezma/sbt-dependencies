@@ -16,6 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
+import sbt._
+import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.util.Level
 import sbt.util.Logger
 
@@ -219,6 +221,92 @@ class DependencyParseSuite extends munit.FunSuite {
 
     assertEquals(result.version.asInstanceOf[Version.Numeric].parts, List(2, 13))
     assertEquals(result.version.asInstanceOf[Version.Numeric].suffix, None)
+  }
+
+  // --- Variable version tests ---
+
+  test("parse dependency with variable version") {
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "catsVersion" -> { _ % "2.10.0" }
+    )
+
+    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}", "test", resolvers)
+
+    result.version match {
+      case v: Version.Variable =>
+        assertEquals(v.name, "catsVersion")
+        assertEquals(v.resolved.parts, List(2, 10, 0))
+        assertEquals(v.toVersionString, "2.10.0")
+        assertEquals(v.show, "{{catsVersion}}")
+      case _ =>
+        fail("Expected Variable version")
+    }
+  }
+
+  test("parse dependency with variable version and configuration") {
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "munitVersion" -> { _ % "1.0.0" }
+    )
+
+    val result = Dependency.parse("org.scalameta::munit:{{munitVersion}}:test", "my-project", resolvers)
+
+    result.version match {
+      case v: Version.Variable =>
+        assertEquals(v.name, "munitVersion")
+        assertEquals(v.resolved.parts, List(1, 0, 0))
+      case _ =>
+        fail("Expected Variable version")
+    }
+    assertEquals(result.configuration, "test")
+  }
+
+  test("parse dependency with undefined variable fails with descriptive error") {
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "otherVar" -> { _ % "1.0.0" }
+    )
+
+    val error = intercept[Exception] {
+      Dependency.parse("org.typelevel::cats-core:{{unknownVar}}", "test", resolvers)
+    }
+
+    assert(error.getMessage.contains("{{unknownVar}}"))
+    assert(error.getMessage.contains("otherVar"))
+  }
+
+  test("parse dependency with undefined variable and no resolvers fails with descriptive error") {
+    val error = intercept[Exception] {
+      Dependency.parse("org.typelevel::cats-core:{{myVar}}", "test", Map.empty)
+    }
+
+    assert(error.getMessage.contains("{{myVar}}"))
+    assert(error.getMessage.contains("(none defined)"))
+  }
+
+  test("parse variable dependency toLine preserves variable syntax") {
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "catsVersion" -> { _ % "2.10.0" }
+    )
+
+    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}", "test", resolvers)
+
+    assertEquals(result.toLine, "org.typelevel::cats-core:{{catsVersion}}")
+  }
+
+  test("parse java dependency with variable version") {
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "jacksonVersion" -> { _ % "2.14.2" }
+    )
+
+    val result = Dependency.parse("com.fasterxml.jackson.core:jackson-core:{{jacksonVersion}}", "test", resolvers)
+
+    result.version match {
+      case v: Version.Variable =>
+        assertEquals(v.name, "jacksonVersion")
+        assertEquals(v.resolved.parts, List(2, 14, 2))
+      case _ =>
+        fail("Expected Variable version")
+    }
+    assertEquals(result.isCross, false)
   }
 
 }

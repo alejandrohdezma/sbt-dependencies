@@ -19,6 +19,7 @@ package com.alejandrohdezma.sbt.dependencies
 import scala.jdk.CollectionConverters._
 
 import sbt._
+import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.util.Logger
 
 import org.yaml.snakeyaml.Yaml
@@ -44,15 +45,20 @@ object DependenciesFile {
     *   The dependencies.yaml file to read.
     * @param group
     *   The group to read dependencies for.
+    * @param variableResolvers
+    *   The map of variable resolvers to use.
     * @return
     *   List of parsed dependencies for the specified group.
     */
-  def read(file: File, group: String)(implicit versionFinder: Utils.VersionFinder, logger: Logger): List[Dependency] =
+  def read(file: File, group: String, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
+      versionFinder: Utils.VersionFinder,
+      logger: Logger
+  ): List[Dependency] =
     if (!file.exists()) {
       logger.warn(s"${file.getName} not found. Run `initDependenciesFile` to create it from existing dependencies.")
       Nil
     } else {
-      readRaw(file).get(group).toList.flatten.map(Dependency.parse(_, group))
+      readRaw(file).get(group).toList.flatten.map(Dependency.parse(_, group, variableResolvers))
     }
 
   /** Writes dependencies for a specific group to the given YAML file.
@@ -66,7 +72,7 @@ object DependenciesFile {
     * @param dependencies
     *   The list of dependencies to write.
     */
-  def write(file: File, group: String, dependencies: List[Dependency]): Unit = {
+  def write(file: File, group: String, dependencies: List[Dependency]): Unit = if (dependencies.nonEmpty) {
     val existing = readRaw(file)
     val updated  = existing + (group -> dependencies.map(_.toLine).sorted)
 

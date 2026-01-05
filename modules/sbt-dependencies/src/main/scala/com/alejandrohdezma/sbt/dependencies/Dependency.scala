@@ -20,7 +20,9 @@ import scala.util.Try
 
 import sbt.Defaults.sbtPluginExtra
 import sbt.librarymanagement.CrossVersion
+import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.librarymanagement.ModuleID
+import sbt.librarymanagement.syntax._
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Eq._
@@ -70,11 +72,14 @@ final case class Dependency(
 
   /** Finds the latest version for this dependency.
     *
-    * @return
-    *   The latest version for this dependency.
+    * For numeric versions, finds the latest version matching the marker constraints. For variable versions, finds the
+    * latest stable version (variables always use NoMarker).
     */
   def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.Version.Numeric =
     version match {
+      case variable: Dependency.Version.Variable =>
+        Utils.findLatestVersion(this)(variable.resolved.isValidCandidate)
+
       case numeric: Dependency.Version.Numeric =>
         if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) numeric
         else {
@@ -168,23 +173,49 @@ object Dependency {
   val dependencyRegex = """^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$""".r
 
   /** Parses a dependency line into a dependency */
-  def parse(line: String, group: String)(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency =
+  def parse(
+      line: String,
+      group: String,
+      variableResolvers: Map[String, OrganizationArtifactName => ModuleID] = Map.empty
+  )(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency =
     line match {
       case dependencyRegex(org, sep, name, null, _) => // scalafix:ok
         Dependency.withLatestStableVersion(org, name, isCross = sep === "::", group)
-      case dependencyRegex(org, sep, name, Version(version), config) =>
+
+      case dependencyRegex(org, sep, name, Version.Variable.regex(variable), config) =>
+        variableResolvers
+          .get(variable)
+          .map(_(if (sep === "::") org %% name else org % name))
+          .map(_.revision)
+          .flatMap(Version.Numeric.unapply)
+          .map(Version.Variable(variable, _))
+          .map(Dependency(org, name, _, sep === "::", group, Option(config).getOrElse("compile")))
+          .getOrElse {
+            val available =
+              if (variableResolvers.isEmpty) "(none defined)"
+              else variableResolvers.keys.mkString(", ")
+            Utils.fail {
+              s"Variable '{{$variable}}' not found in dependencyVersionVariables. Available: $available"
+            }
+          }
+
+      case dependencyRegex(org, sep, name, Version.Numeric(version), config) =>
         Dependency(org, name, version, isCross = sep === "::", group, Option(config).getOrElse("compile"))
+
       case _ =>
         Utils.fail(s"$line is not a valid dependency")
     }
 
-  /** A version specification for a dependency. */
+  /** A version specification for a dependency.
+    *
+    * Can be either a numeric version (e.g., `1.2.3`) or a variable reference (e.g., `{{myVar}}`).
+    */
   sealed trait Version {
 
-    /** Full string representation (with marker prefix for numeric). */
+    /** Full string representation (with marker prefix for numeric, with braces for variable). */
     def show: String
 
-    /** Version string for display purposes. */
+    /** Version string for display purposes (numeric version or resolved version for variables). */
     def toVersionString: String
 
   }
@@ -312,8 +343,31 @@ object Dependency {
 
     }
 
-    /** Parses a version string into a Version. */
-    def unapply(version: String): Option[Version] = Numeric.unapply(version)
+    /** A variable-based version that references a resolver defined in build settings.
+      *
+      * @param name
+      *   The variable name (without braces).
+      * @param resolved
+      *   The resolved numeric version from the resolver function.
+      */
+    final case class Variable(name: String, resolved: Numeric) extends Version {
+
+      /** Full string representation with braces. */
+      def show: String = s"{{$name}}"
+
+      /** Version string for display - returns the resolved version. */
+      def toVersionString: String = resolved.toVersionString
+
+    }
+
+    object Variable {
+
+      /** Regex for variable references. Only allows alphanumeric characters and underscores. */
+      val regex = """\{\{(\w+)\}\}""".r
+
+      implicit val VariableEq: Eq[Variable] = (a, b) => a.name === b.name && a.resolved === b.resolved
+
+    }
 
   }
 
