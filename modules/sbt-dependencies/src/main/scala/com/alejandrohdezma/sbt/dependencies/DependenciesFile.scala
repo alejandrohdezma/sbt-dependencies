@@ -74,7 +74,7 @@ object DependenciesFile {
     */
   def write(file: File, group: String, dependencies: List[Dependency]): Unit = if (dependencies.nonEmpty) {
     val existing = readRaw(file)
-    val updated  = existing + (group -> dependencies.map(_.toLine).sorted)
+    val updated  = existing + (group -> dependencies.distinct.sorted.map(_.toLine))
 
     val content = updated.toList
       .sortBy(_._1)
