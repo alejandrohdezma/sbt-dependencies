@@ -51,6 +51,15 @@ final case class Dependency(
     configuration: String = "compile"
 ) {
 
+  override def hashCode: Int = (organization, name, isCross, group, configuration).hashCode // scalafix:ok
+
+  override def equals(other: Any): Boolean = other match { // scalafix:ok
+    case other: Dependency =>
+      organization === other.organization && name === other.name && isCross === other.isCross &&
+      group === other.group && configuration === other.configuration
+    case _ => false
+  }
+
   /** Returns a copy of this dependency with the given version. */
   def withVersion(version: Dependency.Version): Dependency = copy(version = version)
 
@@ -141,6 +150,9 @@ object Dependency {
 
   /** Known Scala version suffixes for artifact names */
   val scalaVersionSuffixes: List[String] = List("2.13", "2.12", "2.11", "2.10", "3")
+
+  /** Ordering for dependencies: first by configuration, then by toLine. */
+  implicit val DependencyOrdering: Ordering[Dependency] = Ordering.by(d => (d.configuration, d.toLine))
 
   /** Creates a dependency with the latest stable version resolved from Coursier. */
   def withLatestStableVersion(

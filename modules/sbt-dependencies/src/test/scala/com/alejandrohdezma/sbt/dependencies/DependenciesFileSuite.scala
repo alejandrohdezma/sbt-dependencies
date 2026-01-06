@@ -168,11 +168,56 @@ class DependenciesFileSuite extends munit.FunSuite {
          |  - org.typelevel::cats-core:2.10.0
          |
          |sbt-build:
-         |  - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
          |  - io.get-coursier::coursier:2.1.24
+         |  - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
          |""".stripMargin
 
     assertEquals(content, expected)
+  }
+
+  withDependenciesFile("").test("write sorts dependencies by configuration then alphabetically") { file =>
+    val dependencies = List(
+      Dependency(
+        "org",
+        "z-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group",
+        "test"
+      ),
+      Dependency(
+        "org",
+        "a-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group",
+        "compile"
+      ),
+      Dependency(
+        "org",
+        "m-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group",
+        "test"
+      ),
+      Dependency(
+        "org",
+        "b-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group",
+        "compile"
+      )
+    )
+
+    DependenciesFile.write(file, "group", dependencies)
+
+    val content  = IO.read(file)
+    val depOrder = content.linesIterator.filter(_.startsWith("  - ")).map(_.drop(4)).toList
+
+    // compile deps first (a-lib, b-lib), then test deps (m-lib, z-lib)
+    assertEquals(depOrder, List("org:a-lib:1.0.0", "org:b-lib:1.0.0", "org:m-lib:1.0.0:test", "org:z-lib:1.0.0:test"))
   }
 
   withDependenciesFile("").test("write then read round-trip preserves dependencies") { file =>
@@ -422,6 +467,39 @@ class DependenciesFileSuite extends munit.FunSuite {
     assert(content.contains("org.typelevel::cats-core:2.10.0"), "Expected existing dependency to be preserved")
     assert(content.contains("new-group:"), "Expected new group to be added")
     assert(content.contains("org.scalameta::munit:1.0.0:test"), "Expected new dependency to be added")
+  }
+
+  withDependenciesFile("").test("write removes duplicate dependencies") { file =>
+    val dependencies = List(
+      Dependency(
+        "org",
+        "lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group"
+      ),
+      Dependency(
+        "org",
+        "lib",
+        Version.Numeric(List(2, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group"
+      ), // duplicate artifact, different version
+      Dependency(
+        "org",
+        "other",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "group"
+      )
+    )
+
+    DependenciesFile.write(file, "group", dependencies)
+
+    val content  = IO.read(file)
+    val depCount = content.linesIterator.count(_.startsWith("  - "))
+
+    assertEquals(depCount, 2) // Only 2 unique artifacts
   }
 
 }
