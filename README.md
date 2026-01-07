@@ -5,7 +5,7 @@ Manage SBT dependencies from a single YAML file with version markers, auto-updat
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.2.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.3.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to 
@@ -15,7 +15,7 @@ addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.2.0")
 
 ### The `dependencies.yaml` file
 
-Create a `project/dependencies.yaml` file listing your dependencies (or run `initDependenciesFile` to generate it from your existing `libraryDependencies`):
+Create a `project/dependencies.yaml` file listing your dependencies:
 
 ```yaml
 sbt-build:
@@ -33,6 +33,8 @@ Groups correspond to:
 - `<project-name>`: Dependencies for a specific project (matches the SBT project name)
 
 The plugin automatically populates `libraryDependencies` for each project based on its group.
+
+> **Tip:** Run `initDependenciesFile` to automatically generate this file from your existing `libraryDependencies` and `addSbtPlugin` settings.
 
 ### Dependency format
 
@@ -74,7 +76,56 @@ Control how dependencies are updated using version markers:
 | `^` | `^2.10.0` | Update within major version only (2.x.x) |
 | `~` | `~2.10.0` | Update within minor version only (2.10.x) |
 
+### Variable versions
+
+You can use variable syntax to reference versions defined (or computed) in your build:
+
+```yaml
+my-project:
+  - org.typelevel::cats-core:{{catsVersion}}
+  - org.typelevel::cats-effect:{{catsVersion}}
+```
+
+Define variable resolvers in your `build.sbt`:
+
+```scala
+dependencyVersionVariables := Map(
+  "catsVersion" -> { artifact => artifact % "2.10.0" }
+)
+```
+
+When running `updateDependencies`, variable-based dependencies show their resolved version and the latest available version, but the variable reference is preserved in the YAML file.
+
+#### Example: Using with [here-sbt-bom](https://github.com/heremaps/here-sbt-bom)
+
+The `here-sbt-bom` plugin reads Maven BOM files and exposes version constants. You can reference these in your `dependencies.yaml`:
+
+```yaml
+my-project:
+  - com.fasterxml.jackson.core:jackson-core:{{jackson}}
+  - com.fasterxml.jackson.core:jackson-databind:{{jackson}}
+```
+
+```scala
+// build.sbt
+val jacksonBom = Bom("com.fasterxml.jackson" % "jackson-bom" % "2.14.2")
+
+dependencyVersionVariables := Map(
+  "jackson" -> { artifact => artifact % jacksonBom.key.value }
+)
+```
+
 ## Commands & Tasks
+
+### `initDependenciesFile`
+
+Creates (or recreates) the `dependencies.yaml` file based on your current `libraryDependencies` and `addSbtPlugin` settings. This is useful when migrating an existing project to use this plugin.
+
+```bash
+sbt> initDependenciesFile
+```
+
+After running this command, remember to remove the `libraryDependencies +=` and `addSbtPlugin` lines from your build files, as the plugin will now manage them via `dependencies.yaml`.
 
 ### `showLibraryDependencies`
 
@@ -139,20 +190,6 @@ Updates the `sbt-dependencies` plugin itself in `project/project/plugins.sbt`.
 ```bash
 sbt> updateSbtDependenciesPlugin
 ```
-
-### `initDependenciesFile`
-
-Creates (or recreates) the `project/dependencies.yaml` file based on your current `libraryDependencies`. This is useful when first adopting the plugin or when you want to migrate existing dependencies from `build.sbt` to the YAML format.
-
-```bash
-sbt> initDependenciesFile
-```
-
-The command will:
-- Read all `libraryDependencies` from your projects
-- Create groups for each project (using the project name)
-- Also populate the `sbt-build` group with your SBT plugins
-- Preserve any existing dependencies in groups that aren't being updated
 
 ## Contributors to this project
 
