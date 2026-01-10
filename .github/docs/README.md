@@ -126,17 +126,18 @@ sbt-build:
     - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
 
 my-project:
-  scala-versions:
-    - 3.3.1
+  scala-version: 3.3.1
   dependencies:
     - org.typelevel::cats-core:2.10.0
 ```
 
+Use `scala-version` (singular) for a single version or `scala-versions` (plural) for cross-building.
+
 **Behavior:**
-- The first version in `scala-versions` becomes `scalaVersion`
+- The first version becomes `scalaVersion`
 - All versions become `crossScalaVersions`
-- `scala-versions` in the `sbt-build` group applies at the build level (`ThisBuild / scalaVersion` and `ThisBuild / crossScalaVersions`)
-- `scala-versions` in individual project groups overrides the build-level settings for that project
+- `scala-version`/`scala-versions` in the `sbt-build` group applies at the build level (`ThisBuild / scalaVersion` and `ThisBuild / crossScalaVersions`)
+- `scala-version`/`scala-versions` in individual project groups overrides the build-level settings for that project
 
 This allows you to set a default Scala version for all projects while letting specific projects use different versions.
 

@@ -33,9 +33,11 @@ sealed trait GroupConfig {
       s"$group:\n${deps.map(d => s"  - $d").mkString("\n")}"
 
     case GroupConfig.Advanced(deps, versions) =>
-      val scalaVersionsSection =
-        if (versions.nonEmpty) s"  scala-versions:\n${versions.map(v => s"    - $v").mkString("\n")}\n"
-        else ""
+      val scalaVersionsSection = versions match {
+        case Nil           => ""
+        case single :: Nil => s"  scala-version: $single\n"
+        case multiple      => s"  scala-versions:\n${multiple.map(v => s"    - $v").mkString("\n")}\n"
+      }
 
       val depsSection =
         if (deps.nonEmpty) s"  dependencies:\n${deps.map(d => s"    - $d").mkString("\n")}"
@@ -62,11 +64,13 @@ object GroupConfig {
         case None                          => Right(Nil)
       }
 
-      val scalaVersions = scalaMap.get("scala-versions") match {
-        case Some(list: java.util.List[_]) if list.isEmpty() => Left("'scala-versions' cannot be empty")
-        case Some(list: java.util.List[_])                   => Right(list.asScala.toList.map(_.toString)) // scalafix:ok
-        case Some(other)                                     => Left(s"'scala-versions' must be a list, got ${other.getClass.getSimpleName}")
-        case None                                            => Right(Nil)
+      val scalaVersions = (scalaMap.get("scala-versions"), scalaMap.get("scala-version")) match {
+        case (Some(list: java.util.List[_]), _) if list.isEmpty() => Left("'scala-versions' cannot be empty")
+        case (Some(list: java.util.List[_]), _)                   => Right(list.asScala.toList.map(_.toString)) // scalafix:ok
+        case (Some(other), _)                                     => Left(s"'scala-versions' must be a list, got ${other.getClass.getSimpleName}")
+        case (None, Some(version: String))                        => Right(List(version))
+        case (None, Some(other))                                  => Left(s"'scala-version' must be a string, got ${other.getClass.getSimpleName}")
+        case (None, None)                                         => Right(Nil)
       }
 
       dependencies.flatMap(dependencies => scalaVersions.map(Advanced(dependencies, _)))
