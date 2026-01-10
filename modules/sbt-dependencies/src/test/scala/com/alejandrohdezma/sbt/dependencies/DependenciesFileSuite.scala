@@ -982,4 +982,42 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(deps.head.name, "cats-core")
   }
 
+  // --- hasGroup tests ---
+
+  withDependenciesFile {
+    """|my-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |
+       |other-project:
+       |  - org.scalameta::munit:1.2.1:test
+       |""".stripMargin
+  }.test("hasGroup returns true for existing group") { file =>
+    assert(DependenciesFile.hasGroup(file, "my-project"))
+    assert(DependenciesFile.hasGroup(file, "other-project"))
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("hasGroup returns false for non-existent group") { file =>
+    assert(!DependenciesFile.hasGroup(file, "non-existent"))
+  }
+
+  nonExistentFile.test("hasGroup returns false for non-existent file") { file =>
+    assert(!DependenciesFile.hasGroup(file, "any-group"))
+  }
+
+  withDependenciesFile("").test("hasGroup returns false for empty file") { file =>
+    assert(!DependenciesFile.hasGroup(file, "any-group"))
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies: []
+       |""".stripMargin
+  }.test("hasGroup returns true for group with empty dependencies") { file =>
+    assert(DependenciesFile.hasGroup(file, "my-project"))
+  }
+
 }

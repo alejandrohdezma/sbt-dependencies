@@ -37,10 +37,13 @@ class Tasks {
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
+    val groupExists  = DependenciesFile.hasGroup(file, group)
     val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
     val filter       = updateFilterParser.parsed
 
-    if (dependencies.isEmpty) {
+    if (!groupExists) {
+      // Group not in YAML file - silently skip
+    } else if (dependencies.isEmpty) {
       logger.info(s"\n🫙  No dependencies found for `$group`\n")
     } else {
       logger.info(s"\n🔄 Updating ${filter.show} dependencies for `$group`\n")
@@ -151,11 +154,14 @@ class Tasks {
     implicit val logger: Logger                     = streams.value.log
     implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
 
-    val file     = Settings.dependenciesFile.value
-    val group    = Settings.currentGroup.value
-    val versions = DependenciesFile.readScalaVersions(file, group)
+    val file        = Settings.dependenciesFile.value
+    val group       = Settings.currentGroup.value
+    val groupExists = DependenciesFile.hasGroup(file, group)
+    val versions    = DependenciesFile.readScalaVersions(file, group)
 
-    if (versions.isEmpty) {
+    if (!groupExists) {
+      // Group not in YAML file - silently skip
+    } else if (versions.isEmpty) {
       logger.info(s"\n🫙  No scala-versions configured for `$group`\n")
     } else {
       logger.info(s"\n🔄 Updating Scala versions for `$group`\n")
