@@ -105,6 +105,35 @@ object DependenciesFile {
   def readScalaVersions(file: File, group: String)(implicit logger: Logger): List[String] =
     readRaw(file).get(group).map(_.scalaVersions).getOrElse(Nil)
 
+  /** Writes Scala versions for a specific group to the given YAML file.
+    *
+    * Other groups and dependencies in the file are preserved.
+    *
+    * @param file
+    *   The target file.
+    * @param group
+    *   The group to write Scala versions for.
+    * @param scalaVersions
+    *   The list of Scala versions to write.
+    */
+  def writeScalaVersions(file: File, group: String, scalaVersions: List[String])(implicit logger: Logger): Unit = {
+    val existingConfigs = readRaw(file)
+
+    val newConfig = existingConfigs.get(group) match {
+      case Some(existing) => GroupConfig.Advanced(existing.dependencies, scalaVersions)
+      case None           => GroupConfig.Advanced(Nil, scalaVersions)
+    }
+
+    val updated = existingConfigs + (group -> newConfig)
+
+    val content = updated.toList
+      .sortBy(_._1)
+      .map { case (g, config) => config.format(g) }
+      .mkString("\n\n")
+
+    IO.write(file, content + "\n")
+  }
+
   /** Reads the raw YAML file as a map of group names to group configurations.
     *
     * Supports two formats:

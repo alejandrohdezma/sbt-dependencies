@@ -880,4 +880,110 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(advancedVersions, List("3.3.1"))
   }
 
+  // --- writeScalaVersions tests ---
+
+  withDependenciesFile("").test("writeScalaVersions creates advanced format with scala-versions") { file =>
+    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.12", "2.12.18"))
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project:
+         |  scala-versions:
+         |    - 2.13.12
+         |    - 2.12.18
+         |  dependencies: []
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("writeScalaVersions preserves existing dependencies from simple format") { file =>
+    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.12"))
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project:
+         |  scala-versions:
+         |    - 2.13.12
+         |  dependencies:
+         |    - org.typelevel::cats-core:2.10.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  scala-versions:
+       |    - 2.12.18
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("writeScalaVersions updates existing scala-versions") { file =>
+    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.14", "3.3.3"))
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project:
+         |  scala-versions:
+         |    - 2.13.14
+         |    - 3.3.3
+         |  dependencies:
+         |    - org.typelevel::cats-core:2.10.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|other-project:
+       |  - org.scalameta::munit:1.2.1:test
+       |""".stripMargin
+  }.test("writeScalaVersions preserves other groups") { file =>
+    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.12"))
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project:
+         |  scala-versions:
+         |    - 2.13.12
+         |  dependencies: []
+         |
+         |other-project:
+         |  - org.scalameta::munit:1.2.1:test
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  scala-versions:
+       |    - 2.13.12
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("writeScalaVersions then readScalaVersions round-trip") { file =>
+    val originalVersions = DependenciesFile.readScalaVersions(file, "my-project")
+    assertEquals(originalVersions, List("2.13.12"))
+
+    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.14", "3.3.3"))
+
+    val updatedVersions = DependenciesFile.readScalaVersions(file, "my-project")
+    assertEquals(updatedVersions, List("2.13.14", "3.3.3"))
+
+    // Verify dependencies are still preserved
+    val deps = DependenciesFile.read(file, "my-project", variableResolvers)
+    assertEquals(deps.length, 1)
+    assertEquals(deps.head.name, "cats-core")
+  }
+
 }

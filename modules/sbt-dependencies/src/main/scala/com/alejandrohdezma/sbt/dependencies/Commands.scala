@@ -31,7 +31,7 @@ class Commands {
   /** All commands provided by this plugin. */
   val all = Seq(
     initDependenciesFile, updateAllDependencies, updateSbtDependenciesPlugin, updateBuildDependencies,
-    installBuildDependencies, updateSbt
+    installBuildDependencies, updateSbt, updateBuildScalaVersions
   )
 
   /** Creates (or recreates) the dependencies.yaml file based on current project dependencies. */
@@ -72,13 +72,16 @@ class Commands {
       logger.info("💡 Remember to remove any `libraryDependencies +=` or `addSbtPlugin` settings from your build files")
       state
     } else {
-      runCommand("reload plugins; initDependenciesFile; reload return")(state)
+      runCommand("reload plugins", "initDependenciesFile", "reload return")(state)
     }
   }
 
-  /** Updates all dependencies: plugin, build dependencies, project dependencies, and SBT version. */
+  /** Updates everything: plugin, Scala versions, dependencies, and SBT version. */
   lazy val updateAllDependencies = Command.command("updateAllDependencies") { state =>
-    runCommand("updateSbtDependenciesPlugin; updateBuildDependencies; updateDependencies; reload; updateSbt")(state)
+    runCommand(
+      "updateSbtDependenciesPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalaVersions",
+      "updateDependencies", "reload", "updateSbt"
+    )(state)
   }
 
   /** Updates the sbt-dependencies plugin itself in `project/project/plugins.sbt`. */
@@ -138,12 +141,17 @@ class Commands {
 
   /** Updates dependencies in the meta-build (project/dependencies). */
   lazy val updateBuildDependencies = Command.command("updateBuildDependencies") { state =>
-    runCommand("reload plugins; updateDependencies; reload return")(state)
+    runCommand("reload plugins", "updateDependencies", "reload return")(state)
+  }
+
+  /** Updates Scala versions in the meta-build (project/dependencies). */
+  lazy val updateBuildScalaVersions = Command.command("updateBuildScalaVersions") { state =>
+    runCommand("reload plugins", "updateScalaVersions", "reload return")(state)
   }
 
   /** Installs a dependency in the meta-build (project/dependencies). */
   lazy val installBuildDependencies = Command.single("installBuildDependencies") { case (state, dependency) =>
-    runCommand(s"reload plugins; install $dependency; reload return")(state)
+    runCommand("reload plugins", s"install $dependency", "reload return")(state)
   }
 
   /** Updates SBT version in `project/build.properties` to the latest version. */
@@ -198,10 +206,10 @@ class Commands {
     }
   }
 
-  private def runCommand(command: String)(state: State): State = {
+  private def runCommand(commands: String*)(state: State): State = {
     implicit val logger: Logger = state.log
 
-    Parser.parse(command, state.combinedParser) match {
+    Parser.parse(commands.mkString("; "), state.combinedParser) match {
       case Right(cmd) => cmd()
       case Left(err)  => Utils.fail(s"Failed to parse command: $err")
     }

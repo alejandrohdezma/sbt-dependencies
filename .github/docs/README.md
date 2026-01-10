@@ -221,7 +221,7 @@ sbt> installBuildDependencies ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
 
 ### `updateAllDependencies`
 
-Updates everything: the plugin itself, build dependencies, project dependencies, and SBT version.
+Updates everything: the plugin itself, Scala versions, dependencies, and SBT version.
 
 ```bash
 sbt> updateAllDependencies
@@ -241,6 +241,27 @@ Updates the SBT version in `project/build.properties` to the latest version. If 
 
 ```bash
 sbt> updateSbt
+```
+
+### `updateScalaVersions`
+
+Updates Scala versions in the current project to their latest versions within the same minor line.
+
+```bash
+sbt> updateScalaVersions
+```
+
+Each version is updated within its minor line:
+- `2.13.12` → latest `2.13.x`
+- `2.12.18` → latest `2.12.x`
+- `3.3.1` → latest `3.3.x`
+
+### `updateBuildScalaVersions`
+
+Updates Scala versions in the `sbt-build` group (build-level settings).
+
+```bash
+sbt> updateBuildScalaVersions
 ```
 
 ## Contributors to this project
