@@ -107,6 +107,48 @@ class GroupConfigSuite extends munit.FunSuite {
     assertEquals(result, Right(GroupConfig.Advanced(List("dep1"), Nil)))
   }
 
+  // --- parse() tests: scala-version (singular) alias ---
+
+  test("parse advanced format with scala-version (singular)") {
+    val input  = yaml.load[Object]("scala-version: 2.13.12")
+    val result = GroupConfig.parse(input)
+
+    assertEquals(result, Right(GroupConfig.Advanced(Nil, List("2.13.12"))))
+  }
+
+  test("parse advanced format with scala-version and dependencies") {
+    val input = yaml.load[Object](
+      """|scala-version: 3.3.1
+         |dependencies:
+         |  - org.typelevel::cats-core:2.10.0
+         |""".stripMargin
+    )
+    val result = GroupConfig.parse(input)
+
+    assertEquals(result, Right(GroupConfig.Advanced(List("org.typelevel::cats-core:2.10.0"), List("3.3.1"))))
+  }
+
+  test("parse prefers scala-versions over scala-version when both present") {
+    val input = yaml.load[Object](
+      """|scala-versions:
+         |  - 2.13.12
+         |  - 2.12.18
+         |scala-version: 3.3.1
+         |""".stripMargin
+    )
+    val result = GroupConfig.parse(input)
+
+    assertEquals(result, Right(GroupConfig.Advanced(Nil, List("2.13.12", "2.12.18"))))
+  }
+
+  test("parse returns error for invalid scala-version type") {
+    val input  = yaml.load[Object]("scala-version: [2.13.12]")
+    val result = GroupConfig.parse(input)
+
+    assert(result.isLeft)
+    assert(result.left.exists(_.contains("must be a string")))
+  }
+
   // --- parse() tests: Error cases ---
 
   test("parse returns error for empty scalaVersions list") {
@@ -233,6 +275,19 @@ class GroupConfigSuite extends munit.FunSuite {
     val expected =
       """|empty-project:
          |  dependencies: []""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Advanced with single scalaVersion uses singular key") {
+    val config = GroupConfig.Advanced(List("dep1"), List("2.13.12"))
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project:
+         |  scala-version: 2.13.12
+         |  dependencies:
+         |    - dep1""".stripMargin
 
     assertEquals(result, expected)
   }

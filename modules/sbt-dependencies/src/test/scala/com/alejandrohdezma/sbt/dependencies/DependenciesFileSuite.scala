@@ -837,8 +837,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile {
     """|my-project:
-       |  scala-versions:
-       |    - 2.13.12
+       |  scala-version: 2.13.12
        |  dependencies:
        |    - org.typelevel::cats-core:2.10.0
        |""".stripMargin
@@ -853,8 +852,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     val expected =
       """|my-project:
-         |  scala-versions:
-         |    - 2.13.12
+         |  scala-version: 2.13.12
          |  dependencies:
          |    - org.typelevel::cats-core:2.10.0
          |""".stripMargin
@@ -909,8 +907,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     val expected =
       """|my-project:
-         |  scala-versions:
-         |    - 2.13.12
+         |  scala-version: 2.13.12
          |  dependencies:
          |    - org.typelevel::cats-core:2.10.0
          |""".stripMargin
@@ -953,8 +950,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     val expected =
       """|my-project:
-         |  scala-versions:
-         |    - 2.13.12
+         |  scala-version: 2.13.12
          |  dependencies: []
          |
          |other-project:
