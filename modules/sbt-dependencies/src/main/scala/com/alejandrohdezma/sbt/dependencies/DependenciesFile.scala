@@ -58,12 +58,12 @@ object DependenciesFile {
       logger.warn(s"${file.getName} not found. Run `initDependenciesFile` to create it from existing dependencies.")
       Nil
     } else {
-      readRaw(file).get(group).toList.flatten.map(Dependency.parse(_, group, variableResolvers))
+      readRaw(file).get(group).map(_.dependencies).toList.flatten.map(Dependency.parse(_, group, variableResolvers))
     }
 
   /** Writes dependencies for a specific group to the given YAML file.
     *
-    * Other groups in the file are preserved.
+    * Other groups in the file are preserved. The format (simple vs advanced) of existing groups is preserved.
     *
     * @param file
     *   The target file.
@@ -72,28 +72,47 @@ object DependenciesFile {
     * @param dependencies
     *   The list of dependencies to write.
     */
-  def write(file: File, group: String, dependencies: List[Dependency]): Unit = if (dependencies.nonEmpty) {
-    val existing = readRaw(file)
-    val updated  = existing + (group -> dependencies.distinct.sorted.map(_.toLine))
+  def write(file: File, group: String, dependencies: List[Dependency])(implicit logger: Logger): Unit =
+    if (dependencies.nonEmpty) {
+      val existingConfigs = readRaw(file)
 
-    val content = updated.toList
-      .sortBy(_._1)
-      .map { case (g, lines) =>
-        s"$g:\n${lines.map(d => s"  - $d").mkString("\n")}"
+      val dependencyLines = dependencies.distinct.sorted.map(_.toLine)
+
+      val newConfig = existingConfigs.get(group) match {
+        case Some(_: GroupConfig.Advanced) => GroupConfig.Advanced(dependencyLines)
+        case _                             => GroupConfig.Simple(dependencyLines)
       }
-      .mkString("\n\n")
 
-    IO.write(file, content + "\n")
-  }
+      val updated = existingConfigs + (group -> newConfig)
 
-  /** Reads the raw YAML file as a map of group names to dependency lines. */
-  private def readRaw(file: File): Map[String, List[String]] =
+      val content = updated.toList
+        .sortBy(_._1)
+        .map { case (g, config) => config.format(g) }
+        .mkString("\n\n")
+
+      IO.write(file, content + "\n")
+    }
+
+  /** Reads the raw YAML file as a map of group names to group configurations.
+    *
+    * Supports two formats:
+    *   - Simple: group maps to list of strings
+    *   - Advanced: group maps to object with "dependencies" key
+    */
+  private def readRaw(file: File)(implicit logger: Logger): Map[String, GroupConfig] =
     if (!file.exists()) Map.empty
     else {
       val yaml = new Yaml()
-      Option(yaml.load[java.util.Map[String, java.util.List[String]]](IO.read(file)))
-        .map(_.asScala.toMap.map { case (k, v) => k -> v.asScala.toList })
+
+      Option(yaml.load[java.util.Map[String, Object]](IO.read(file)))
+        .map(_.asScala.toMap)
         .getOrElse(Map.empty)
+        .map { case (group, value) =>
+          GroupConfig.parse(value) match {
+            case Right(config) => group -> config
+            case Left(error)   => Utils.fail(s"Failed to parse group `$group`: $error")
+          }
+        }
     }
 
 }

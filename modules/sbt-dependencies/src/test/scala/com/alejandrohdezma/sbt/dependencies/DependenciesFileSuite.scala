@@ -502,4 +502,223 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(depCount, 2) // Only 2 unique artifacts
   }
 
+  // --- Advanced format tests ---
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |    - org.scalameta::munit:1.2.1:test
+       |""".stripMargin
+  }.test("read advanced format YAML file") { file =>
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    assertEquals(result.length, 2)
+    assertEquals(result.map(_.name).sorted, List("cats-core", "munit"))
+  }
+
+  withDependenciesFile {
+    """|simple-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |
+       |advanced-project:
+       |  dependencies:
+       |    - org.scalameta::munit:1.2.1:test
+       |""".stripMargin
+  }.test("read mixed format YAML file") { file =>
+    val simple   = DependenciesFile.read(file, "simple-project", variableResolvers)
+    val advanced = DependenciesFile.read(file, "advanced-project", variableResolvers)
+
+    assertEquals(simple.length, 1)
+    assertEquals(simple.head.name, "cats-core")
+    assertEquals(advanced.length, 1)
+    assertEquals(advanced.head.name, "munit")
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies: []
+       |""".stripMargin
+  }.test("read advanced format with empty dependencies") { file =>
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    assertEquals(result, List.empty)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("write preserves simple format") { file =>
+    val newDeps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-effect",
+        Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "my-project"
+      )
+    )
+
+    DependenciesFile.write(file, "my-project", newDeps)
+
+    val content = IO.read(file)
+
+    assert(!content.contains("  dependencies:"), "Should preserve simple format")
+    assert(content.contains("  - org.typelevel::cats-effect:3.5.0"))
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("write preserves advanced format") { file =>
+    val newDeps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-effect",
+        Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "my-project"
+      )
+    )
+
+    DependenciesFile.write(file, "my-project", newDeps)
+
+    val content = IO.read(file)
+
+    assert(content.contains("  dependencies:"), "Should preserve advanced format")
+    assert(content.contains("    - org.typelevel::cats-effect:3.5.0"))
+  }
+
+  withDependenciesFile {
+    """|simple-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |
+       |advanced-project:
+       |  dependencies:
+       |    - org.scalameta::munit:1.2.1:test
+       |""".stripMargin
+  }.test("write preserves format in mixed file") { file =>
+    val simpleDeps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-effect",
+        Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "simple-project"
+      )
+    )
+    val advancedDeps = List(
+      Dependency(
+        "org.scalatest",
+        "scalatest",
+        Version.Numeric(List(3, 2, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "advanced-project",
+        "test"
+      )
+    )
+
+    DependenciesFile.write(file, "simple-project", simpleDeps)
+    DependenciesFile.write(file, "advanced-project", advancedDeps)
+
+    val content = IO.read(file)
+
+    // Simple project should NOT have nested dependencies key
+    val simpleSection = content.split("\n\n").find(_.startsWith("simple-project:")).get
+    assert(!simpleSection.contains("dependencies:"), "Simple should stay simple")
+
+    // Advanced project SHOULD have nested dependencies key
+    val advancedSection = content.split("\n\n").find(_.startsWith("advanced-project:")).get
+    assert(advancedSection.contains("  dependencies:"), "Advanced should stay advanced")
+  }
+
+  withDependenciesFile("").test("write then read round-trip preserves advanced format") { file =>
+    val deps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "my-project"
+      )
+    )
+
+    // First write in simple format (default)
+    DependenciesFile.write(file, "my-project", deps)
+
+    // Now manually create an advanced format file
+    IO.write(
+      file,
+      """|my-project:
+         |  dependencies:
+         |    - org.typelevel::cats-core:2.10.0
+         |""".stripMargin
+    )
+
+    // Write again - should preserve advanced format
+    DependenciesFile.write(file, "my-project", deps)
+
+    val content = IO.read(file)
+    assert(content.contains("  dependencies:"), "Should preserve advanced format after write")
+
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+    assertEquals(result.length, 1)
+    assertEquals(result.head.name, "cats-core")
+  }
+
+  withDependenciesFile("").test("write new group uses simple format") { file =>
+    val deps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "new-project"
+      )
+    )
+
+    DependenciesFile.write(file, "new-project", deps)
+
+    val content = IO.read(file)
+    assert(!content.contains("  dependencies:"), "New groups should use simple format")
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |  unknownField: someValue
+       |""".stripMargin
+  }.test("read ignores unknown fields in advanced format") { file =>
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    assertEquals(result.length, 1)
+    assertEquals(result.head.name, "cats-core")
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies:
+       |    - org.typelevel::cats-core:=2.10.0
+       |    - org.typelevel::cats-effect:^3.5.0
+       |""".stripMargin
+  }.test("read advanced format preserves version markers") { file =>
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    val catsCore = result.find(_.name === "cats-core").get
+    catsCore.version match {
+      case v: Version.Numeric => assertEquals(v.marker, Version.Numeric.Marker.Exact)
+      case _                  => fail("Expected Numeric version")
+    }
+
+    val catsEffect = result.find(_.name === "cats-effect").get
+    catsEffect.version match {
+      case v: Version.Numeric => assertEquals(v.marker, Version.Numeric.Marker.Major)
+      case _                  => fail("Expected Numeric version")
+    }
+  }
+
 }
