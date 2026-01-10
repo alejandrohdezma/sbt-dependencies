@@ -52,6 +52,28 @@ class Settings {
     DependenciesFile.read(dependenciesFile.value, currentGroup.value, variableResolvers)
   }
 
+  /** Scala versions from the sbt-build group (only in normal build, not meta-build). */
+  val buildScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
+    implicit val logger: Logger = sLog.value
+
+    if (isSbtBuild.value) crossScalaVersions.value
+    else {
+      val versions = DependenciesFile.readScalaVersions(dependenciesFile.value, "sbt-build")
+      if (versions.nonEmpty) versions else (ThisBuild / crossScalaVersions).value
+    }
+  }
+
+  /** Scala versions from the current project's group (only in normal build, not meta-build). */
+  val projectScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
+    implicit val logger: Logger = sLog.value
+
+    if (isSbtBuild.value) crossScalaVersions.value
+    else {
+      val versions = DependenciesFile.readScalaVersions(dependenciesFile.value, currentGroup.value)
+      if (versions.nonEmpty) versions else (ThisBuild / crossScalaVersions).value
+    }
+  }
+
   /** Gets the inherited dependencies from other projects (recursively). */
   val inheritedDependencies = Def.settingDyn {
     thisProject.value.dependencies.foldLeft(Def.setting(Seq.empty[ModuleID])) { (acc, classPathDependency) =>

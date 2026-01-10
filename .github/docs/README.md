@@ -96,6 +96,50 @@ dependencyVersionVariables := Map(
 
 When running `updateDependencies`, variable-based dependencies show their resolved version and the latest available version, but the variable reference is preserved in the YAML file.
 
+### Advanced format
+
+Groups support an advanced format that enables additional configuration beyond just listing dependencies:
+
+```yaml
+my-project:
+  scala-versions:
+    - 2.13.12
+    - 2.12.18
+    - 3.3.1
+  dependencies:
+    - org.typelevel::cats-core:2.10.0
+    - org.scalameta::munit:1.2.1:test
+```
+
+The simple format (array of dependencies) and advanced format (object with `dependencies` key) can be mixed in the same file.
+
+### Scala versions
+
+You can configure `scalaVersion` and `crossScalaVersions` directly in `dependencies.yaml` using the advanced format:
+
+```yaml
+sbt-build:
+  scala-versions:
+    - 2.13.12
+    - 2.12.18
+  dependencies:
+    - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
+
+my-project:
+  scala-versions:
+    - 3.3.1
+  dependencies:
+    - org.typelevel::cats-core:2.10.0
+```
+
+**Behavior:**
+- The first version in `scala-versions` becomes `scalaVersion`
+- All versions become `crossScalaVersions`
+- `scala-versions` in the `sbt-build` group applies at the build level (`ThisBuild / scalaVersion` and `ThisBuild / crossScalaVersions`)
+- `scala-versions` in individual project groups overrides the build-level settings for that project
+
+This allows you to set a default Scala version for all projects while letting specific projects use different versions.
+
 #### Example: Using with [here-sbt-bom](https://github.com/heremaps/here-sbt-bom)
 
 The `here-sbt-bom` plugin reads Maven BOM files and exposes version constants. You can reference these in your `dependencies.yaml`:

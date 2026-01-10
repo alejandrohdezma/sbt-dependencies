@@ -24,16 +24,24 @@ sealed trait GroupConfig {
   /** The list of dependencies for this group. */
   def dependencies: List[String]
 
+  /** The list of Scala versions for this group. */
+  def scalaVersions: List[String] = Nil
+
   /** Formats a group with its configuration for YAML output. */
   def format(group: String): String = this match {
     case GroupConfig.Simple(deps) =>
       s"$group:\n${deps.map(d => s"  - $d").mkString("\n")}"
 
-    case GroupConfig.Advanced(deps) =>
+    case GroupConfig.Advanced(deps, versions) =>
+      val scalaVersionsSection =
+        if (versions.nonEmpty) s"  scala-versions:\n${versions.map(v => s"    - $v").mkString("\n")}\n"
+        else ""
+
       val depsSection =
         if (deps.nonEmpty) s"  dependencies:\n${deps.map(d => s"    - $d").mkString("\n")}"
         else "  dependencies: []"
-      s"$group:\n$depsSection"
+
+      s"$group:\n$scalaVersionsSection$depsSection"
   }
 
 }
@@ -48,11 +56,20 @@ object GroupConfig {
     case map: java.util.Map[_, _] =>
       val scalaMap = map.asScala.toMap.map { case (k, v) => k.toString -> v } // scalafix:ok
 
-      scalaMap.get("dependencies") match {
-        case Some(list: java.util.List[_]) => Right(Advanced(list.asScala.toList.map(_.toString))) // scalafix:ok
+      val dependencies = scalaMap.get("dependencies") match {
+        case Some(list: java.util.List[_]) => Right(list.asScala.toList.map(_.toString)) // scalafix:ok
         case Some(other)                   => Left(s"'dependencies' must be a list, got ${other.getClass.getSimpleName}")
-        case None                          => Right(GroupConfig.Advanced(Nil))
+        case None                          => Right(Nil)
       }
+
+      val scalaVersions = scalaMap.get("scala-versions") match {
+        case Some(list: java.util.List[_]) if list.isEmpty() => Left("'scala-versions' cannot be empty")
+        case Some(list: java.util.List[_])                   => Right(list.asScala.toList.map(_.toString)) // scalafix:ok
+        case Some(other)                                     => Left(s"'scala-versions' must be a list, got ${other.getClass.getSimpleName}")
+        case None                                            => Right(Nil)
+      }
+
+      dependencies.flatMap(dependencies => scalaVersions.map(Advanced(dependencies, _)))
 
     case other =>
       Left(s"expected list or map, got ${Option(other).map(_.getClass.getSimpleName).getOrElse("null")}")
@@ -74,11 +91,15 @@ object GroupConfig {
     * YAML representation:
     * {{{
     * my-project:
+    *   scala-versions:
+    *     - 2.13.12
+    *     - 2.12.18
     *   dependencies:
     *     - org::name:version
     *     - org2::name2:version2
     * }}}
     */
-  final case class Advanced(dependencies: List[String]) extends GroupConfig
+  final case class Advanced(dependencies: List[String], override val scalaVersions: List[String] = Nil)
+      extends GroupConfig
 
 }

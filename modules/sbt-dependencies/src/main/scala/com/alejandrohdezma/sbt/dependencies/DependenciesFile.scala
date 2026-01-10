@@ -79,8 +79,8 @@ object DependenciesFile {
       val dependencyLines = dependencies.distinct.sorted.map(_.toLine)
 
       val newConfig = existingConfigs.get(group) match {
-        case Some(_: GroupConfig.Advanced) => GroupConfig.Advanced(dependencyLines)
-        case _                             => GroupConfig.Simple(dependencyLines)
+        case Some(adv: GroupConfig.Advanced) => GroupConfig.Advanced(dependencyLines, adv.scalaVersions)
+        case _                               => GroupConfig.Simple(dependencyLines)
       }
 
       val updated = existingConfigs + (group -> newConfig)
@@ -92,6 +92,18 @@ object DependenciesFile {
 
       IO.write(file, content + "\n")
     }
+
+  /** Reads the scalaVersions for a specific group from the given YAML file.
+    *
+    * @param file
+    *   The dependencies.yaml file to read.
+    * @param group
+    *   The group to read scalaVersions for.
+    * @return
+    *   List of Scala versions, or empty list if not defined.
+    */
+  def readScalaVersions(file: File, group: String)(implicit logger: Logger): List[String] =
+    readRaw(file).get(group).map(_.scalaVersions).getOrElse(Nil)
 
   /** Reads the raw YAML file as a map of group names to group configurations.
     *
