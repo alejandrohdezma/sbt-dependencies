@@ -44,8 +44,14 @@ object DependenciesPlugin extends AutoPlugin {
 
   override def buildSettings: Seq[Setting[_]] = Seq(
     dependencyVersionVariables := Map.empty,
-    scalaVersion               := Settings.buildScalaVersions.value.headOption.getOrElse(scalaVersion.value),
-    crossScalaVersions         := Settings.buildScalaVersions.value
+    scalaVersion := {
+      val versions = Settings.buildScalaVersions.value
+      if (versions.nonEmpty) versions.head else scalaVersion.value
+    },
+    crossScalaVersions := {
+      val versions = Settings.buildScalaVersions.value
+      if (versions.nonEmpty) versions else crossScalaVersions.value
+    }
   )
 
   /** Project settings: wires libraryDependencies and registers tasks. */
@@ -58,8 +64,14 @@ object DependenciesPlugin extends AutoPlugin {
     updateScalaVersions     := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
     install                 := Tasks.install.tag(Exclusive).evaluated,
     install / aggregate     := false,
-    scalaVersion            := Settings.projectScalaVersions.value.headOption.getOrElse(scalaVersion.value),
-    crossScalaVersions      := Settings.projectScalaVersions.value
+    scalaVersion := {
+      val versions = Settings.projectScalaVersions.value
+      if (versions.nonEmpty) versions.head else scalaVersion.value
+    },
+    crossScalaVersions := {
+      val versions = Settings.projectScalaVersions.value
+      if (versions.nonEmpty) versions else crossScalaVersions.value
+    }
   )
 
 }
