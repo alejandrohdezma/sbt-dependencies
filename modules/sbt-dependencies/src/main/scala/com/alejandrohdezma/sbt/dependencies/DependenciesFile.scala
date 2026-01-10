@@ -134,6 +134,18 @@ object DependenciesFile {
     IO.write(file, content + "\n")
   }
 
+  /** Checks if a group exists in the given YAML file.
+    *
+    * @param file
+    *   The dependencies.yaml file to check.
+    * @param group
+    *   The group to check for.
+    * @return
+    *   `true` if the group exists in the file, `false` otherwise.
+    */
+  def hasGroup(file: File, group: String)(implicit logger: Logger): Boolean =
+    readRaw(file).contains(group)
+
   /** Reads the raw YAML file as a map of group names to group configurations.
     *
     * Supports two formats:
