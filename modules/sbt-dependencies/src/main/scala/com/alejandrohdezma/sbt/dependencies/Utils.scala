@@ -126,6 +126,39 @@ object Utils {
       .headOption
       .getOrElse(fail(s"Could not resolve $organization:$name"))
 
+  /** Finds the latest Scala version within the same minor line.
+    *
+    * For example:
+    *   - `2.13.12` → latest `2.13.x`
+    *   - `3.3.1` → latest `3.3.x`
+    *
+    * @param currentVersion
+    *   The current Scala version.
+    * @return
+    *   The latest version within the same minor line, or the original if unrecognized.
+    */
+  def findLatestScalaVersion(currentVersion: String)(implicit
+      versionFinder: VersionFinder,
+      logger: Logger
+  ): String = {
+    val ScalaVersionRegex = """^(\d+\.\d+)\..*""".r
+
+    currentVersion match {
+      case ScalaVersionRegex(majorMinor) =>
+        val (org, name) =
+          if (majorMinor.startsWith("3.")) ("org.scala-lang", "scala3-library_3")
+          else ("org.scala-lang", "scala-library")
+
+        findLatestVersion(org, name, isCross = false, isSbtPlugin = false) { candidate =>
+          candidate.toVersionString.startsWith(majorMinor + ".")
+        }.toVersionString
+
+      case other =>
+        logger.warn(s"Unrecognized Scala version format: $other")
+        other
+    }
+  }
+
   /** Logs an error message and throws a RuntimeException. */
   def fail(message: String)(implicit logger: Logger): Nothing = {
     logger.error(message)

@@ -146,6 +146,36 @@ class Tasks {
     streams.value.log.info(s"$UNDERLINED$BOLD$MAGENTA$projectName$RESET\n\n$dependencies\n\n$legend".boxed)
   }
 
+  /** Updates Scala versions to their latest versions within the same minor line. */
+  val updateScalaVersions = Def.inputTask {
+    implicit val logger: Logger                     = streams.value.log
+    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
+
+    val file     = Settings.dependenciesFile.value
+    val group    = Settings.currentGroup.value
+    val versions = DependenciesFile.readScalaVersions(file, group)
+
+    if (versions.isEmpty) {
+      logger.info(s"\n🫙  No scala-versions configured for `$group`\n")
+    } else {
+      logger.info(s"\n🔄 Updating Scala versions for `$group`\n")
+
+      val updated = versions.map { version =>
+        val latest = Utils.findLatestScalaVersion(version)
+
+        if (latest === version) {
+          logger.info(s" ↳ ✅ $GREEN$version$RESET")
+          version
+        } else {
+          logger.info(s" ↳ ⬆️ $YELLOW$version$RESET -> $CYAN$latest$RESET")
+          latest
+        }
+      }
+
+      DependenciesFile.writeScalaVersions(file, group, updated)
+    }
+  }
+
   /** Parser for updateDependencies filter: `[org:artifact]`, `[org:]`, `[:artifact]`, or empty for all */
   private val updateFilterParser: Parser[UpdateFilter] = {
     val regex = """^([^:]+)?:([^:]+)?$""".r

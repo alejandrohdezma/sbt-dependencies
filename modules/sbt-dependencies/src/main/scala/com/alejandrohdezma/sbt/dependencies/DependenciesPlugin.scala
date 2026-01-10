@@ -55,6 +55,7 @@ object DependenciesPlugin extends AutoPlugin {
     inheritedDependencies   := Settings.inheritedDependencies.value,
     showLibraryDependencies := Tasks.showLibraryDependencies.tag(Exclusive).value,
     updateDependencies      := Tasks.updateDependencies.tag(Exclusive).evaluated,
+    updateScalaVersions     := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
     install                 := Tasks.install.tag(Exclusive).evaluated,
     install / aggregate     := false,
     scalaVersion            := Settings.projectScalaVersions.value.headOption.getOrElse(scalaVersion.value),
