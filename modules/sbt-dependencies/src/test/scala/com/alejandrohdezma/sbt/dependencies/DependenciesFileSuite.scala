@@ -390,9 +390,14 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     val content = IO.read(file)
 
-    assert(content.contains("org.typelevel::cats-core:=2.10.0"), "Expected exact marker (=)")
-    assert(content.contains("org.typelevel::cats-effect:^3.5.0"), "Expected major marker (^)")
-    assert(content.contains("org.typelevel::fs2-core:~3.9.0"), "Expected minor marker (~)")
+    val expected =
+      """|my-project:
+         |  - org.typelevel::cats-core:=2.10.0
+         |  - org.typelevel::cats-effect:^3.5.0
+         |  - org.typelevel::fs2-core:~3.9.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
   }
 
   // --- Edge cases ---
@@ -463,10 +468,15 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     val content = IO.read(file)
 
-    assert(content.contains("existing-group:"), "Expected existing group to be preserved")
-    assert(content.contains("org.typelevel::cats-core:2.10.0"), "Expected existing dependency to be preserved")
-    assert(content.contains("new-group:"), "Expected new group to be added")
-    assert(content.contains("org.scalameta::munit:1.0.0:test"), "Expected new dependency to be added")
+    val expected =
+      """|existing-group:
+         |  - org.typelevel::cats-core:2.10.0
+         |
+         |new-group:
+         |  - org.scalameta::munit:1.0.0:test
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
   }
 
   withDependenciesFile("").test("write removes duplicate dependencies") { file =>
@@ -500,6 +510,374 @@ class DependenciesFileSuite extends munit.FunSuite {
     val depCount = content.linesIterator.count(_.startsWith("  - "))
 
     assertEquals(depCount, 2) // Only 2 unique artifacts
+  }
+
+  // --- Advanced format tests ---
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |    - org.scalameta::munit:1.2.1:test
+       |""".stripMargin
+  }.test("read advanced format YAML file") { file =>
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    assertEquals(result.length, 2)
+    assertEquals(result.map(_.name).sorted, List("cats-core", "munit"))
+  }
+
+  withDependenciesFile {
+    """|simple-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |
+       |advanced-project:
+       |  dependencies:
+       |    - org.scalameta::munit:1.2.1:test
+       |""".stripMargin
+  }.test("read mixed format YAML file") { file =>
+    val simple   = DependenciesFile.read(file, "simple-project", variableResolvers)
+    val advanced = DependenciesFile.read(file, "advanced-project", variableResolvers)
+
+    assertEquals(simple.length, 1)
+    assertEquals(simple.head.name, "cats-core")
+    assertEquals(advanced.length, 1)
+    assertEquals(advanced.head.name, "munit")
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies: []
+       |""".stripMargin
+  }.test("read advanced format with empty dependencies") { file =>
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    assertEquals(result, List.empty)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("write preserves simple format") { file =>
+    val newDeps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-effect",
+        Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "my-project"
+      )
+    )
+
+    DependenciesFile.write(file, "my-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project:
+         |  - org.typelevel::cats-effect:3.5.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("write preserves advanced format") { file =>
+    val newDeps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-effect",
+        Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "my-project"
+      )
+    )
+
+    DependenciesFile.write(file, "my-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project:
+         |  dependencies:
+         |    - org.typelevel::cats-effect:3.5.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|simple-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |
+       |advanced-project:
+       |  dependencies:
+       |    - org.scalameta::munit:1.2.1:test
+       |""".stripMargin
+  }.test("write preserves format in mixed file") { file =>
+    val simpleDeps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-effect",
+        Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "simple-project"
+      )
+    )
+    val advancedDeps = List(
+      Dependency(
+        "org.scalatest",
+        "scalatest",
+        Version.Numeric(List(3, 2, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "advanced-project",
+        "test"
+      )
+    )
+
+    DependenciesFile.write(file, "simple-project", simpleDeps)
+    DependenciesFile.write(file, "advanced-project", advancedDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|advanced-project:
+         |  dependencies:
+         |    - org.scalatest::scalatest:3.2.0:test
+         |
+         |simple-project:
+         |  - org.typelevel::cats-effect:3.5.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile("").test("write then read round-trip preserves advanced format") { file =>
+    val deps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "my-project"
+      )
+    )
+
+    // First write in simple format (default)
+    DependenciesFile.write(file, "my-project", deps)
+
+    // Now manually create an advanced format file
+    IO.write(
+      file,
+      """|my-project:
+         |  dependencies:
+         |    - org.typelevel::cats-core:2.10.0
+         |""".stripMargin
+    )
+
+    // Write again - should preserve advanced format
+    DependenciesFile.write(file, "my-project", deps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project:
+         |  dependencies:
+         |    - org.typelevel::cats-core:2.10.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+    assertEquals(result.length, 1)
+    assertEquals(result.head.name, "cats-core")
+  }
+
+  withDependenciesFile("").test("write new group uses simple format") { file =>
+    val deps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "new-project"
+      )
+    )
+
+    DependenciesFile.write(file, "new-project", deps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|new-project:
+         |  - org.typelevel::cats-core:2.10.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |  unknownField: someValue
+       |""".stripMargin
+  }.test("read ignores unknown fields in advanced format") { file =>
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    assertEquals(result.length, 1)
+    assertEquals(result.head.name, "cats-core")
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies:
+       |    - org.typelevel::cats-core:=2.10.0
+       |    - org.typelevel::cats-effect:^3.5.0
+       |""".stripMargin
+  }.test("read advanced format preserves version markers") { file =>
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    val catsCore = result.find(_.name === "cats-core").get
+    catsCore.version match {
+      case v: Version.Numeric => assertEquals(v.marker, Version.Numeric.Marker.Exact)
+      case _                  => fail("Expected Numeric version")
+    }
+
+    val catsEffect = result.find(_.name === "cats-effect").get
+    catsEffect.version match {
+      case v: Version.Numeric => assertEquals(v.marker, Version.Numeric.Marker.Major)
+      case _                  => fail("Expected Numeric version")
+    }
+  }
+
+  // --- scalaVersions tests ---
+
+  withDependenciesFile {
+    """|my-project:
+       |  scala-versions:
+       |    - 2.13.12
+       |    - 2.12.18
+       |    - 3.3.1
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("readScalaVersions returns scala versions from advanced format") { file =>
+    val result = DependenciesFile.readScalaVersions(file, "my-project")
+
+    assertEquals(result, List("2.13.12", "2.12.18", "3.3.1"))
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("readScalaVersions returns empty list for simple format") { file =>
+    val result = DependenciesFile.readScalaVersions(file, "my-project")
+
+    assertEquals(result, List.empty)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("readScalaVersions returns empty list when not specified in advanced format") { file =>
+    val result = DependenciesFile.readScalaVersions(file, "my-project")
+
+    assertEquals(result, List.empty)
+  }
+
+  nonExistentFile.test("readScalaVersions returns empty list for non-existent file") { file =>
+    val result = DependenciesFile.readScalaVersions(file, "my-project")
+
+    assertEquals(result, List.empty)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  scala-versions:
+       |    - 2.13.12
+       |    - 2.12.18
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("write preserves scalaVersions in advanced format") { file =>
+    val newDeps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-effect",
+        Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "my-project"
+      )
+    )
+
+    DependenciesFile.write(file, "my-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project:
+         |  scala-versions:
+         |    - 2.13.12
+         |    - 2.12.18
+         |  dependencies:
+         |    - org.typelevel::cats-effect:3.5.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project:
+       |  scala-versions:
+       |    - 2.13.12
+       |  dependencies:
+       |    - org.typelevel::cats-core:2.10.0
+       |""".stripMargin
+  }.test("readScalaVersions then write round-trip preserves scalaVersions") { file =>
+    val versions = DependenciesFile.readScalaVersions(file, "my-project")
+    assertEquals(versions, List("2.13.12"))
+
+    val deps = DependenciesFile.read(file, "my-project", variableResolvers)
+    DependenciesFile.write(file, "my-project", deps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project:
+         |  scala-versions:
+         |    - 2.13.12
+         |  dependencies:
+         |    - org.typelevel::cats-core:2.10.0
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|simple-project:
+       |  - org.typelevel::cats-core:2.10.0
+       |
+       |advanced-project:
+       |  scala-versions:
+       |    - 3.3.1
+       |  dependencies:
+       |    - org.scalameta::munit:1.2.1:test
+       |""".stripMargin
+  }.test("readScalaVersions works with mixed format file") { file =>
+    val simpleVersions   = DependenciesFile.readScalaVersions(file, "simple-project")
+    val advancedVersions = DependenciesFile.readScalaVersions(file, "advanced-project")
+
+    assertEquals(simpleVersions, List.empty)
+    assertEquals(advancedVersions, List("3.3.1"))
   }
 
 }
