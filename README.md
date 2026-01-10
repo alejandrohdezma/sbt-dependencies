@@ -1,11 +1,11 @@
-documentation
+Manage SBT dependencies from a single YAML file with version markers, auto-updates, and cross-project support
 
 ## Installation
 
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.3.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.4.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to 
@@ -126,17 +126,18 @@ sbt-build:
     - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
 
 my-project:
-  scala-versions:
-    - 3.3.1
+  scala-version: 3.3.1
   dependencies:
     - org.typelevel::cats-core:2.10.0
 ```
 
+Use `scala-version` (singular) for a single version or `scala-versions` (plural) for cross-building.
+
 **Behavior:**
-- The first version in `scala-versions` becomes `scalaVersion`
+- The first version becomes `scalaVersion`
 - All versions become `crossScalaVersions`
-- `scala-versions` in the `sbt-build` group applies at the build level (`ThisBuild / scalaVersion` and `ThisBuild / crossScalaVersions`)
-- `scala-versions` in individual project groups overrides the build-level settings for that project
+- `scala-version`/`scala-versions` in the `sbt-build` group applies at the build level (`ThisBuild / scalaVersion` and `ThisBuild / crossScalaVersions`)
+- `scala-version`/`scala-versions` in individual project groups overrides the build-level settings for that project
 
 This allows you to set a default Scala version for all projects while letting specific projects use different versions.
 
@@ -221,7 +222,7 @@ sbt> installBuildDependencies ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
 
 ### `updateAllDependencies`
 
-Updates everything: the plugin itself, build dependencies, project dependencies, and SBT version.
+Updates everything: the plugin itself, Scala versions, dependencies, and SBT version.
 
 ```bash
 sbt> updateAllDependencies
@@ -243,6 +244,29 @@ Updates the SBT version in `project/build.properties` to the latest version. If 
 sbt> updateSbt
 ```
 
+### `updateScalaVersions`
+
+Updates Scala versions in the current project to their latest versions within the same minor line.
+
+```bash
+sbt> updateScalaVersions
+```
+
+Each version is updated within its minor line:
+- `2.13.12` → latest `2.13.x`
+- `2.12.18` → latest `2.12.x`
+- `3.3.1` → latest `3.3.x`
+
+### `updateBuildScalaVersions`
+
+Updates Scala versions in the `sbt-build` group (build-level settings).
+
+```bash
+sbt> updateBuildScalaVersions
+```
+
 ## Contributors to this project
 
-No contributors found
+| <a href="https://github.com/alejandrohdezma"><img alt="alejandrohdezma" src="https://avatars.githubusercontent.com/u/9027541?v=4&s=120" width="120px" /></a> |
+| :--: |
+| <a href="https://github.com/alejandrohdezma"><sub><b>alejandrohdezma</b></sub></a> |
