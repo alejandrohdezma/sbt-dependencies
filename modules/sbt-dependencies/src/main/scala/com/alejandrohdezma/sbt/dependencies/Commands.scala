@@ -31,7 +31,7 @@ class Commands {
   /** All commands provided by this plugin. */
   val all = Seq(
     initDependenciesFile, updateAllDependencies, updateSbtDependenciesPlugin, updateBuildDependencies,
-    installBuildDependencies
+    installBuildDependencies, updateSbt
   )
 
   /** Creates (or recreates) the dependencies.yaml file based on current project dependencies. */
@@ -76,9 +76,9 @@ class Commands {
     }
   }
 
-  /** Updates all dependencies: plugin, build dependencies, and project dependencies. */
+  /** Updates all dependencies: plugin, build dependencies, project dependencies, and SBT version. */
   lazy val updateAllDependencies = Command.command("updateAllDependencies") { state =>
-    runCommand("updateSbtDependenciesPlugin; updateBuildDependencies; updateDependencies; reload")(state)
+    runCommand("updateSbtDependenciesPlugin; updateBuildDependencies; updateDependencies; reload; updateSbt")(state)
   }
 
   /** Updates the sbt-dependencies plugin itself in `project/project/plugins.sbt`. */
@@ -144,6 +144,58 @@ class Commands {
   /** Installs a dependency in the meta-build (project/dependencies). */
   lazy val installBuildDependencies = Command.single("installBuildDependencies") { case (state, dependency) =>
     runCommand(s"reload plugins; install $dependency; reload return")(state)
+  }
+
+  /** Updates SBT version in `project/build.properties` to the latest version. */
+  lazy val updateSbt = Command.command("updateSbt") { state =>
+    implicit val logger: Logger = state.log
+
+    val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+    val buildProperties = base / "project" / "build.properties"
+
+    if (!buildProperties.exists()) {
+      logger.warn("project/build.properties not found")
+      state
+    } else {
+      val lines = IO.readLines(buildProperties)
+
+      val sbtVersionRegex = """sbt\.version=(.+)""".r
+
+      if (!lines.exists(sbtVersionRegex.findFirstIn(_).isDefined)) {
+        logger.warn("sbt.version not found in project/build.properties")
+        state
+      } else {
+        logger.info("\n🔄 Checking for new versions of SBT\n")
+
+        implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
+
+        val updatedLines = lines.map {
+          case line @ sbtVersionRegex(Numeric(current)) =>
+            val latest =
+              Utils.findLatestVersion(
+                organization = "org.scala-sbt",
+                name = "sbt",
+                isCross = false,
+                isSbtPlugin = false
+              )(current.isValidCandidate)
+
+            if (latest.isSameVersion(current)) {
+              logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
+              (line, false)
+            } else {
+              logger.info(s" ↳ ⬆️  $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+              (s"sbt.version=${latest.toVersionString}", true)
+            }
+          case line => (line, false)
+        }
+
+        IO.writeLines(buildProperties, updatedLines.map(_._1))
+
+        if (updatedLines.exists(_._2)) runCommand("reboot")(state)
+        else state
+      }
+    }
   }
 
   private def runCommand(command: String)(state: State): State = {
