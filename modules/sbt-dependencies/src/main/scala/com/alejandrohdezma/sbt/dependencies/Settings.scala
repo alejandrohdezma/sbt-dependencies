@@ -52,26 +52,28 @@ class Settings {
     DependenciesFile.read(dependenciesFile.value, currentGroup.value, variableResolvers)
   }
 
-  /** Scala versions from the sbt-build group (only in normal build, not meta-build). */
+  /** Scala versions from the sbt-build group (only in normal build, not meta-build).
+    *
+    * Returns `Nil` when in the meta-build to avoid cyclic references with `crossScalaVersions`.
+    */
   val buildScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
     implicit val logger: Logger = sLog.value
 
-    if (isSbtBuild.value) crossScalaVersions.value
-    else {
-      val versions = DependenciesFile.readScalaVersions(dependenciesFile.value, "sbt-build")
-      if (versions.nonEmpty) versions else (ThisBuild / crossScalaVersions).value
-    }
+    // Return Nil in meta-build to avoid cyclic reference with crossScalaVersions
+    if (isSbtBuild.value) Nil
+    else DependenciesFile.readScalaVersions(dependenciesFile.value, "sbt-build")
   }
 
-  /** Scala versions from the current project's group (only in normal build, not meta-build). */
+  /** Scala versions from the current project's group (only in normal build, not meta-build).
+    *
+    * Returns `Nil` when in the meta-build to avoid cyclic references with `crossScalaVersions`.
+    */
   val projectScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
     implicit val logger: Logger = sLog.value
 
-    if (isSbtBuild.value) crossScalaVersions.value
-    else {
-      val versions = DependenciesFile.readScalaVersions(dependenciesFile.value, currentGroup.value)
-      if (versions.nonEmpty) versions else (ThisBuild / crossScalaVersions).value
-    }
+    // Return Nil in meta-build to avoid cyclic reference with crossScalaVersions
+    if (isSbtBuild.value) Nil
+    else DependenciesFile.readScalaVersions(dependenciesFile.value, currentGroup.value)
   }
 
   /** Gets the inherited dependencies from other projects (recursively). */
