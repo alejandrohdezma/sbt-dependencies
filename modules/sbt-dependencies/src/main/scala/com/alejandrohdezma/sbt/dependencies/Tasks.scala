@@ -40,39 +40,43 @@ class Tasks {
     val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
     val filter       = updateFilterParser.parsed
 
-    logger.info(s"\n🔄 Updating ${filter.show} dependencies for `$group`\n")
+    if (dependencies.isEmpty) {
+      logger.info(s"\n🫙  No dependencies found for `$group`\n")
+    } else {
+      logger.info(s"\n🔄 Updating ${filter.show} dependencies for `$group`\n")
 
-    val updated =
-      dependencies.par.map {
-        case dep if filter.matches(dep) =>
-          val latest = dep.findLatestVersion
+      val updated =
+        dependencies.par.map {
+          case dep if filter.matches(dep) =>
+            val latest = dep.findLatestVersion
 
-          dep.version match {
-            case numeric: Dependency.Version.Numeric if latest.isSameVersion(numeric) =>
-              logger.info(s" ↳ ✅ $GREEN${dep.toLine}$RESET")
-              dep
+            dep.version match {
+              case numeric: Dependency.Version.Numeric if latest.isSameVersion(numeric) =>
+                logger.info(s" ↳ ✅ $GREEN${dep.toLine}$RESET")
+                dep
 
-            case _: Dependency.Version.Numeric =>
-              logger.info(s" ↳ ⬆️ $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
-              dep.withVersion(latest)
+              case _: Dependency.Version.Numeric =>
+                logger.info(s" ↳ ⬆️ $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
+                dep.withVersion(latest)
 
-            case variable: Dependency.Version.Variable if latest.isSameVersion(variable.resolved) =>
-              logger.info {
-                s" ↳ ✅ $GREEN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`)"
-              }
-              dep
+              case variable: Dependency.Version.Variable if latest.isSameVersion(variable.resolved) =>
+                logger.info {
+                  s" ↳ ✅ $GREEN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`)"
+                }
+                dep
 
-            case variable: Dependency.Version.Variable =>
-              logger.info {
-                s" ↳ 🔗 $CYAN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`, " +
-                  s"latest: `$YELLOW${latest.toVersionString}$RESET`)"
-              }
-              dep
-          }
-        case dep => dep
-      }.toList
+              case variable: Dependency.Version.Variable =>
+                logger.info {
+                  s" ↳ 🔗 $CYAN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`, " +
+                    s"latest: `$YELLOW${latest.toVersionString}$RESET`)"
+                }
+                dep
+            }
+          case dep => dep
+        }.toList
 
-    DependenciesFile.write(file, group, updated)
+      DependenciesFile.write(file, group, updated)
+    }
   }
 
   /** Installs a dependency, validating if the provided version is available or finding the latest version if version is
