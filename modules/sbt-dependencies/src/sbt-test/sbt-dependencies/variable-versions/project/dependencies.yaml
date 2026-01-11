@@ -1,0 +1,2 @@
+myproject:
+  - org.typelevel::cats-core:{{catsVersion}}
