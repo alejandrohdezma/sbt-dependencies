@@ -1,0 +1,11 @@
+# Verify version markers control update behavior
+> compile
+
+# Update all dependencies
+> myproject/updateDependencies
+
+# Assert version marker constraints:
+# - = (exact): cats-core stays at =2.9.0
+# - ^ (major): cats-effect stays within 3.x.y
+# - ~ (minor): munit stays within 1.0.x
+> assertTest

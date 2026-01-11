@@ -1,0 +1,3 @@
+# Verify dependencyVersionVariables resolves correctly
+> compile
+> assertTest

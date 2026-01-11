@@ -1,0 +1,5 @@
+# Verify updateDependencies command updates versions in YAML
+> compile
+> myproject/updateDependencies
+# Version should be updated from 2.9.0 to something newer (2.10+)
+-$ exec grep -q "cats-core:2.9.0" project/dependencies.yaml

@@ -1,0 +1,3 @@
+# Verify inheritedDependencies from dependent projects
+> compile
+> assertTest

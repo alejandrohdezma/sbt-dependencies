@@ -1,0 +1,3 @@
+# Verify projects without YAML group use defaults
+> compile
+> assertTest
