@@ -1,0 +1,4 @@
+# Verify sbt-plugin configuration scope works
+
+# Verify scalafix task is available (this would fail if plugin wasn't loaded)
+> scalafix --check
