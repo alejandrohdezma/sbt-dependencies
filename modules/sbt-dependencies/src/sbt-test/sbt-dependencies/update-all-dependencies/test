@@ -1,0 +1,3 @@
+# Verify updateAllDependencies runs without error
+> compile
+> updateAllDependencies

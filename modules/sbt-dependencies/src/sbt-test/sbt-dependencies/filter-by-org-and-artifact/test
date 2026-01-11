@@ -1,0 +1,6 @@
+# Verify updateDependencies filtering by org:artifact works
+> compile
+# Update only org.typelevel:cats-effect (specific org and artifact)
+> myproject/updateDependencies org.typelevel:cats-effect
+> reload
+> assertTest

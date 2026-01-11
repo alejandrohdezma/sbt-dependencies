@@ -1,0 +1,3 @@
+# Verify initDependenciesFile creates YAML from existing libraryDependencies
+> initDependenciesFile
+$ must-mirror project/dependencies.yaml project/dependencies.yaml.expected

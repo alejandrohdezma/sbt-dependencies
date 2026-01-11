@@ -1,0 +1,6 @@
+myproject:
+  scala-version: 2.13.16
+  dependencies:
+    - org.typelevel:cats-core_2.13:2.10.0
+    - org.typelevel:cats-core_3:2.10.0
+    - org.typelevel::cats-effect:3.5.7

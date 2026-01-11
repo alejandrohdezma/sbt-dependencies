@@ -1,0 +1,6 @@
+# Verify updateDependencies filtering by artifact works
+> compile
+# Update only cats-core (by artifact name)
+> myproject/updateDependencies :cats-core
+> reload
+> assertTest

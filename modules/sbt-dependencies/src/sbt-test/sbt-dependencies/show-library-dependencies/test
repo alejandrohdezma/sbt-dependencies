@@ -1,0 +1,3 @@
+# Verify showLibraryDependencies runs without error
+> compile
+> myproject/showLibraryDependencies

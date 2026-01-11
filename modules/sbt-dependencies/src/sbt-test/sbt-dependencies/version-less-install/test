@@ -1,0 +1,5 @@
+# Verify install without version resolves latest
+> compile
+> myproject/install org.typelevel::cats-effect
+> reload
+> assertTest
