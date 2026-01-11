@@ -1,0 +1,4 @@
+myproject:
+  - org.typelevel::cats-core:=2.9.0
+  - org.typelevel::cats-effect:3.6.3
+  - org.scalameta::munit:=1.0.0:test
