@@ -1,0 +1,5 @@
+# Verify updateScalaVersions command updates to latest patch
+> compile
+> myproject/updateScalaVersions
+# Version should be updated from 2.13.12 to a newer patch (2.13.13+)
+-$ exec grep -q "2.13.12" project/dependencies.yaml
