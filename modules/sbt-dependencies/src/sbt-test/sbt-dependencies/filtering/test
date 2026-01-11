@@ -1,0 +1,8 @@
+# Verify updateDependencies filtering works
+> compile
+
+# Update only scalameta deps (munit)
+> myproject/updateDependencies org.scalameta:
+
+# Verify only munit was updated, typelevel deps unchanged
+$ must-mirror project/dependencies.yaml project/dependencies.yaml.expected
