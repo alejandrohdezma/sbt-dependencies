@@ -1,0 +1,3 @@
+# Verify configuration scopes work correctly
+> compile
+> assertTest
