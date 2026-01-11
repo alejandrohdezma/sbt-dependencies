@@ -1,0 +1,4 @@
+# Verify updateSbt command updates build.properties
+> updateSbt
+# Verify version was updated from 1.9.0
+-$ exec grep -q "sbt.version=1.9.0" project/build.properties
