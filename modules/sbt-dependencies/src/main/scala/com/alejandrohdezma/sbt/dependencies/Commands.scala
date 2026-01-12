@@ -31,7 +31,7 @@ class Commands {
   /** All commands provided by this plugin. */
   val all = Seq(
     initDependenciesFile, updateAllDependencies, updateSbtDependenciesPlugin, updateBuildDependencies,
-    installBuildDependencies, updateSbt, updateBuildScalaVersions
+    installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion
   )
 
   /** Creates (or recreates) the dependencies.yaml file based on current project dependencies. */
@@ -76,11 +76,11 @@ class Commands {
     }
   }
 
-  /** Updates everything: plugin, Scala versions, dependencies, and SBT version. */
+  /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */
   lazy val updateAllDependencies = Command.command("updateAllDependencies") { state =>
     runCommand(
-      "updateSbtDependenciesPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalaVersions",
-      "updateDependencies", "reload", "updateSbt"
+      "updateSbtDependenciesPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalafmtVersion",
+      "updateScalaVersions", "updateDependencies", "reload", "updateSbt"
     )(state)
   }
 
@@ -152,6 +152,21 @@ class Commands {
   /** Installs a dependency in the meta-build (project/dependencies). */
   lazy val installBuildDependencies = Command.single("installBuildDependencies") { case (state, dependency) =>
     runCommand("reload plugins", s"install $dependency", "reload return")(state)
+  }
+
+  /** Updates scalafmt version in `.scalafmt.conf` to the latest version. */
+  lazy val updateScalafmtVersion = Command.command("updateScalafmtVersion") { state =>
+    implicit val logger: Logger = state.log
+
+    val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+    logger.info("\n🔄 Checking for new versions of Scalafmt\n")
+
+    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("2.13")
+
+    Scalafmt.updateVersion(base)
+
+    state
   }
 
   /** Updates SBT version in `project/build.properties` to the latest version. */
