@@ -24,6 +24,7 @@ import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.Eq._
 
 class DependenciesFileSuite extends munit.FunSuite {
@@ -37,6 +38,10 @@ class DependenciesFileSuite extends munit.FunSuite {
     override def log(level: Level.Value, message: => String): Unit = ()
 
   }
+
+  // Helper to parse a version string into Numeric with Minor marker (matching readScalaVersions behavior)
+  def v(version: String): Numeric =
+    Version.Numeric.unapply(version).get.copy(marker = Numeric.Marker.Minor)
 
   val variableResolvers: Map[String, OrganizationArtifactName => ModuleID] =
     Map.empty
@@ -770,7 +775,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   }.test("readScalaVersions returns scala versions from advanced format") { file =>
     val result = DependenciesFile.readScalaVersions(file, "my-project")
 
-    assertEquals(result, List("2.13.12", "2.12.18", "3.3.1"))
+    assertEquals(result, List(v("2.13.12"), v("2.12.18"), v("3.3.1")))
   }
 
   withDependenciesFile {
@@ -843,7 +848,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("readScalaVersions then write round-trip preserves scalaVersions") { file =>
     val versions = DependenciesFile.readScalaVersions(file, "my-project")
-    assertEquals(versions, List("2.13.12"))
+    assertEquals(versions, List(v("2.13.12")))
 
     val deps = DependenciesFile.read(file, "my-project", variableResolvers)
     DependenciesFile.write(file, "my-project", deps)
@@ -874,22 +879,22 @@ class DependenciesFileSuite extends munit.FunSuite {
     val simpleVersions   = DependenciesFile.readScalaVersions(file, "simple-project")
     val advancedVersions = DependenciesFile.readScalaVersions(file, "advanced-project")
 
-    assertEquals(simpleVersions, List.empty)
-    assertEquals(advancedVersions, List("3.3.1"))
+    assertEquals(simpleVersions, List.empty[Numeric])
+    assertEquals(advancedVersions, List(v("3.3.1")))
   }
 
   // --- writeScalaVersions tests ---
 
   withDependenciesFile("").test("writeScalaVersions creates advanced format with scala-versions") { file =>
-    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.12", "2.12.18"))
+    DependenciesFile.writeScalaVersions(file, "my-project", List(v("2.13.12"), v("2.12.18")))
 
     val content = IO.read(file)
 
     val expected =
       """|my-project:
          |  scala-versions:
-         |    - 2.13.12
-         |    - 2.12.18
+         |    - ~2.13.12
+         |    - ~2.12.18
          |  dependencies: []
          |""".stripMargin
 
@@ -901,13 +906,13 @@ class DependenciesFileSuite extends munit.FunSuite {
        |  - org.typelevel::cats-core:2.10.0
        |""".stripMargin
   }.test("writeScalaVersions preserves existing dependencies from simple format") { file =>
-    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.12"))
+    DependenciesFile.writeScalaVersions(file, "my-project", List(v("2.13.12")))
 
     val content = IO.read(file)
 
     val expected =
       """|my-project:
-         |  scala-version: 2.13.12
+         |  scala-version: ~2.13.12
          |  dependencies:
          |    - org.typelevel::cats-core:2.10.0
          |""".stripMargin
@@ -923,15 +928,15 @@ class DependenciesFileSuite extends munit.FunSuite {
        |    - org.typelevel::cats-core:2.10.0
        |""".stripMargin
   }.test("writeScalaVersions updates existing scala-versions") { file =>
-    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.14", "3.3.3"))
+    DependenciesFile.writeScalaVersions(file, "my-project", List(v("2.13.14"), v("3.3.3")))
 
     val content = IO.read(file)
 
     val expected =
       """|my-project:
          |  scala-versions:
-         |    - 2.13.14
-         |    - 3.3.3
+         |    - ~2.13.14
+         |    - ~3.3.3
          |  dependencies:
          |    - org.typelevel::cats-core:2.10.0
          |""".stripMargin
@@ -944,13 +949,13 @@ class DependenciesFileSuite extends munit.FunSuite {
        |  - org.scalameta::munit:1.2.1:test
        |""".stripMargin
   }.test("writeScalaVersions preserves other groups") { file =>
-    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.12"))
+    DependenciesFile.writeScalaVersions(file, "my-project", List(v("2.13.12")))
 
     val content = IO.read(file)
 
     val expected =
       """|my-project:
-         |  scala-version: 2.13.12
+         |  scala-version: ~2.13.12
          |  dependencies: []
          |
          |other-project:
@@ -969,12 +974,12 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("writeScalaVersions then readScalaVersions round-trip") { file =>
     val originalVersions = DependenciesFile.readScalaVersions(file, "my-project")
-    assertEquals(originalVersions, List("2.13.12"))
+    assertEquals(originalVersions, List(v("2.13.12")))
 
-    DependenciesFile.writeScalaVersions(file, "my-project", List("2.13.14", "3.3.3"))
+    DependenciesFile.writeScalaVersions(file, "my-project", List(v("2.13.14"), v("3.3.3")))
 
     val updatedVersions = DependenciesFile.readScalaVersions(file, "my-project")
-    assertEquals(updatedVersions, List("2.13.14", "3.3.3"))
+    assertEquals(updatedVersions, List(v("2.13.14"), v("3.3.3")))
 
     // Verify dependencies are still preserved
     val deps = DependenciesFile.read(file, "my-project", variableResolvers)

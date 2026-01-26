@@ -61,7 +61,7 @@ class Settings {
 
     // Return Nil in meta-build to avoid cyclic reference with crossScalaVersions
     if (isSbtBuild.value) Nil
-    else DependenciesFile.readScalaVersions(dependenciesFile.value, "sbt-build")
+    else DependenciesFile.readScalaVersions(dependenciesFile.value, "sbt-build").map(_.toVersionString)
   }
 
   /** Scala versions from the current project's group (only in normal build, not meta-build).
@@ -73,7 +73,7 @@ class Settings {
 
     // Return Nil in meta-build to avoid cyclic reference with crossScalaVersions
     if (isSbtBuild.value) Nil
-    else DependenciesFile.readScalaVersions(dependenciesFile.value, currentGroup.value)
+    else DependenciesFile.readScalaVersions(dependenciesFile.value, currentGroup.value).map(_.toVersionString)
   }
 
   /** Gets the inherited dependencies from other projects (recursively). */
