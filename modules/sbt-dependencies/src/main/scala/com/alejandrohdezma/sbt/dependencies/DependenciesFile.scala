@@ -22,6 +22,8 @@ import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.Eq._
 import org.yaml.snakeyaml.Yaml
 
 /** Handles reading and writing dependencies to/from the dependencies.yaml file. */
@@ -95,33 +97,44 @@ object DependenciesFile {
 
   /** Reads the scalaVersions for a specific group from the given YAML file.
     *
+    * Validates that each version is a valid numeric version format. Invalid versions are logged as warnings and
+    * filtered out. Versions without an explicit marker default to `Minor` (`~`) for safety.
+    *
     * @param file
     *   The dependencies.yaml file to read.
     * @param group
     *   The group to read scalaVersions for.
     * @return
-    *   List of Scala versions, or empty list if not defined.
+    *   List of valid Scala versions, or empty list if not defined.
     */
-  def readScalaVersions(file: File, group: String)(implicit logger: Logger): List[String] =
-    readRaw(file).get(group).map(_.scalaVersions).getOrElse(Nil)
+  def readScalaVersions(file: File, group: String)(implicit logger: Logger): List[Numeric] =
+    readRaw(file).get(group).map(_.scalaVersions).getOrElse(Nil).flatMap {
+      case Numeric(v) =>
+        // Default to Minor marker for Scala versions without explicit marker (safer than NoMarker)
+        val version = if (v.marker === Numeric.Marker.NoMarker) v.copy(marker = Numeric.Marker.Minor) else v
+        List(version)
+      case invalid =>
+        logger.warn(s"Invalid Scala version format: $invalid")
+        Nil
+    }
 
   /** Writes Scala versions for a specific group to the given YAML file.
     *
-    * Other groups and dependencies in the file are preserved.
+    * Other groups and dependencies in the file are preserved. Version markers are preserved when writing.
     *
     * @param file
     *   The target file.
     * @param group
     *   The group to write Scala versions for.
     * @param scalaVersions
-    *   The list of Scala versions to write.
+    *   The list of Scala versions to write (including markers).
     */
-  def writeScalaVersions(file: File, group: String, scalaVersions: List[String])(implicit logger: Logger): Unit = {
+  def writeScalaVersions(file: File, group: String, scalaVersions: List[Numeric])(implicit logger: Logger): Unit = {
     val existingConfigs = readRaw(file)
 
     val newConfig = existingConfigs.get(group) match {
-      case Some(existing) => GroupConfig.Advanced(existing.dependencies, scalaVersions)
-      case None           => GroupConfig.Advanced(Nil, scalaVersions)
+      case Some(existing) => GroupConfig.Advanced(existing.dependencies, scalaVersions.map(_.show))
+      case None           => GroupConfig.Advanced(Nil, scalaVersions.map(_.show))
     }
 
     val updated = existingConfigs + (group -> newConfig)

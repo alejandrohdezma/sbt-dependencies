@@ -1,5 +1,10 @@
-# Verify updateScalaVersions command updates to latest patch
+# Verify updateScalaVersions respects version markers
 > compile
 > myproject/updateScalaVersions
-# Version should be updated from 2.13.12 to a newer patch (2.13.13+)
--$ exec grep -q "2.13.12" project/dependencies.yaml
+
+# Verify expected output:
+# - =2.13.12 (exact) stays unchanged
+# - ~2.12.18 (minor) updates within 2.12.x, preserves ~
+# - 2.11.11 (no marker) updates within 2.11.x, gets ~ prefix
+# - ^2.10.0 (major) updates within 2.x.y, preserves ^
+$ must-mirror project/dependencies.yaml.expected project/dependencies.yaml

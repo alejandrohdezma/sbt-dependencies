@@ -85,17 +85,7 @@ final case class Dependency(
     * latest stable version (variables always use NoMarker).
     */
   def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.Version.Numeric =
-    version match {
-      case variable: Dependency.Version.Variable =>
-        Utils.findLatestVersion(this)(variable.resolved.isValidCandidate)
-
-      case numeric: Dependency.Version.Numeric =>
-        if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) numeric
-        else {
-          val latestVersion = Utils.findLatestVersion(this)(numeric.isValidCandidate)
-          latestVersion.copy(marker = numeric.marker)
-        }
-    }
+    Utils.findLatestVersion(organization, name, isCross, configuration === "sbt-plugin", version)
 
   /** Converts the dependency to a line. */
   def toLine: String = {
@@ -230,6 +220,9 @@ object Dependency {
     /** Version string for display purposes (numeric version or resolved version for variables). */
     def toVersionString: String
 
+    /** Checks if a candidate version is valid for this version. */
+    def isValidCandidate(candidate: Version.Numeric): Boolean
+
   }
 
   object Version {
@@ -270,7 +263,7 @@ object Dependency {
       val suffixNumber: Option[Int] = suffix.flatMap("(\\d+)".r.findFirstIn).map(_.toInt)
 
       /** Checks if a candidate version is valid for this version. */
-      def isValidCandidate(candidate: Numeric): Boolean = {
+      override def isValidCandidate(candidate: Numeric): Boolean = {
         // Must have same number of parts (shape matching)
         val sameShape = parts.length === candidate.parts.length
 
@@ -369,6 +362,10 @@ object Dependency {
 
       /** Version string for display - returns the resolved version. */
       def toVersionString: String = resolved.toVersionString
+
+      /** Checks if a candidate version is valid for this version. */
+      override def isValidCandidate(candidate: Numeric): Boolean =
+        resolved.isValidCandidate(candidate)
 
     }
 

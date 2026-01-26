@@ -170,10 +170,10 @@ class Tasks {
         val latest = Utils.findLatestScalaVersion(version)
 
         if (latest === version) {
-          logger.info(s" ↳ ✅ $GREEN$version$RESET")
+          logger.info(s" ↳ ✅ $GREEN${version.toVersionString}$RESET")
           version
         } else {
-          logger.info(s" ↳ ⬆️  $YELLOW$version$RESET -> $CYAN$latest$RESET")
+          logger.info(s" ↳ ⬆️  $YELLOW${version.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET")
           latest
         }
       }

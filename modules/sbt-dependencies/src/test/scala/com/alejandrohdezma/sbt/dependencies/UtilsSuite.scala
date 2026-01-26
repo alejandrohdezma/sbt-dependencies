@@ -20,6 +20,7 @@ import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
 
 class UtilsSuite extends munit.FunSuite {
 
@@ -32,6 +33,10 @@ class UtilsSuite extends munit.FunSuite {
     override def log(level: Level.Value, message: => String): Unit = ()
 
   }
+
+  // Helper to parse a version string into Numeric with Minor marker (matching readScalaVersions behavior)
+  def v(version: String): Numeric =
+    Version.Numeric.unapply(version).get.copy(marker = Numeric.Marker.Minor)
 
   // Helper to create a mock VersionFinder that returns specific versions for specific modules
   def mockVersionFinder(versions: Map[(String, String), List[String]]): Utils.VersionFinder =
@@ -49,9 +54,9 @@ class UtilsSuite extends munit.FunSuite {
       )
     )
 
-    val result = Utils.findLatestScalaVersion("2.13.12")
+    val result = Utils.findLatestScalaVersion(v("2.13.12"))
 
-    assertEquals(result, "2.13.14")
+    assertEquals(result, v("2.13.14"))
   }
 
   test("findLatestScalaVersion finds latest 2.12.x version") {
@@ -61,9 +66,9 @@ class UtilsSuite extends munit.FunSuite {
       )
     )
 
-    val result = Utils.findLatestScalaVersion("2.12.17")
+    val result = Utils.findLatestScalaVersion(v("2.12.17"))
 
-    assertEquals(result, "2.12.19")
+    assertEquals(result, v("2.12.19"))
   }
 
   test("findLatestScalaVersion finds latest 3.3.x version") {
@@ -73,9 +78,9 @@ class UtilsSuite extends munit.FunSuite {
       )
     )
 
-    val result = Utils.findLatestScalaVersion("3.3.1")
+    val result = Utils.findLatestScalaVersion(v("3.3.1"))
 
-    assertEquals(result, "3.3.3")
+    assertEquals(result, v("3.3.3"))
   }
 
   test("findLatestScalaVersion finds latest 3.4.x version") {
@@ -85,9 +90,9 @@ class UtilsSuite extends munit.FunSuite {
       )
     )
 
-    val result = Utils.findLatestScalaVersion("3.4.0")
+    val result = Utils.findLatestScalaVersion(v("3.4.0"))
 
-    assertEquals(result, "3.4.2")
+    assertEquals(result, v("3.4.2"))
   }
 
   test("findLatestScalaVersion returns same version when already latest") {
@@ -97,17 +102,9 @@ class UtilsSuite extends munit.FunSuite {
       )
     )
 
-    val result = Utils.findLatestScalaVersion("2.13.12")
+    val result = Utils.findLatestScalaVersion(v("2.13.12"))
 
-    assertEquals(result, "2.13.12")
-  }
-
-  test("findLatestScalaVersion returns original for unrecognized format") {
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder(Map.empty)
-
-    val result = Utils.findLatestScalaVersion("invalid-version")
-
-    assertEquals(result, "invalid-version")
+    assertEquals(result, v("2.13.12"))
   }
 
   test("findLatestScalaVersion uses scala-library for Scala 2") {
@@ -119,12 +116,12 @@ class UtilsSuite extends munit.FunSuite {
       )
     )
 
-    val result = Utils.findLatestScalaVersion("2.13.12")
+    val result = Utils.findLatestScalaVersion(v("2.13.12"))
 
-    assertEquals(result, "2.13.14")
+    assertEquals(result, v("2.13.14"))
   }
 
-  test("findLatestScalaVersion uses scala3-library_3 for Scala 3") {
+  test("findLatestScalaVersion uses scala3-library_3 for Scala 3 before 3.8") {
     // We verify this by providing versions only for scala3-library_3
     // If it queried the wrong module, it would fail to find a version
     implicit val versionFinder: Utils.VersionFinder = mockVersionFinder(
@@ -133,18 +130,36 @@ class UtilsSuite extends munit.FunSuite {
       )
     )
 
-    val result = Utils.findLatestScalaVersion("3.3.1")
+    val result = Utils.findLatestScalaVersion(v("3.3.1"))
 
-    assertEquals(result, "3.3.3")
+    assertEquals(result, v("3.3.3"))
   }
 
-  test("findLatestScalaVersion handles version without patch") {
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder(Map.empty)
+  test("findLatestScalaVersion uses scala-library for Scala 3.8+") {
+    // From Scala 3.8.0 onwards, the artifact is scala-library
+    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder(
+      Map(
+        ("org.scala-lang", "scala-library") -> List("3.8.0", "3.8.1", "3.8.2")
+      )
+    )
 
-    // This should return original because "2.13" doesn't match the regex ^(\d+\.\d+)\..*
-    val result = Utils.findLatestScalaVersion("2.13")
+    val result = Utils.findLatestScalaVersion(v("3.8.0"))
 
-    assertEquals(result, "2.13")
+    assertEquals(result, v("3.8.2"))
+  }
+
+  test("findLatestScalaVersion fails for version without patch") {
+    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder(
+      Map(
+        ("org.scala-lang", "scala-library") -> List("2.13.12", "2.13.14")
+      )
+    )
+
+    // 2.13 is not a valid Scala version format - it needs a patch component
+    // Shape matching in isValidCandidate will reject 3-part versions when current is 2-part
+    intercept[RuntimeException] {
+      Utils.findLatestScalaVersion(v("2.13"))
+    }
   }
 
 }

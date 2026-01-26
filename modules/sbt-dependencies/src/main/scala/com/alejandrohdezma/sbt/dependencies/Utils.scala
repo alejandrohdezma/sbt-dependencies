@@ -20,6 +20,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.Eq._
 import coursier.cache.FileCache
 import coursier.{Dependency => _, _}
@@ -81,24 +82,47 @@ object Utils {
 
   }
 
-  /** Finds the latest version of a dependency that passes the validation function.
+  /** Finds the latest version of a dependency based on the current version's marker.
     *
-    * @param dependency
-    *   The dependency to find the latest version of.
-    * @param validate
-    *   Function to filter valid candidate versions.
+    * The marker controls the update scope:
+    *   - `=` (Exact): No updates, returns current version
+    *   - `~` (Minor): Updates within same major.minor
+    *   - `^` (Major): Updates within same major
+    *
+    * For variable versions, delegates to the resolved numeric version.
+    *
+    * @param organization
+    *   The organization/groupId.
+    * @param name
+    *   The artifact name.
+    * @param isCross
+    *   Whether the dependency is cross-compiled for Scala.
+    * @param isSbtPlugin
+    *   Whether the dependency is an SBT plugin.
+    * @param current
+    *   The current version (may be numeric or variable).
     * @return
-    *   The latest valid version.
+    *   The latest valid version, preserving the original marker.
     */
-  def findLatestVersion(dependency: Dependency)(
-      validate: Dependency.Version.Numeric => Boolean
+  def findLatestVersion(
+      organization: String,
+      name: String,
+      isCross: Boolean,
+      isSbtPlugin: Boolean,
+      current: Dependency.Version
   )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.Version.Numeric =
-    findLatestVersion(
-      dependency.organization,
-      dependency.name,
-      dependency.isCross,
-      dependency.configuration === "sbt-plugin"
-    )(validate)
+    current match {
+      case variable: Dependency.Version.Variable =>
+        Utils.findLatestVersion(organization, name, isCross, isSbtPlugin, variable.resolved)
+
+      case numeric: Dependency.Version.Numeric =>
+        if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) numeric
+        else {
+          Utils
+            .findLatestVersion(organization, name, isCross, isSbtPlugin)(numeric.isValidCandidate)
+            .copy(marker = numeric.marker)
+        }
+    }
 
   /** Finds the latest version of a dependency that passes the validation function.
     *
@@ -126,37 +150,29 @@ object Utils {
       .headOption
       .getOrElse(fail(s"Could not resolve $organization:$name"))
 
-  /** Finds the latest Scala version within the same minor line.
+  /** Finds the latest Scala version based on the version's marker.
     *
-    * For example:
-    *   - `2.13.12` → latest `2.13.x`
-    *   - `3.3.1` → latest `3.3.x`
+    * The marker controls the update scope:
+    *   - `=` (Exact): No updates, returns current version
+    *   - `~` (Minor): Updates within same major.minor (e.g., 3.3.x)
+    *   - `^` (Major): Updates within same major (e.g., 3.x.y)
+    *
+    * For Scala 3.8.0+, queries `scala-library`. For earlier Scala 3 versions, queries `scala3-library_3`.
     *
     * @param currentVersion
-    *   The current Scala version.
+    *   The current Scala version (may include a marker).
     * @return
-    *   The latest version within the same minor line, or the original if unrecognized.
+    *   The latest version within the allowed range, preserving the original marker.
     */
-  def findLatestScalaVersion(currentVersion: String)(implicit
+  def findLatestScalaVersion(currentVersion: Numeric)(implicit
       versionFinder: VersionFinder,
       logger: Logger
-  ): String = {
-    val ScalaVersionRegex = """^(\d+\.\d+)\..*""".r
+  ): Numeric = {
+    val name =
+      if (currentVersion.major === 3 && currentVersion.minor < 8) "scala3-library_3"
+      else "scala-library"
 
-    currentVersion match {
-      case ScalaVersionRegex(majorMinor) =>
-        val (org, name) =
-          if (majorMinor.startsWith("3.")) ("org.scala-lang", "scala3-library_3")
-          else ("org.scala-lang", "scala-library")
-
-        findLatestVersion(org, name, isCross = false, isSbtPlugin = false) { candidate =>
-          candidate.toVersionString.startsWith(majorMinor + ".")
-        }.toVersionString
-
-      case other =>
-        logger.warn(s"Unrecognized Scala version format: $other")
-        other
-    }
+    findLatestVersion("org.scala-lang", name, isCross = false, isSbtPlugin = false, currentVersion)
   }
 
   /** Logs an error message and throws a RuntimeException. */
