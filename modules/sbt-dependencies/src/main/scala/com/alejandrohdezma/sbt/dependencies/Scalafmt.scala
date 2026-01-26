@@ -55,7 +55,7 @@ object Scalafmt {
             logger.info(s" ↳ ✅ $GREEN${current.toVersionString}$RESET")
             false
           } else {
-            logger.info(s" ↳ ⬆️ $YELLOW${current.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET")
+            logger.info(s" ↳ ⬆️  $YELLOW${current.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET")
 
             val newContent =
               versionRegex.replaceAllIn(content, m => s"${m.group(1)}${latest.toVersionString}${m.group(3)}")
