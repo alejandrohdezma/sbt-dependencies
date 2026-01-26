@@ -183,7 +183,7 @@ class Commands {
     } else {
       val lines = IO.readLines(buildProperties)
 
-      val sbtVersionRegex = """sbt\.version=(.+)""".r
+      val sbtVersionRegex = """sbt\.version\s*=\s*(.+)""".r
 
       if (!lines.exists(sbtVersionRegex.findFirstIn(_).isDefined)) {
         logger.warn("sbt.version not found in project/build.properties")
