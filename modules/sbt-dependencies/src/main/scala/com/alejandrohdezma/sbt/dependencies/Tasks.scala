@@ -162,7 +162,7 @@ class Tasks {
     if (!groupExists) {
       // Group not in YAML file - silently skip
     } else if (versions.isEmpty) {
-      logger.info(s"\n🫙  No scala-versions configured for `$group`\n")
+      logger.info(s"\n🫙 No scala-versions configured for `$group`\n")
     } else {
       logger.info(s"\n🔄 Updating Scala versions for `$group`\n")
 
