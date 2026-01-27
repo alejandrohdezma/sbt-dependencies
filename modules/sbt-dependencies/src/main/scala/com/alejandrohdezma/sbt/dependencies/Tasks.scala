@@ -59,7 +59,7 @@ class Tasks {
                 dep
 
               case _: Dependency.Version.Numeric =>
-                logger.info(s" ↳ ⬆️  $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
+                logger.info(s" ↳ ⬆️ $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
                 dep.withVersion(latest)
 
               case variable: Dependency.Version.Variable if latest.isSameVersion(variable.resolved) =>
@@ -173,7 +173,7 @@ class Tasks {
           logger.info(s" ↳ ✅ $GREEN${version.toVersionString}$RESET")
           version
         } else {
-          logger.info(s" ↳ ⬆️  $YELLOW${version.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET")
+          logger.info(s" ↳ ⬆️ $YELLOW${version.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET")
           latest
         }
       }

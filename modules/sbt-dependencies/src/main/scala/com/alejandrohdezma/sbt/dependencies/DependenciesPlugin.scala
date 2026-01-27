@@ -44,14 +44,22 @@ object DependenciesPlugin extends AutoPlugin {
 
   override def buildSettings: Seq[Setting[_]] = Seq(
     dependencyVersionVariables := Map.empty,
-    scalaVersion := {
-      val versions = Settings.buildScalaVersions.value
-      if (versions.nonEmpty) versions.head else scalaVersion.value
-    },
-    crossScalaVersions := {
-      val versions = Settings.buildScalaVersions.value
-      if (versions.nonEmpty) versions else crossScalaVersions.value
-    }
+    scalaVersion := Def.settingDyn {
+      val file = Settings.dependenciesFile.value
+      if (file.exists()) Def.setting {
+        val versions = Settings.buildScalaVersions.value
+        if (versions.nonEmpty) versions.head else scalaVersion.value
+      }
+      else Def.setting(scalaVersion.value)
+    }.value,
+    crossScalaVersions := Def.settingDyn {
+      val file = Settings.dependenciesFile.value
+      if (file.exists()) Def.setting {
+        val versions = Settings.buildScalaVersions.value
+        if (versions.nonEmpty) versions else crossScalaVersions.value
+      }
+      else Def.setting(crossScalaVersions.value)
+    }.value
   )
 
   /** Project settings: wires libraryDependencies and registers tasks. */
@@ -64,14 +72,22 @@ object DependenciesPlugin extends AutoPlugin {
     updateScalaVersions     := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
     install                 := Tasks.install.tag(Exclusive).evaluated,
     install / aggregate     := false,
-    scalaVersion := {
-      val versions = Settings.projectScalaVersions.value
-      if (versions.nonEmpty) versions.head else scalaVersion.value
-    },
-    crossScalaVersions := {
-      val versions = Settings.projectScalaVersions.value
-      if (versions.nonEmpty) versions else crossScalaVersions.value
-    }
+    scalaVersion := Def.settingDyn {
+      val file = Settings.dependenciesFile.value
+      if (file.exists()) Def.setting {
+        val versions = Settings.projectScalaVersions.value
+        if (versions.nonEmpty) versions.head else scalaVersion.value
+      }
+      else Def.setting(scalaVersion.value)
+    }.value,
+    crossScalaVersions := Def.settingDyn {
+      val file = Settings.dependenciesFile.value
+      if (file.exists()) Def.setting {
+        val versions = Settings.projectScalaVersions.value
+        if (versions.nonEmpty) versions else crossScalaVersions.value
+      }
+      else Def.setting(crossScalaVersions.value)
+    }.value
   )
 
 }

@@ -34,7 +34,7 @@ class Commands {
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion
   )
 
-  /** Creates (or recreates) the dependencies.yaml file based on current project dependencies. */
+  /** Creates (or recreates) the dependencies.yaml file based on current project dependencies and Scala versions. */
   lazy val initDependenciesFile = Command.command("initDependenciesFile") { state =>
     implicit val logger: Logger = state.log
 
@@ -57,14 +57,33 @@ class Commands {
     }.toList
       .filterNot(d => d.organization === "com.alejandrohdezma" && d.name === "sbt-dependencies")
 
+    // Gather Scala versions for each group (skip in meta-build, always 2.12)
+    val scalaVersionsByGroup: Map[String, List[String]] =
+      if (isSbtBuild) Map.empty
+      else
+        project.structure.allProjectRefs.map { ref =>
+          project.get(ref / name) -> project.get(ref / crossScalaVersions).toList
+        }.toMap
+
+    // Check if all projects share the same Scala versions
+    val uniqueVersionSets = scalaVersionsByGroup.values.map(_.sorted).toSet
+    val sharedVersions    = if (uniqueVersionSets.size === 1) uniqueVersionSets.head else Nil
+
     val file =
       if (isSbtBuild) base / "dependencies.yaml"
       else base / "project" / "dependencies.yaml"
 
-    // Write each group's dependencies (preserves other groups automatically)
-    newGroups.foreach { group =>
-      val deps = newDependencies.filter(_.group === group)
-      DependenciesFile.write(file, group, deps)
+    // Write sbt-build group with shared scala versions (if any)
+    if (sharedVersions.nonEmpty || newGroups.contains("sbt-build")) {
+      val deps = newDependencies.filter(_.group === "sbt-build")
+      DependenciesFile.write(file, "sbt-build", deps, sharedVersions)
+    }
+
+    // Write each group's dependencies (and scala versions if not shared)
+    newGroups.filterNot(_ === "sbt-build").foreach { group =>
+      val deps          = newDependencies.filter(_.group === group)
+      val scalaVersions = if (sharedVersions.isEmpty) scalaVersionsByGroup.getOrElse(group, Nil) else Nil
+      DependenciesFile.write(file, group, deps, scalaVersions)
     }
 
     if (isSbtBuild) {
@@ -122,7 +141,7 @@ class Commands {
           logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
           line
         } else {
-          logger.info(s" ↳ ⬆️  $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+          logger.info(s" ↳ ⬆️ $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
           s"""addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "${latest.show}")"""
         }
       case line => line
@@ -195,7 +214,7 @@ class Commands {
               logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
               (line, false)
             } else {
-              logger.info(s" ↳ ⬆️  $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+              logger.info(s" ↳ ⬆️ $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
               (s"sbt.version=${latest.toVersionString}", true)
             }
           case line => (line, false)

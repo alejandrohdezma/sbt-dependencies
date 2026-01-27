@@ -65,7 +65,8 @@ object DependenciesFile {
 
   /** Writes dependencies for a specific group to the given YAML file.
     *
-    * Other groups in the file are preserved. The format (simple vs advanced) of existing groups is preserved.
+    * Other groups in the file are preserved. The format (simple vs advanced) of existing groups is preserved, unless
+    * scalaVersions is provided, in which case Advanced format is used.
     *
     * @param file
     *   The target file.
@@ -73,17 +74,24 @@ object DependenciesFile {
     *   The group to write dependencies for.
     * @param dependencies
     *   The list of dependencies to write.
+    * @param scalaVersions
+    *   Optional list of Scala versions to write. If non-empty, Advanced format is used.
     */
-  def write(file: File, group: String, dependencies: List[Dependency])(implicit logger: Logger): Unit =
-    if (dependencies.nonEmpty) {
+  def write(file: File, group: String, dependencies: List[Dependency], scalaVersions: List[String] = Nil)(implicit
+      logger: Logger
+  ): Unit =
+    if (dependencies.nonEmpty || scalaVersions.nonEmpty) {
       val existingConfigs = readRaw(file)
 
       val dependencyLines = dependencies.distinct.sorted.map(_.toLine)
 
-      val newConfig = existingConfigs.get(group) match {
-        case Some(adv: GroupConfig.Advanced) => GroupConfig.Advanced(dependencyLines, adv.scalaVersions)
-        case _                               => GroupConfig.Simple(dependencyLines)
-      }
+      val newConfig =
+        if (scalaVersions.nonEmpty) GroupConfig.Advanced(dependencyLines, scalaVersions)
+        else
+          existingConfigs.get(group) match {
+            case Some(adv: GroupConfig.Advanced) => GroupConfig.Advanced(dependencyLines, adv.scalaVersions)
+            case _                               => GroupConfig.Simple(dependencyLines)
+          }
 
       val updated = existingConfigs + (group -> newConfig)
 
