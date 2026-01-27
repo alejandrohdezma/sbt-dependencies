@@ -4,3 +4,9 @@ myproject:
 
 otherproject:
   - org.typelevel::cats-effect:3.5.7
+
+sbt-build:
+  scala-versions:
+    - 2.13.12
+    - 3.3.3
+  dependencies: []
