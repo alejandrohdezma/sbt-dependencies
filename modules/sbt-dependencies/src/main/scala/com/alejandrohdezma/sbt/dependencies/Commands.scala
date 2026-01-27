@@ -122,7 +122,7 @@ class Commands {
           logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
           line
         } else {
-          logger.info(s" ↳ ⬆️  $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+          logger.info(s" ↳ ⬆️ $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
           s"""addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "${latest.show}")"""
         }
       case line => line
@@ -195,7 +195,7 @@ class Commands {
               logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
               (line, false)
             } else {
-              logger.info(s" ↳ ⬆️  $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+              logger.info(s" ↳ ⬆️ $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
               (s"sbt.version=${latest.toVersionString}", true)
             }
           case line => (line, false)
