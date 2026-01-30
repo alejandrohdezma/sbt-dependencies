@@ -1,4 +1,4 @@
 # Verify install command adds dependencies to YAML
 > compile
 > myproject/install org.typelevel::cats-effect:3.5.7
-$ must-mirror project/dependencies.yaml project/dependencies.yaml.expected
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

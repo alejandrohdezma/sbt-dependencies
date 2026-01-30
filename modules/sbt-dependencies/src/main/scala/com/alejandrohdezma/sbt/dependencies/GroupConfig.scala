@@ -16,7 +16,10 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
+
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigValueType
 
 /** Represents the configuration for a group in the dependencies file. */
 sealed trait GroupConfig {
@@ -27,80 +30,95 @@ sealed trait GroupConfig {
   /** The list of Scala versions for this group. */
   def scalaVersions: List[String] = Nil
 
-  /** Formats a group with its configuration for YAML output. */
+  /** Formats a group with its configuration for HOCON output. */
   def format(group: String): String = this match {
     case GroupConfig.Simple(deps) =>
-      s"$group:\n${deps.map(d => s"  - $d").mkString("\n")}"
+      s"""$group = [\n${deps.map(d => s"""  "$d"""").mkString("\n")}\n]"""
 
     case GroupConfig.Advanced(deps, versions) =>
       val scalaVersionsSection = versions match {
         case Nil           => ""
-        case single :: Nil => s"  scala-version: $single\n"
-        case multiple      => s"  scala-versions:\n${multiple.map(v => s"    - $v").mkString("\n")}\n"
+        case single :: Nil => s"""  scala-version = "$single"\n"""
+        case multiple =>
+          s"""  scala-versions = [${multiple.map(v => s""""$v"""").mkString(", ")}]\n"""
       }
 
       val depsSection =
-        if (deps.nonEmpty) s"  dependencies:\n${deps.map(d => s"    - $d").mkString("\n")}"
-        else "  dependencies: []"
+        if (deps.nonEmpty) s"""  dependencies = [\n${deps.map(d => s"""    "$d"""").mkString("\n")}\n  ]"""
+        else "  dependencies = []"
 
-      s"$group:\n$scalaVersionsSection$depsSection"
+      s"$group {\n$scalaVersionsSection$depsSection\n}"
   }
 
 }
 
 object GroupConfig {
 
-  /** Parses a group value, detecting whether it's simple or advanced format. */
-  def parse(value: Object): Either[String, GroupConfig] = value match {
-    case list: java.util.List[_] =>
-      Right(GroupConfig.Simple(list.asScala.toList.map(_.toString))) // scalafix:ok
+  /** Parses a group from a Config, detecting whether it's simple or advanced format. */
+  def parse(config: Config, group: String): Either[String, GroupConfig] =
+    config.getValue(group).valueType() match {
+      case ConfigValueType.LIST =>
+        Right(GroupConfig.Simple(config.getStringList(group).asScala.toList))
 
-    case map: java.util.Map[_, _] =>
-      val scalaMap = map.asScala.toMap.map { case (k, v) => k.toString -> v } // scalafix:ok
+      case ConfigValueType.OBJECT =>
+        val groupConfig = config.getConfig(group)
 
-      val dependencies = scalaMap.get("dependencies") match {
-        case Some(list: java.util.List[_]) => Right(list.asScala.toList.map(_.toString)) // scalafix:ok
-        case Some(other)                   => Left(s"'dependencies' must be a list, got ${other.getClass.getSimpleName}")
-        case None                          => Right(Nil)
-      }
+        val dependencies =
+          if (groupConfig.hasPath("dependencies"))
+            groupConfig.getValue("dependencies").valueType() match {
+              case ConfigValueType.LIST => Right(groupConfig.getStringList("dependencies").asScala.toList)
+              case other                => Left(s"'dependencies' must be a list, got $other")
+            }
+          else Right(Nil)
 
-      val scalaVersions = (scalaMap.get("scala-versions"), scalaMap.get("scala-version")) match {
-        case (Some(list: java.util.List[_]), _) if list.isEmpty() => Left("'scala-versions' cannot be empty")
-        case (Some(list: java.util.List[_]), _)                   => Right(list.asScala.toList.map(_.toString)) // scalafix:ok
-        case (Some(other), _)                                     => Left(s"'scala-versions' must be a list, got ${other.getClass.getSimpleName}")
-        case (None, Some(version: String))                        => Right(List(version))
-        case (None, Some(other))                                  => Left(s"'scala-version' must be a string, got ${other.getClass.getSimpleName}")
-        case (None, None)                                         => Right(Nil)
-      }
+        val scalaVersions = (groupConfig.hasPath("scala-versions"), groupConfig.hasPath("scala-version")) match {
+          case (true, true) =>
+            Left("Only one of 'scala-versions' or 'scala-version' can be present")
+          case (true, _) =>
+            groupConfig.getValue("scala-versions").valueType() match {
+              case ConfigValueType.LIST =>
+                val list = groupConfig.getStringList("scala-versions").asScala.toList
+                if (list.isEmpty) Left("'scala-versions' cannot be empty")
+                else Right(list)
+              case other => Left(s"'scala-versions' must be a list, got $other")
+            }
+          case (false, true) =>
+            groupConfig.getValue("scala-version").valueType() match {
+              case ConfigValueType.STRING => Right(List(groupConfig.getString("scala-version")))
+              case other                  => Left(s"'scala-version' must be a string, got $other")
+            }
+          case (false, false) => Right(Nil)
+        }
 
-      dependencies.flatMap(dependencies => scalaVersions.map(Advanced(dependencies, _)))
+        dependencies.flatMap(deps => scalaVersions.map(Advanced(deps, _)))
 
-    case other =>
-      Left(s"expected list or map, got ${Option(other).map(_.getClass.getSimpleName).getOrElse("null")}")
-  }
+      case other =>
+        Left(s"expected list or object, got $other")
+    }
 
   /** Simple format: just a list of dependencies.
     *
-    * YAML representation:
+    * HOCON representation:
     * {{{
-    * my-project:
-    *   - org::name:version
-    *   - org2::name2:version2
+    * my-project = [
+    *   "org::name:version"
+    *   "org2::name2:version2"
+    * ]
     * }}}
     */
   final case class Simple(dependencies: List[String]) extends GroupConfig
 
   /** Advanced format: an object with dependencies and potentially other fields.
     *
-    * YAML representation:
+    * HOCON representation:
     * {{{
-    * my-project:
-    *   scala-versions:
-    *     - 2.13.12
-    *     - 2.12.18
-    *   dependencies:
-    *     - org::name:version
-    *     - org2::name2:version2
+    * my-project {
+    *   scala-versions = ["2.13.12", "2.12.18"]
+    *   dependencies = [
+    *     "org::name:version"
+    *     "org2::name2:version2"
+    *   ]
+    * }
     * }}}
     */
   final case class Advanced(dependencies: List[String], override val scalaVersions: List[String] = Nil)

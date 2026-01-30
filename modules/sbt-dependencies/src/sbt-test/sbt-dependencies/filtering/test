@@ -5,4 +5,4 @@
 > myproject/updateDependencies org.scalameta:
 
 # Verify only munit was updated, typelevel deps unchanged
-$ must-mirror project/dependencies.yaml project/dependencies.yaml.expected
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

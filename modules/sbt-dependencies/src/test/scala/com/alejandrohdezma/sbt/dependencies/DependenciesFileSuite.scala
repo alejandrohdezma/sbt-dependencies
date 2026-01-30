@@ -52,7 +52,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   def withDependenciesFile(content: String): FunFixture[File] = FunFixture[File](
     setup = { _ =>
-      val file = Files.createTempFile("dependencies", ".yaml").toFile
+      val file = Files.createTempFile("dependencies", ".conf").toFile
       IO.write(file, content)
       file
     },
@@ -65,7 +65,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   val nonExistentFile: FunFixture[File] = FunFixture[File](
     setup = { _ =>
       val dir  = Files.createTempDirectory("dependencies-test")
-      val file = dir.resolve("dependencies.yaml").toFile
+      val file = dir.resolve("dependencies.conf").toFile
       file
     },
     teardown = { file =>
@@ -76,14 +76,16 @@ class DependenciesFileSuite extends munit.FunSuite {
   )
 
   withDependenciesFile {
-    """|sbt-build:
-       |  - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
-       |  - io.get-coursier::coursier:2.1.24
+    """|sbt-build = [
+       |  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
+       |  "io.get-coursier::coursier:2.1.24"
+       |]
        |
-       |sbt-dependencies:
-       |  - org.scalameta::munit:1.2.1:test
+       |sbt-dependencies = [
+       |  "org.scalameta::munit:1.2.1:test"
+       |]
        |""".stripMargin
-  }.test("read YAML file returns only specified group") { file =>
+  }.test("read HOCON file returns only specified group") { file =>
     val sbtBuildDeps = DependenciesFile.read(file, "sbt-build", variableResolvers)
     assertEquals(sbtBuildDeps.length, 2)
     assertEquals(sbtBuildDeps.map(_.name).sorted, List("coursier", "sbt-scalafix"))
@@ -94,7 +96,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(sbtDepsDeps.head.configuration, "test")
   }
 
-  withDependenciesFile("").test("read empty YAML file returns empty list") { file =>
+  withDependenciesFile("").test("read empty HOCON file returns empty list") { file =>
     val result = DependenciesFile.read(file, "any-group", variableResolvers)
 
     assertEquals(result, List.empty)
@@ -110,10 +112,11 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |""".stripMargin
-  }.test("read YAML file with single group") { file =>
+  }.test("read HOCON file with single group") { file =>
     val result = DependenciesFile.read(file, "my-project", variableResolvers)
 
     assertEquals(result.length, 1)
@@ -125,16 +128,17 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |""".stripMargin
-  }.test("read YAML file with non-existent group returns empty list") { file =>
+  }.test("read HOCON file with non-existent group returns empty list") { file =>
     val result = DependenciesFile.read(file, "other-project", variableResolvers)
 
     assertEquals(result, List.empty)
   }
 
-  withDependenciesFile("").test("write dependencies creates properly formatted YAML") { file =>
+  withDependenciesFile("").test("write dependencies creates properly formatted HOCON") { file =>
     val myProjectDeps = List(
       Dependency(
         "org.typelevel",
@@ -169,12 +173,14 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  - org.typelevel::cats-core:2.10.0
+      """|my-project = [
+         |  "org.typelevel::cats-core:2.10.0"
+         |]
          |
-         |sbt-build:
-         |  - io.get-coursier::coursier:2.1.24
-         |  - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
+         |sbt-build = [
+         |  "io.get-coursier::coursier:2.1.24"
+         |  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
+         |]
          |""".stripMargin
 
     assertEquals(content, expected)
@@ -218,8 +224,9 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     DependenciesFile.write(file, "group", dependencies)
 
-    val content  = IO.read(file)
-    val depOrder = content.linesIterator.filter(_.startsWith("  - ")).map(_.drop(4)).toList
+    val content = IO.read(file)
+    val depOrder =
+      content.linesIterator.filter(_.trim.startsWith("\"")).map(_.trim.stripPrefix("\"").stripSuffix("\"")).toList
 
     // compile deps first (a-lib, b-lib), then test deps (m-lib, z-lib)
     assertEquals(depOrder, List("org:a-lib:1.0.0", "org:b-lib:1.0.0", "org:m-lib:1.0.0:test", "org:z-lib:1.0.0:test"))
@@ -318,7 +325,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     )
 
     val content    = IO.read(file)
-    val groupOrder = content.linesIterator.filter(_.endsWith(":")).map(_.dropRight(1)).toList
+    val groupOrder = content.linesIterator.filter(_.contains(" = [")).map(_.split(" = ")(0)).toList
 
     assertEquals(groupOrder, List("a-group", "m-group", "z-group"))
   }
@@ -332,17 +339,19 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     DependenciesFile.write(file, "group", dependencies)
 
-    val content  = IO.read(file)
-    val depOrder = content.linesIterator.filter(_.startsWith("  - ")).map(_.drop(4)).toList
+    val content = IO.read(file)
+    val depOrder =
+      content.linesIterator.filter(_.trim.startsWith("\"")).map(_.trim.stripPrefix("\"").stripSuffix("\"")).toList
 
     assertEquals(depOrder, List("org:a-lib:1.0.0", "org:m-lib:1.0.0", "org:z-lib:1.0.0"))
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  - org.typelevel::cats-core:=2.10.0
-       |  - org.typelevel::cats-effect:^3.5.0
-       |  - org.typelevel::fs2-core:~3.9.0
+    """|my-project = [
+       |  "org.typelevel::cats-core:=2.10.0"
+       |  "org.typelevel::cats-effect:^3.5.0"
+       |  "org.typelevel::fs2-core:~3.9.0"
+       |]
        |""".stripMargin
   }.test("read preserves version markers") { file =>
     val result = DependenciesFile.read(file, "my-project", variableResolvers)
@@ -396,10 +405,11 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  - org.typelevel::cats-core:=2.10.0
-         |  - org.typelevel::cats-effect:^3.5.0
-         |  - org.typelevel::fs2-core:~3.9.0
+      """|my-project = [
+         |  "org.typelevel::cats-core:=2.10.0"
+         |  "org.typelevel::cats-effect:^3.5.0"
+         |  "org.typelevel::fs2-core:~3.9.0"
+         |]
          |""".stripMargin
 
     assertNoDiff(content, expected)
@@ -417,10 +427,11 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile {
     """|# This is a comment
-       |my-project:
-       |  - org.typelevel::cats-core:2.10.0
+       |my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |""".stripMargin
-  }.test("read ignores YAML comments") { file =>
+  }.test("read ignores HOCON comments") { file =>
     val result = DependenciesFile.read(file, "my-project", variableResolvers)
 
     assertEquals(result.length, 1)
@@ -428,13 +439,15 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  - org.typelevel::cats-core:2.10.0
-       |  - org.typelevel::cats-effect:3.5.0
-       |another-project:
-       |  - org.scalameta::munit:1.2.1
+    """|my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |  "org.typelevel::cats-effect:3.5.0"
+       |]
+       |another-project = [
+       |  "org.scalameta::munit:1.2.1"
+       |]
        |""".stripMargin
-  }.test("read handles YAML without blank lines between groups") { file =>
+  }.test("read handles HOCON without blank lines between groups") { file =>
     val myProjectDeps   = DependenciesFile.read(file, "my-project", variableResolvers)
     val anotherProjDeps = DependenciesFile.read(file, "another-project", variableResolvers)
 
@@ -443,19 +456,9 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |- org.typelevel::cats-core:2.10.0
-       |""".stripMargin
-  }.test("read handles YAML without indentation") { file =>
-    val result = DependenciesFile.read(file, "my-project", variableResolvers)
-
-    assertEquals(result.length, 1)
-    assertEquals(result.head.name, "cats-core")
-  }
-
-  withDependenciesFile {
-    """|existing-group:
-       |  - org.typelevel::cats-core:2.10.0
+    """|existing-group = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |""".stripMargin
   }.test("write preserves other groups") { file =>
     val newDeps = List(
@@ -474,11 +477,13 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|existing-group:
-         |  - org.typelevel::cats-core:2.10.0
+      """|existing-group = [
+         |  "org.typelevel::cats-core:2.10.0"
+         |]
          |
-         |new-group:
-         |  - org.scalameta::munit:1.0.0:test
+         |new-group = [
+         |  "org.scalameta::munit:1.0.0:test"
+         |]
          |""".stripMargin
 
     assertNoDiff(content, expected)
@@ -512,7 +517,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     DependenciesFile.write(file, "group", dependencies)
 
     val content  = IO.read(file)
-    val depCount = content.linesIterator.count(_.startsWith("  - "))
+    val depCount = content.linesIterator.count(_.trim.startsWith("\""))
 
     assertEquals(depCount, 2) // Only 2 unique artifacts
   }
@@ -520,12 +525,14 @@ class DependenciesFileSuite extends munit.FunSuite {
   // --- Advanced format tests ---
 
   withDependenciesFile {
-    """|my-project:
-       |  dependencies:
-       |    - org.typelevel::cats-core:2.10.0
-       |    - org.scalameta::munit:1.2.1:test
+    """|my-project {
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |    "org.scalameta::munit:1.2.1:test"
+       |  ]
+       |}
        |""".stripMargin
-  }.test("read advanced format YAML file") { file =>
+  }.test("read advanced format HOCON file") { file =>
     val result = DependenciesFile.read(file, "my-project", variableResolvers)
 
     assertEquals(result.length, 2)
@@ -533,14 +540,17 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|simple-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|simple-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |
-       |advanced-project:
-       |  dependencies:
-       |    - org.scalameta::munit:1.2.1:test
+       |advanced-project {
+       |  dependencies = [
+       |    "org.scalameta::munit:1.2.1:test"
+       |  ]
+       |}
        |""".stripMargin
-  }.test("read mixed format YAML file") { file =>
+  }.test("read mixed format HOCON file") { file =>
     val simple   = DependenciesFile.read(file, "simple-project", variableResolvers)
     val advanced = DependenciesFile.read(file, "advanced-project", variableResolvers)
 
@@ -551,8 +561,9 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  dependencies: []
+    """|my-project {
+       |  dependencies = []
+       |}
        |""".stripMargin
   }.test("read advanced format with empty dependencies") { file =>
     val result = DependenciesFile.read(file, "my-project", variableResolvers)
@@ -561,8 +572,9 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |""".stripMargin
   }.test("write preserves simple format") { file =>
     val newDeps = List(
@@ -580,17 +592,20 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  - org.typelevel::cats-effect:3.5.0
+      """|my-project = [
+         |  "org.typelevel::cats-effect:3.5.0"
+         |]
          |""".stripMargin
 
     assertNoDiff(content, expected)
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  dependencies:
-       |    - org.typelevel::cats-core:2.10.0
+    """|my-project {
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
        |""".stripMargin
   }.test("write preserves advanced format") { file =>
     val newDeps = List(
@@ -608,21 +623,26 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  dependencies:
-         |    - org.typelevel::cats-effect:3.5.0
+      """|my-project {
+         |  dependencies = [
+         |    "org.typelevel::cats-effect:3.5.0"
+         |  ]
+         |}
          |""".stripMargin
 
     assertNoDiff(content, expected)
   }
 
   withDependenciesFile {
-    """|simple-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|simple-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |
-       |advanced-project:
-       |  dependencies:
-       |    - org.scalameta::munit:1.2.1:test
+       |advanced-project {
+       |  dependencies = [
+       |    "org.scalameta::munit:1.2.1:test"
+       |  ]
+       |}
        |""".stripMargin
   }.test("write preserves format in mixed file") { file =>
     val simpleDeps = List(
@@ -651,12 +671,15 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|advanced-project:
-         |  dependencies:
-         |    - org.scalatest::scalatest:3.2.0:test
+      """|advanced-project {
+         |  dependencies = [
+         |    "org.scalatest::scalatest:3.2.0:test"
+         |  ]
+         |}
          |
-         |simple-project:
-         |  - org.typelevel::cats-effect:3.5.0
+         |simple-project = [
+         |  "org.typelevel::cats-effect:3.5.0"
+         |]
          |""".stripMargin
 
     assertNoDiff(content, expected)
@@ -679,9 +702,11 @@ class DependenciesFileSuite extends munit.FunSuite {
     // Now manually create an advanced format file
     IO.write(
       file,
-      """|my-project:
-         |  dependencies:
-         |    - org.typelevel::cats-core:2.10.0
+      """|my-project {
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
          |""".stripMargin
     )
 
@@ -691,9 +716,11 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  dependencies:
-         |    - org.typelevel::cats-core:2.10.0
+      """|my-project {
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
          |""".stripMargin
 
     assertNoDiff(content, expected)
@@ -719,18 +746,21 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|new-project:
-         |  - org.typelevel::cats-core:2.10.0
+      """|new-project = [
+         |  "org.typelevel::cats-core:2.10.0"
+         |]
          |""".stripMargin
 
     assertNoDiff(content, expected)
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  dependencies:
-       |    - org.typelevel::cats-core:2.10.0
-       |  unknownField: someValue
+    """|my-project {
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |  unknownField = "someValue"
+       |}
        |""".stripMargin
   }.test("read ignores unknown fields in advanced format") { file =>
     val result = DependenciesFile.read(file, "my-project", variableResolvers)
@@ -740,10 +770,12 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  dependencies:
-       |    - org.typelevel::cats-core:=2.10.0
-       |    - org.typelevel::cats-effect:^3.5.0
+    """|my-project {
+       |  dependencies = [
+       |    "org.typelevel::cats-core:=2.10.0"
+       |    "org.typelevel::cats-effect:^3.5.0"
+       |  ]
+       |}
        |""".stripMargin
   }.test("read advanced format preserves version markers") { file =>
     val result = DependenciesFile.read(file, "my-project", variableResolvers)
@@ -764,13 +796,12 @@ class DependenciesFileSuite extends munit.FunSuite {
   // --- scalaVersions tests ---
 
   withDependenciesFile {
-    """|my-project:
-       |  scala-versions:
-       |    - 2.13.12
-       |    - 2.12.18
-       |    - 3.3.1
-       |  dependencies:
-       |    - org.typelevel::cats-core:2.10.0
+    """|my-project {
+       |  scala-versions = ["2.13.12", "2.12.18", "3.3.1"]
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
        |""".stripMargin
   }.test("readScalaVersions returns scala versions from advanced format") { file =>
     val result = DependenciesFile.readScalaVersions(file, "my-project")
@@ -779,8 +810,9 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |""".stripMargin
   }.test("readScalaVersions returns empty list for simple format") { file =>
     val result = DependenciesFile.readScalaVersions(file, "my-project")
@@ -789,9 +821,11 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  dependencies:
-       |    - org.typelevel::cats-core:2.10.0
+    """|my-project {
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
        |""".stripMargin
   }.test("readScalaVersions returns empty list when not specified in advanced format") { file =>
     val result = DependenciesFile.readScalaVersions(file, "my-project")
@@ -806,12 +840,12 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  scala-versions:
-       |    - 2.13.12
-       |    - 2.12.18
-       |  dependencies:
-       |    - org.typelevel::cats-core:2.10.0
+    """|my-project {
+       |  scala-versions = ["2.13.12", "2.12.18"]
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
        |""".stripMargin
   }.test("write preserves scalaVersions in advanced format") { file =>
     val newDeps = List(
@@ -829,22 +863,24 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  scala-versions:
-         |    - 2.13.12
-         |    - 2.12.18
-         |  dependencies:
-         |    - org.typelevel::cats-effect:3.5.0
+      """|my-project {
+         |  scala-versions = ["2.13.12", "2.12.18"]
+         |  dependencies = [
+         |    "org.typelevel::cats-effect:3.5.0"
+         |  ]
+         |}
          |""".stripMargin
 
     assertNoDiff(content, expected)
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  scala-version: 2.13.12
-       |  dependencies:
-       |    - org.typelevel::cats-core:2.10.0
+    """|my-project {
+       |  scala-version = "2.13.12"
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
        |""".stripMargin
   }.test("readScalaVersions then write round-trip preserves scalaVersions") { file =>
     val versions = DependenciesFile.readScalaVersions(file, "my-project")
@@ -856,24 +892,28 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  scala-version: 2.13.12
-         |  dependencies:
-         |    - org.typelevel::cats-core:2.10.0
+      """|my-project {
+         |  scala-version = "2.13.12"
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
          |""".stripMargin
 
     assertNoDiff(content, expected)
   }
 
   withDependenciesFile {
-    """|simple-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|simple-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |
-       |advanced-project:
-       |  scala-versions:
-       |    - 3.3.1
-       |  dependencies:
-       |    - org.scalameta::munit:1.2.1:test
+       |advanced-project {
+       |  scala-versions = ["3.3.1"]
+       |  dependencies = [
+       |    "org.scalameta::munit:1.2.1:test"
+       |  ]
+       |}
        |""".stripMargin
   }.test("readScalaVersions works with mixed format file") { file =>
     val simpleVersions   = DependenciesFile.readScalaVersions(file, "simple-project")
@@ -891,19 +931,19 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  scala-versions:
-         |    - ~2.13.12
-         |    - ~2.12.18
-         |  dependencies: []
+      """|my-project {
+         |  scala-versions = ["~2.13.12", "~2.12.18"]
+         |  dependencies = []
+         |}
          |""".stripMargin
 
     assertNoDiff(content, expected)
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |""".stripMargin
   }.test("writeScalaVersions preserves existing dependencies from simple format") { file =>
     DependenciesFile.writeScalaVersions(file, "my-project", List(v("2.13.12")))
@@ -911,21 +951,24 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  scala-version: ~2.13.12
-         |  dependencies:
-         |    - org.typelevel::cats-core:2.10.0
+      """|my-project {
+         |  scala-version = "~2.13.12"
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
          |""".stripMargin
 
     assertNoDiff(content, expected)
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  scala-versions:
-       |    - 2.12.18
-       |  dependencies:
-       |    - org.typelevel::cats-core:2.10.0
+    """|my-project {
+       |  scala-versions = ["2.12.18"]
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
        |""".stripMargin
   }.test("writeScalaVersions updates existing scala-versions") { file =>
     DependenciesFile.writeScalaVersions(file, "my-project", List(v("2.13.14"), v("3.3.3")))
@@ -933,20 +976,21 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  scala-versions:
-         |    - ~2.13.14
-         |    - ~3.3.3
-         |  dependencies:
-         |    - org.typelevel::cats-core:2.10.0
+      """|my-project {
+         |  scala-versions = ["~2.13.14", "~3.3.3"]
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
          |""".stripMargin
 
     assertNoDiff(content, expected)
   }
 
   withDependenciesFile {
-    """|other-project:
-       |  - org.scalameta::munit:1.2.1:test
+    """|other-project = [
+       |  "org.scalameta::munit:1.2.1:test"
+       |]
        |""".stripMargin
   }.test("writeScalaVersions preserves other groups") { file =>
     DependenciesFile.writeScalaVersions(file, "my-project", List(v("2.13.12")))
@@ -954,23 +998,26 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project:
-         |  scala-version: ~2.13.12
-         |  dependencies: []
+      """|my-project {
+         |  scala-version = "~2.13.12"
+         |  dependencies = []
+         |}
          |
-         |other-project:
-         |  - org.scalameta::munit:1.2.1:test
+         |other-project = [
+         |  "org.scalameta::munit:1.2.1:test"
+         |]
          |""".stripMargin
 
     assertNoDiff(content, expected)
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  scala-versions:
-       |    - 2.13.12
-       |  dependencies:
-       |    - org.typelevel::cats-core:2.10.0
+    """|my-project {
+       |  scala-versions = ["2.13.12"]
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
        |""".stripMargin
   }.test("writeScalaVersions then readScalaVersions round-trip") { file =>
     val originalVersions = DependenciesFile.readScalaVersions(file, "my-project")
@@ -990,11 +1037,13 @@ class DependenciesFileSuite extends munit.FunSuite {
   // --- hasGroup tests ---
 
   withDependenciesFile {
-    """|my-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |
-       |other-project:
-       |  - org.scalameta::munit:1.2.1:test
+       |other-project = [
+       |  "org.scalameta::munit:1.2.1:test"
+       |]
        |""".stripMargin
   }.test("hasGroup returns true for existing group") { file =>
     assert(DependenciesFile.hasGroup(file, "my-project"))
@@ -1002,8 +1051,9 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  - org.typelevel::cats-core:2.10.0
+    """|my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
        |""".stripMargin
   }.test("hasGroup returns false for non-existent group") { file =>
     assert(!DependenciesFile.hasGroup(file, "non-existent"))
@@ -1018,8 +1068,9 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
-    """|my-project:
-       |  dependencies: []
+    """|my-project {
+       |  dependencies = []
+       |}
        |""".stripMargin
   }.test("hasGroup returns true for group with empty dependencies") { file =>
     assert(DependenciesFile.hasGroup(file, "my-project"))

@@ -35,10 +35,10 @@ class Settings {
     if (isSbtBuild.value) "sbt-build" else name.value
   }
 
-  /** The path to the dependencies.yaml file. */
+  /** The path to the dependencies.conf file. */
   val dependenciesFile: Def.Initialize[File] = Def.setting {
-    if (isSbtBuild.value) (ThisBuild / baseDirectory).value / "dependencies.yaml"
-    else (ThisBuild / baseDirectory).value / "project" / "dependencies.yaml"
+    if (isSbtBuild.value) (ThisBuild / baseDirectory).value / "dependencies.conf"
+    else (ThisBuild / baseDirectory).value / "project" / "dependencies.conf"
   }
 
   /** The list of dependencies read from the file (with variables resolved). */

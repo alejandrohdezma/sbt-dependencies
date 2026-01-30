@@ -7,4 +7,4 @@
 # - ~2.12.18 (minor) updates within 2.12.x, preserves ~
 # - 2.11.11 (no marker) updates within 2.11.x, gets ~ prefix
 # - ^2.10.0 (major) updates within 2.x.y, preserves ^
-$ must-mirror project/dependencies.yaml.expected project/dependencies.yaml
+$ must-mirror project/dependencies.conf.expected project/dependencies.conf
