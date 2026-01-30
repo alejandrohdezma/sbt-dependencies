@@ -34,7 +34,7 @@ class Commands {
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion
   )
 
-  /** Creates (or recreates) the dependencies.yaml file based on current project dependencies and Scala versions. */
+  /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions. */
   lazy val initDependenciesFile = Command.command("initDependenciesFile") { state =>
     implicit val logger: Logger = state.log
 
@@ -71,8 +71,8 @@ class Commands {
     val sharedVersions    = if (uniqueVersionSets.size === 1) uniqueVersionSets.head else Nil
 
     val file =
-      if (isSbtBuild) base / "dependencies.yaml"
-      else base / "project" / "dependencies.yaml"
+      if (isSbtBuild) base / "dependencies.conf"
+      else base / "project" / "dependencies.conf"
 
     // Write sbt-build group with shared scala versions (if any)
     if (sharedVersions.nonEmpty || newGroups.contains("sbt-build")) {
@@ -88,7 +88,7 @@ class Commands {
     }
 
     if (isSbtBuild) {
-      logger.info("📝 Created project/dependencies.yaml file with your dependencies")
+      logger.info("📝 Created project/dependencies.conf file with your dependencies")
       logger.info("💡 Remember to remove any `libraryDependencies +=` or `addSbtPlugin` settings from your build files")
       state
     } else {

@@ -24,27 +24,29 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.Eq._
-import org.yaml.snakeyaml.Yaml
+import com.typesafe.config.ConfigFactory
 
-/** Handles reading and writing dependencies to/from the dependencies.yaml file. */
+/** Handles reading and writing dependencies to/from the dependencies.conf file. */
 object DependenciesFile {
 
-  /** Reads dependencies for a specific group from the given YAML file.
+  /** Reads dependencies for a specific group from the given HOCON file.
     *
     * If the file does not exist an empty list will be returned.
     *
-    * The file format is YAML with group names as top-level keys and lists of dependency strings as values:
+    * The file format is HOCON with group names as top-level keys:
     * {{{
-    * sbt-build:
-    *   - org.typelevel::cats-core:2.10.0
-    *   - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
+    * sbt-build = [
+    *   "org.typelevel::cats-core:2.10.0"
+    *   "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
+    * ]
     *
-    * my-project:
-    *   - org.scalameta::munit:1.2.1:test
+    * my-project = [
+    *   "org.scalameta::munit:1.2.1:test"
+    * ]
     * }}}
     *
     * @param file
-    *   The dependencies.yaml file to read.
+    *   The dependencies.conf file to read.
     * @param group
     *   The group to read dependencies for.
     * @param variableResolvers
@@ -63,7 +65,7 @@ object DependenciesFile {
       readRaw(file).get(group).map(_.dependencies).toList.flatten.map(Dependency.parse(_, group, variableResolvers))
     }
 
-  /** Writes dependencies for a specific group to the given YAML file.
+  /** Writes dependencies for a specific group to the given HOCON file.
     *
     * Other groups in the file are preserved. The format (simple vs advanced) of existing groups is preserved, unless
     * scalaVersions is provided, in which case Advanced format is used.
@@ -103,13 +105,13 @@ object DependenciesFile {
       IO.write(file, content + "\n")
     }
 
-  /** Reads the scalaVersions for a specific group from the given YAML file.
+  /** Reads the scalaVersions for a specific group from the given HOCON file.
     *
     * Validates that each version is a valid numeric version format. Invalid versions are logged as warnings and
     * filtered out. Versions without an explicit marker default to `Minor` (`~`) for safety.
     *
     * @param file
-    *   The dependencies.yaml file to read.
+    *   The dependencies.conf file to read.
     * @param group
     *   The group to read scalaVersions for.
     * @return
@@ -126,7 +128,7 @@ object DependenciesFile {
         Nil
     }
 
-  /** Writes Scala versions for a specific group to the given YAML file.
+  /** Writes Scala versions for a specific group to the given HOCON file.
     *
     * Other groups and dependencies in the file are preserved. Version markers are preserved when writing.
     *
@@ -155,10 +157,10 @@ object DependenciesFile {
     IO.write(file, content + "\n")
   }
 
-  /** Checks if a group exists in the given YAML file.
+  /** Checks if a group exists in the given HOCON file.
     *
     * @param file
-    *   The dependencies.yaml file to check.
+    *   The dependencies.conf file to check.
     * @param group
     *   The group to check for.
     * @return
@@ -167,7 +169,7 @@ object DependenciesFile {
   def hasGroup(file: File, group: String)(implicit logger: Logger): Boolean =
     readRaw(file).contains(group)
 
-  /** Reads the raw YAML file as a map of group names to group configurations.
+  /** Reads the raw HOCON file as a map of group names to group configurations.
     *
     * Supports two formats:
     *   - Simple: group maps to list of strings
@@ -176,17 +178,23 @@ object DependenciesFile {
   private def readRaw(file: File)(implicit logger: Logger): Map[String, GroupConfig] =
     if (!file.exists()) Map.empty
     else {
-      val yaml = new Yaml()
+      val content = IO.read(file)
+      if (content.trim.isEmpty) Map.empty
+      else {
+        val config = ConfigFactory.parseString(content)
 
-      Option(yaml.load[java.util.Map[String, Object]](IO.read(file)))
-        .map(_.asScala.toMap)
-        .getOrElse(Map.empty)
-        .map { case (group, value) =>
-          GroupConfig.parse(value) match {
-            case Right(config) => group -> config
-            case Left(error)   => Utils.fail(s"Failed to parse group `$group`: $error")
+        config
+          .root()
+          .keySet()
+          .asScala
+          .map { group =>
+            GroupConfig.parse(config, group) match {
+              case Right(groupConfig) => group -> groupConfig
+              case Left(error)        => Utils.fail(s"Failed to parse group `$group`: $error")
+            }
           }
-        }
+          .toMap
+      }
     }
 
 }

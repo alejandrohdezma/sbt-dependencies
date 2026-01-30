@@ -1,8 +1,0 @@
-myproject:
-  scala-versions:
-    - =2.13.12
-    - ~2.12.21
-    - ~2.11.12
-    - ^2.13.18
-  dependencies:
-    - org.typelevel::cats-core:2.10.0
