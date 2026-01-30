@@ -5,27 +5,29 @@ Manage SBT dependencies from a single YAML file with version markers, auto-updat
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.8.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.9.0")
 ```
 
-> Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to 
+> Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
 > manage both your build dependencies and your project dependencies.
 
 ## Usage
 
-### The `dependencies.yaml` file
+### The `dependencies.conf` file
 
-Create a `project/dependencies.yaml` file listing your dependencies:
+Create a `project/dependencies.conf` file listing your dependencies:
 
-```yaml
-sbt-build:
-  - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
-  - org.scalameta:sbt-scalafmt:2.5.4:sbt-plugin
-  - io.get-coursier::coursier:2.1.24
+```hocon
+sbt-build = [
+  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
+  "org.scalameta:sbt-scalafmt:2.5.4:sbt-plugin"
+  "io.get-coursier::coursier:2.1.24"
+]
 
-my-project:
-  - org.typelevel::cats-core:2.10.0
-  - org.scalameta::munit:1.2.1:test
+my-project = [
+  "org.typelevel::cats-core:2.10.0"
+  "org.scalameta::munit:1.2.1:test"
+]
 ```
 
 Groups correspond to:
@@ -55,12 +57,13 @@ Supported configurations: `compile` (default), `test`, `provided`, `sbt-plugin`,
 
 Dependencies with Scala version suffixes in their artifact name are automatically filtered based on the current `scalaVersion`:
 
-```yaml
-my-project:
-  - org.example:my-lib_2.13:1.0.0  # Only added when scalaVersion is 2.13.x
-  - org.example:my-lib_2.12:1.0.0  # Only added when scalaVersion is 2.12.x
-  - org.example:my-lib_3:1.0.0     # Only added when scalaVersion is 3.x
-  - org.example:other-lib:1.0.0    # Always added (no suffix)
+```hocon
+my-project = [
+  "org.example:my-lib_2.13:1.0.0"  # Only added when scalaVersion is 2.13.x
+  "org.example:my-lib_2.12:1.0.0"  # Only added when scalaVersion is 2.12.x
+  "org.example:my-lib_3:1.0.0"     # Only added when scalaVersion is 3.x
+  "org.example:other-lib:1.0.0"    # Always added (no suffix)
+]
 ```
 
 This is useful for dependencies that are published with Scala-specific variants but aren't cross-compiled in the usual way (e.g., some native libraries or Java libraries with Scala-specific modules).
@@ -80,10 +83,11 @@ Control how dependencies are updated using version markers:
 
 You can use variable syntax to reference versions defined (or computed) in your build:
 
-```yaml
-my-project:
-  - org.typelevel::cats-core:{{catsVersion}}
-  - org.typelevel::cats-effect:{{catsVersion}}
+```hocon
+my-project = [
+  "org.typelevel::cats-core:{{catsVersion}}"
+  "org.typelevel::cats-effect:{{catsVersion}}"
+]
 ```
 
 Define variable resolvers in your `build.sbt`:
@@ -94,41 +98,42 @@ dependencyVersionVariables := Map(
 )
 ```
 
-When running `updateDependencies`, variable-based dependencies show their resolved version and the latest available version, but the variable reference is preserved in the YAML file.
+When running `updateDependencies`, variable-based dependencies show their resolved version and the latest available version, but the variable reference is preserved in the file.
 
 ### Advanced format
 
 Groups support an advanced format that enables additional configuration beyond just listing dependencies:
 
-```yaml
-my-project:
-  scala-versions:
-    - 2.13.12
-    - 2.12.18
-    - 3.3.1
-  dependencies:
-    - org.typelevel::cats-core:2.10.0
-    - org.scalameta::munit:1.2.1:test
+```hocon
+my-project {
+  scala-versions = ["2.13.12", "2.12.18", "3.3.1"]
+  dependencies = [
+    "org.typelevel::cats-core:2.10.0"
+    "org.scalameta::munit:1.2.1:test"
+  ]
+}
 ```
 
 The simple format (array of dependencies) and advanced format (object with `dependencies` key) can be mixed in the same file.
 
 ### Scala versions
 
-You can configure `scalaVersion` and `crossScalaVersions` directly in `dependencies.yaml` using the advanced format:
+You can configure `scalaVersion` and `crossScalaVersions` directly in `dependencies.conf` using the advanced format:
 
-```yaml
-sbt-build:
-  scala-versions:
-    - 2.13.12
-    - 2.12.18
-  dependencies:
-    - ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
+```hocon
+sbt-build {
+  scala-versions = ["2.13.12", "2.12.18"]
+  dependencies = [
+    "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
+  ]
+}
 
-my-project:
-  scala-version: 3.3.1
-  dependencies:
-    - org.typelevel::cats-core:2.10.0
+my-project {
+  scala-version = "3.3.1"
+  dependencies = [
+    "org.typelevel::cats-core:2.10.0"
+  ]
+}
 ```
 
 Use `scala-version` (singular) for a single version or `scala-versions` (plural) for cross-building.
@@ -143,12 +148,13 @@ This allows you to set a default Scala version for all projects while letting sp
 
 #### Example: Using with [here-sbt-bom](https://github.com/heremaps/here-sbt-bom)
 
-The `here-sbt-bom` plugin reads Maven BOM files and exposes version constants. You can reference these in your `dependencies.yaml`:
+The `here-sbt-bom` plugin reads Maven BOM files and exposes version constants. You can reference these in your `dependencies.conf`:
 
-```yaml
-my-project:
-  - com.fasterxml.jackson.core:jackson-core:{{jackson}}
-  - com.fasterxml.jackson.core:jackson-databind:{{jackson}}
+```hocon
+my-project = [
+  "com.fasterxml.jackson.core:jackson-core:{{jackson}}"
+  "com.fasterxml.jackson.core:jackson-databind:{{jackson}}"
+]
 ```
 
 ```scala
@@ -164,13 +170,13 @@ dependencyVersionVariables := Map(
 
 ### `initDependenciesFile`
 
-Creates (or recreates) the `dependencies.yaml` file based on your current `libraryDependencies` and `addSbtPlugin` settings. This is useful when migrating an existing project to use this plugin.
+Creates (or recreates) the `dependencies.conf` file based on your current `libraryDependencies` and `addSbtPlugin` settings. This is useful when migrating an existing project to use this plugin.
 
 ```bash
 sbt> initDependenciesFile
 ```
 
-After running this command, remember to remove the `libraryDependencies +=` and `addSbtPlugin` lines from your build files, as the plugin will now manage them via `dependencies.yaml`.
+After running this command, remember to remove the `libraryDependencies +=` and `addSbtPlugin` lines from your build files, as the plugin will now manage them via `dependencies.conf`.
 
 ### `showLibraryDependencies`
 
@@ -206,7 +212,7 @@ sbt> install org.scalameta::munit:1.2.1:test
 
 ### `updateBuildDependencies`
 
-Updates dependencies in the meta-build (`project/dependencies.yaml`, group `sbt-build`).
+Updates dependencies in the meta-build (`project/dependencies.conf`, group `sbt-build`).
 
 ```bash
 sbt> updateBuildDependencies
