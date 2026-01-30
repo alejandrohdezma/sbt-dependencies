@@ -19,7 +19,7 @@ assertTest := {
 
   // Check myproject libraryDependencies
   val myDeps = (myproject / libraryDependencies).value.map(_.name).sorted
-  val expectedMyDeps = List("cats-core", "munit").sorted
+  val expectedMyDeps = List("cats-core", "munit", "scala-library").sorted
   assert(myDeps == expectedMyDeps, s"myproject libraryDependencies: expected $expectedMyDeps but got $myDeps")
 
   // Check otherproject scalaVersion (inherited from ThisBuild)
@@ -28,6 +28,6 @@ assertTest := {
 
   // Check otherproject libraryDependencies
   val otherDeps = (otherproject / libraryDependencies).value.map(_.name).sorted
-  val expectedOtherDeps = List("cats-effect").sorted
+  val expectedOtherDeps = List("cats-effect", "scala-library").sorted
   assert(otherDeps == expectedOtherDeps, s"otherproject libraryDependencies: expected $expectedOtherDeps but got $otherDeps")
 }
