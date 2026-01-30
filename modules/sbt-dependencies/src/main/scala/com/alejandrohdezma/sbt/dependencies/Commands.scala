@@ -56,6 +56,7 @@ class Commands {
         .flatMap(Dependency.fromModuleID(_, group).toList)
     }.toList
       .filterNot(d => d.organization === "com.alejandrohdezma" && d.name === "sbt-dependencies")
+      .filterNot(d => d.organization === "org.scala-lang")
 
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
     val scalaVersionsByGroup: Map[String, List[String]] =
