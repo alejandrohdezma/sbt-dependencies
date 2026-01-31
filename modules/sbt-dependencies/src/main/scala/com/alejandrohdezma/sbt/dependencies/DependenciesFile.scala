@@ -58,12 +58,7 @@ object DependenciesFile {
       versionFinder: Utils.VersionFinder,
       logger: Logger
   ): List[Dependency] =
-    if (!file.exists()) {
-      logger.warn(s"${file.getName} not found. Run `initDependenciesFile` to create it from existing dependencies.")
-      Nil
-    } else {
-      readRaw(file).get(group).map(_.dependencies).toList.flatten.map(Dependency.parse(_, group, variableResolvers))
-    }
+    readRaw(file).get(group).map(_.dependencies).toList.flatten.map(Dependency.parse(_, group, variableResolvers))
 
   /** Writes dependencies for a specific group to the given HOCON file.
     *
