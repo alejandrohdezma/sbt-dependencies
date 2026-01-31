@@ -51,6 +51,12 @@ class Keys {
       "Map of variable names to resolver functions for variable-based dependency versions"
     )
 
+  val sbtDependenciesPluginOrganization =
+    settingKey[String]("Organization of the plugin to update in project/project/plugins.sbt")
+
+  val sbtDependenciesPluginName =
+    settingKey[String]("Name of the plugin to update in project/project/plugins.sbt")
+
 }
 
 object Keys extends Keys

@@ -234,12 +234,19 @@ Updates everything: the plugin itself, Scala versions, dependencies, and SBT ver
 sbt> updateAllDependencies
 ```
 
-### `updateSbtDependenciesPlugin`
+### `updateSbtPlugin`
 
 Updates the `sbt-dependencies` plugin itself in `project/project/plugins.sbt`.
 
 ```bash
-sbt> updateSbtDependenciesPlugin
+sbt> updateSbtPlugin
+```
+
+By default, this command updates the `com.alejandrohdezma % sbt-dependencies` plugin. Wrapper plugins can override which plugin gets updated by setting these keys in their own `buildSettings`:
+
+```scala
+sbtDependenciesPluginOrganization := "com.example"
+sbtDependenciesPluginName         := "sbt-my-plugin"
 ```
 
 ### `updateSbt`

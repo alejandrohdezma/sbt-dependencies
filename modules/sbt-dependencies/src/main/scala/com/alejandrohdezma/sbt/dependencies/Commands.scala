@@ -19,8 +19,8 @@ package com.alejandrohdezma.sbt.dependencies
 import scala.Console._
 
 import sbt.Keys._
-import sbt._
 import sbt.internal.util.complete.Parser
+import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.Eq._
@@ -30,8 +30,8 @@ class Commands {
 
   /** All commands provided by this plugin. */
   val all = Seq(
-    initDependenciesFile, updateAllDependencies, updateSbtDependenciesPlugin, updateBuildDependencies,
-    installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion
+    initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies, installBuildDependencies,
+    updateSbt, updateBuildScalaVersions, updateScalafmtVersion
   )
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions. */
@@ -44,6 +44,9 @@ class Commands {
 
     val isSbtBuild = base.name.equalsIgnoreCase("project")
 
+    val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
+    val pluginName = project.get(Keys.sbtDependenciesPluginName)
+
     val newGroups = project.structure.allProjectRefs.map { ref =>
       if (isSbtBuild) "sbt-build" else project.get(ref / name)
     }.toSet
@@ -55,7 +58,7 @@ class Commands {
         .get(ref / libraryDependencies)
         .flatMap(Dependency.fromModuleID(_, group).toList)
     }.toList
-      .filterNot(d => d.organization === "com.alejandrohdezma" && d.name === "sbt-dependencies")
+      .filterNot(d => d.organization === pluginOrg && d.name === pluginName)
       .filterNot(d => d.organization === "org.scala-lang")
 
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
@@ -99,51 +102,56 @@ class Commands {
   /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */
   lazy val updateAllDependencies = Command.command("updateAllDependencies") { state =>
     runCommand(
-      "updateSbtDependenciesPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalafmtVersion",
+      "updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalafmtVersion",
       "updateScalaVersions", "updateDependencies", "reload", "updateSbt"
     )(state)
   }
 
   /** Updates the sbt-dependencies plugin itself in `project/project/plugins.sbt`. */
-  lazy val updateSbtDependenciesPlugin = Command.command("updateSbtDependenciesPlugin") { state =>
+  lazy val updateSbtPlugin = Command.command("updateSbtPlugin") { state =>
     implicit val logger: Logger = state.log
 
-    val base = Project.extract(state).get(ThisBuild / baseDirectory)
+    val project = Project.extract(state)
+
+    val base       = project.get(ThisBuild / baseDirectory)
+    val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
+    val pluginName = project.get(Keys.sbtDependenciesPluginName)
 
     val pluginsSbt = base / "project" / "project" / "plugins.sbt"
 
     if (!pluginsSbt.exists()) {
-      logger.warn("It is recommended to add the `sbt-dependencies` plugin to the `project/project/plugins.sbt` file")
+      logger.warn(s"It is recommended to add the `$pluginName` plugin to the `project/project/plugins.sbt` file")
       state
     }
 
     val lines = IO.readLines(pluginsSbt)
 
+    val escapedOrg = pluginOrg.replace(".", """\.""")
+
     // Regex to match addSbtPlugin line for this plugin (handles whitespace variations)
     val pluginRegex =
-      """addSbtPlugin\s*\(\s*"com\.alejandrohdezma"\s*%\s*"sbt-dependencies"\s*%\s*"([^"]+)"\s*\).*""".r
+      s"""addSbtPlugin\\s*\\(\\s*"$escapedOrg"\\s*%\\s*"$pluginName"\\s*%\\s*"([^"]+)"\\s*\\).*""".r
 
     if (!lines.exists(pluginRegex.findFirstIn(_).isDefined)) {
-      logger.warn("It is recommended to add the `sbt-dependencies` plugin to the `project/project/plugins.sbt` file")
+      logger.warn(s"It is recommended to add the `$pluginName` plugin to the `project/project/plugins.sbt` file")
       state
     }
 
-    logger.info("\n🔄 Checking for new versions of the `sbt-dependencies` plugin\n")
+    logger.info(s"\n🔄 Checking for new versions of the `$pluginName` plugin\n")
 
     implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
 
     val updatedLines = lines.map {
       case line @ pluginRegex(Numeric(current)) =>
         val latest =
-          Utils.findLatestVersion("com.alejandrohdezma", "sbt-dependencies", isCross = false, isSbtPlugin = true,
-            current)
+          Utils.findLatestVersion(pluginOrg, pluginName, isCross = false, isSbtPlugin = true, current)
 
         if (latest.isSameVersion(current)) {
           logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
           line
         } else {
           logger.info(s" ↳ ⬆️ $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
-          s"""addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "${latest.show}")"""
+          s"""addSbtPlugin("$pluginOrg" % "$pluginName" % "${latest.show}")"""
         }
       case line => line
     }

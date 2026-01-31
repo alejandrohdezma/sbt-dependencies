@@ -43,7 +43,9 @@ object DependenciesPlugin extends AutoPlugin {
   )
 
   override def buildSettings: Seq[Setting[_]] = Seq(
-    dependencyVersionVariables := Map.empty,
+    dependencyVersionVariables        := Map.empty,
+    sbtDependenciesPluginOrganization := "com.alejandrohdezma",
+    sbtDependenciesPluginName         := "sbt-dependencies",
     scalaVersion := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
