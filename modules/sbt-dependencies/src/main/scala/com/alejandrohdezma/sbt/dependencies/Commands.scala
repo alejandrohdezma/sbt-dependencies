@@ -107,9 +107,12 @@ class Commands {
     )(state)
   }
 
-  /** Updates the sbt-dependencies plugin itself in `project/project/plugins.sbt`. */
+  /** Updates the configured SBT plugin. Checks `project/project/plugins.sbt` first, falling back to
+    * `project/plugins.sbt`.
+    */
   lazy val updateSbtPlugin = Command.command("updateSbtPlugin") { state =>
-    implicit val logger: Logger = state.log
+    implicit val logger: Logger                     = state.log
+    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
 
     val project = Project.extract(state)
 
@@ -117,48 +120,49 @@ class Commands {
     val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
     val pluginName = project.get(Keys.sbtDependenciesPluginName)
 
-    val pluginsSbt = base / "project" / "project" / "plugins.sbt"
-
-    if (!pluginsSbt.exists()) {
-      logger.warn(s"It is recommended to add the `$pluginName` plugin to the `project/project/plugins.sbt` file")
-      state
-    }
-
-    val lines = IO.readLines(pluginsSbt)
+    val metaBuild    = base / "project" / "project" / "plugins.sbt"
+    val regularBuild = base / "project" / "plugins.sbt"
 
     val escapedOrg = pluginOrg.replace(".", """\.""")
 
-    // Regex to match addSbtPlugin line for this plugin (handles whitespace variations)
     val pluginRegex =
       s"""addSbtPlugin\\s*\\(\\s*"$escapedOrg"\\s*%\\s*"$pluginName"\\s*%\\s*"([^"]+)"\\s*\\).*""".r
 
-    if (!lines.exists(pluginRegex.findFirstIn(_).isDefined)) {
-      logger.warn(s"It is recommended to add the `$pluginName` plugin to the `project/project/plugins.sbt` file")
-      state
-    }
+    def updatePluginInFile(file: File): Option[State] = {
+      lazy val lines = IO.readLines(file)
 
-    logger.info(s"\n🔄 Checking for new versions of the `$pluginName` plugin\n")
+      if (!file.exists() || !lines.exists(pluginRegex.findFirstIn(_).isDefined)) None
+      else {
+        logger.info(s"\n🔄 Checking for new versions of the `$pluginName` plugin\n")
 
-    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
+        val updatedLines = lines.map {
+          case line @ pluginRegex(Numeric(current)) =>
+            val latest =
+              Utils.findLatestVersion(pluginOrg, pluginName, isCross = false, isSbtPlugin = true, current)
 
-    val updatedLines = lines.map {
-      case line @ pluginRegex(Numeric(current)) =>
-        val latest =
-          Utils.findLatestVersion(pluginOrg, pluginName, isCross = false, isSbtPlugin = true, current)
-
-        if (latest.isSameVersion(current)) {
-          logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
-          line
-        } else {
-          logger.info(s" ↳ ⬆️ $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
-          s"""addSbtPlugin("$pluginOrg" % "$pluginName" % "${latest.show}")"""
+            if (latest.isSameVersion(current)) {
+              logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
+              (line, false)
+            } else {
+              logger.info(s" ↳ ⬆️ $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+              (s"""addSbtPlugin("$pluginOrg" % "$pluginName" % "${latest.show}")""", true)
+            }
+          case line => (line, false)
         }
-      case line => line
+
+        IO.writeLines(file, updatedLines.map(_._1))
+
+        if (updatedLines.exists(_._2)) Some(runCommand("reload")(state))
+        else Some(state)
+      }
     }
 
-    IO.writeLines(pluginsSbt, updatedLines)
-
-    runCommand("reload")(state)
+    updatePluginInFile(metaBuild)
+      .orElse(updatePluginInFile(regularBuild))
+      .getOrElse {
+        logger.warn(s"Could not find `$pluginName` plugin in `project/project/plugins.sbt` or `project/plugins.sbt`")
+        state
+      }
   }
 
   /** Updates dependencies in the meta-build (project/dependencies). */
