@@ -4,7 +4,7 @@ ThisBuild / pluginCrossBuild / sbtVersion := "1.4.0"
 ThisBuild / versionPolicyIntention        := Compatibility.BinaryAndSourceCompatible
 
 // Simplify testing the plugin in its own build
-addCommandAlias("reloadSelf", "reload; clean; publishLocal; updateSbtDependenciesPlugin; reload")
+addCommandAlias("reloadSelf", "reload; clean; publishLocal; updateSbtPlugin; reload")
 
 addCommandAlias("ci-test", "fix --check; versionPolicyCheck; mdoc; scripted")
 addCommandAlias("ci-docs", "github; mdoc; headerCreateAll")
