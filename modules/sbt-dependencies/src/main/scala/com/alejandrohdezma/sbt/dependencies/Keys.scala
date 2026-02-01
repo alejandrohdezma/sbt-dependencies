@@ -57,6 +57,11 @@ class Keys {
   val sbtDependenciesPluginName =
     settingKey[String]("Name of the plugin to update in project/project/plugins.sbt")
 
+  /** All resolved library dependencies for the project, after conflict resolution and eviction. */
+  val allProjectDependencies = taskKey[List[ModuleID]](
+    "All resolved library dependencies for the project, after conflict resolution and eviction"
+  )
+
 }
 
 object Keys extends Keys
