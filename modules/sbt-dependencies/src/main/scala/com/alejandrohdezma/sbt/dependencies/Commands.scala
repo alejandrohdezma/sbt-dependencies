@@ -29,10 +29,9 @@ import com.alejandrohdezma.sbt.dependencies.Eq._
 class Commands {
 
   /** All commands provided by this plugin. */
-  val all = Seq(
-    initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies, installBuildDependencies,
-    updateSbt, updateBuildScalaVersions, updateScalafmtVersion
-  )
+  val all = Seq(initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies,
+    installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
+    enableEvictionWarnings)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions. */
   lazy val initDependenciesFile = Command.command("initDependenciesFile") { state =>
@@ -239,6 +238,16 @@ class Commands {
         else state
       }
     }
+  }
+
+  /** Downgrades eviction errors to info level, preventing them from failing the build. */
+  lazy val disableEvictionWarnings = Command.command("disableEvictionWarnings") { state =>
+    runCommand("set ThisBuild / evictionErrorLevel := Level.Info")(state)
+  }
+
+  /** Restores eviction warnings to error level, causing eviction issues to fail the build. */
+  lazy val enableEvictionWarnings = Command.command("enableEvictionWarnings") { state =>
+    runCommand("set ThisBuild / evictionErrorLevel := Level.Error")(state)
   }
 
   private def runCommand(commands: String*)(state: State): State = {

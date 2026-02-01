@@ -73,6 +73,7 @@ object DependenciesPlugin extends AutoPlugin {
     updateDependencies      := Tasks.updateDependencies.tag(Exclusive).evaluated,
     updateScalaVersions     := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
     install                 := Tasks.install.tag(Exclusive).evaluated,
+    allProjectDependencies  := update.value.allModules.toList,
     install / aggregate     := false,
     scalaVersion := Def.settingDyn {
       val file = Settings.dependenciesFile.value
