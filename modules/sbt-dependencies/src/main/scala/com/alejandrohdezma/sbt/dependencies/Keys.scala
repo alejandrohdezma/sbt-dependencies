@@ -58,9 +58,27 @@ class Keys {
     settingKey[String]("Name of the plugin to update in project/project/plugins.sbt")
 
   /** All resolved library dependencies for the project, after conflict resolution and eviction. */
-  val allProjectDependencies = taskKey[List[ModuleID]](
+  val allProjectDependencies = taskKey[List[ModuleID]] {
     "All resolved library dependencies for the project, after conflict resolution and eviction"
-  )
+  }
+
+  /** Check functions that validate resolved dependencies after `update`.
+    *
+    * Each function receives the full list of resolved `ModuleID`s and can throw a `MessageOnlyException` to fail the
+    * build when a policy is violated.
+    *
+    * @example
+    *   {{{
+    * // Using a plain function
+    * dependenciesCheck += myCheck _
+    *
+    * // Using a Def.setting for access to other settings
+    * dependenciesCheck += mySettingCheck.value
+    *   }}}
+    */
+  val dependenciesCheck = settingKey[Seq[List[ModuleID] => Unit]] {
+    "Check functions that validate resolved dependencies after update"
+  }
 
 }
 
