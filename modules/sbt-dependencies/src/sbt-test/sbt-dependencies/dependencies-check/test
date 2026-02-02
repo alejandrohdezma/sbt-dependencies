@@ -1,0 +1,5 @@
+# update on otherproject (no check) should succeed
+> otherproject/update
+
+# update on myproject should fail because the check finds cats-core
+-> myproject/update
