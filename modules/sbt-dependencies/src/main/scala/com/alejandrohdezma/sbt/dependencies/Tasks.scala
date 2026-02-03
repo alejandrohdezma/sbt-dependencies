@@ -182,6 +182,17 @@ class Tasks {
     }
   }
 
+  /** Run all dependency check functions after resolution completes. If any check throws, the `update` task (and
+    * anything depending on it) will fail.
+    */
+  def updateWithChecks = Def.task {
+    val report = update.value
+
+    Keys.dependenciesCheck.value.foreach(_(report.allModules.toList))
+
+    report
+  }
+
   /** Parser for updateDependencies filter: `[org:artifact]`, `[org:]`, `[:artifact]`, or empty for all */
   private val updateFilterParser: Parser[UpdateFilter] = {
     val regex = """^([^:]+)?:([^:]+)?$""".r
