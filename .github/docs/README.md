@@ -13,15 +13,12 @@ addSbtPlugin("@ORGANIZATION@" % "@NAME@" % "@VERSION@")
 
 ## Usage
 
-### The `dependencies.conf` file
-
-Create a `project/dependencies.conf` file listing your dependencies:
+This plugin manages your project's dependencies through a single `project/dependencies.conf` file. Instead of declaring `libraryDependencies` and `addSbtPlugin` in your build files, you list all dependencies in HOCON format grouped by project name:
 
 ```hocon
 sbt-build = [
   "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
   "org.scalameta:sbt-scalafmt:2.5.4:sbt-plugin"
-  "io.get-coursier::coursier:2.1.24"
 ]
 
 my-project = [
@@ -30,15 +27,58 @@ my-project = [
 ]
 ```
 
-Groups correspond to:
+The plugin automatically populates `libraryDependencies` for each project based on its group and provides commands to install, update, and validate dependencies.
+
+---
+
+- [Installation](#installation)
+- [Usage](#usage)
+- [How to...](#how-to)
+  + [Migrate an existing project](#user-content-migrate-an-existing-project)
+  + [Define dependencies](#user-content-define-dependencies)
+  + [Use cross-compiled (Scala) dependencies](#user-content-use-cross-compiled-dependencies)
+  + [Filter dependencies by Scala version](#user-content-filter-by-scala-version)
+  + [Pin a dependency to a specific version](#user-content-pin-a-dependency)
+  + [Use shared version variables](#user-content-use-shared-version-variables)
+  + [Configure Scala versions](#user-content-configure-scala-versions)
+  + [Use the advanced group format](#user-content-use-advanced-group-format)
+  + [Install a new dependency](#user-content-install-a-new-dependency)
+  + [Install a build dependency](#user-content-install-a-build-dependency)
+  + [Update project dependencies](#user-content-update-project-dependencies)
+  + [Update only specific dependencies](#user-content-update-specific-dependencies)
+  + [Update build dependencies](#user-content-update-build-dependencies)
+  + [Update Scala versions](#user-content-update-scala-versions)
+  + [Update the SBT version](#user-content-update-sbt-version)
+  + [Update the scalafmt version](#user-content-update-scalafmt-version)
+  + [Update the plugin itself](#user-content-update-the-plugin)
+  + [Update everything at once](#user-content-update-everything)
+  + [Show library dependencies](#user-content-show-library-dependencies)
+  + [Get all resolved dependencies](#user-content-get-all-resolved-dependencies)
+  + [Validate resolved dependencies](#user-content-validate-resolved-dependencies)
+  + [Disable eviction warnings](#user-content-disable-eviction-warnings)
+
+## How to...
+
+<details><summary><b id="migrate-an-existing-project">Migrate an existing project</b></summary><br/>
+
+Run `initDependenciesFile` to automatically generate `dependencies.conf` from your current `libraryDependencies` and `addSbtPlugin` settings:
+
+```bash
+sbt> initDependenciesFile
+```
+
+After running this command, remove the `libraryDependencies +=` and `addSbtPlugin` lines from your build files, as the plugin will now manage them via `dependencies.conf`.
+
+---
+
+</details>
+
+<details><summary><b id="define-dependencies">Define dependencies</b></summary><br/>
+
+Create a `project/dependencies.conf` file listing your dependencies. Groups correspond to:
+
 - `sbt-build`: Dependencies for your build definition (plugins and libraries used in `build.sbt`)
 - `<project-name>`: Dependencies for a specific project (matches the SBT project name)
-
-The plugin automatically populates `libraryDependencies` for each project based on its group.
-
-> **Tip:** Run `initDependenciesFile` to automatically generate this file from your existing `libraryDependencies` and `addSbtPlugin` settings.
-
-### Dependency format
 
 Dependencies follow this format:
 
@@ -53,7 +93,26 @@ org:name                   # Java, latest version resolved automatically
 
 Supported configurations: `compile` (default), `test`, `provided`, `sbt-plugin`, etc.
 
-### Scala version filtering
+---
+
+</details>
+
+<details><summary><b id="use-cross-compiled-dependencies">Use cross-compiled (Scala) dependencies</b></summary><br/>
+
+Use `::` (double colon) between organization and artifact name to indicate a Scala cross-compiled dependency. This is equivalent to `%%` in SBT:
+
+```hocon
+my-project = [
+  "org.typelevel::cats-core:2.10.0"   # Cross-compiled (like org.typelevel %% "cats-core")
+  "com.google.guava:guava:33.0.0"     # Java dependency (like com.google.guava % "guava")
+]
+```
+
+---
+
+</details>
+
+<details><summary><b id="filter-by-scala-version">Filter dependencies by Scala version</b></summary><br/>
 
 Dependencies with Scala version suffixes in their artifact name are automatically filtered based on the current `scalaVersion`:
 
@@ -68,7 +127,11 @@ my-project = [
 
 This is useful for dependencies that are published with Scala-specific variants but aren't cross-compiled in the usual way (e.g., some native libraries or Java libraries with Scala-specific modules).
 
-### Version markers
+---
+
+</details>
+
+<details><summary><b id="pin-a-dependency">Pin a dependency to a specific version</b></summary><br/>
 
 Control how dependencies are updated using version markers:
 
@@ -79,7 +142,20 @@ Control how dependencies are updated using version markers:
 | `^` | `^2.10.0` | Update within major version only (2.x.x) |
 | `~` | `~2.10.0` | Update within minor version only (2.10.x) |
 
-### Variable versions
+```hocon
+my-project = [
+  "org.typelevel::cats-core:2.10.0"    # Will update to any newer version
+  "org.typelevel::cats-effect:=3.5.0"  # Pinned, never updated
+  "co.fs2::fs2-core:^3.9.0"           # Updated within 3.x.x only
+  "io.circe::circe-core:~0.14.6"      # Updated within 0.14.x only
+]
+```
+
+---
+
+</details>
+
+<details><summary><b id="use-shared-version-variables">Use shared version variables</b></summary><br/>
 
 You can use variable syntax to reference versions defined (or computed) in your build:
 
@@ -100,25 +176,33 @@ dependencyVersionVariables := Map(
 
 When running `updateDependencies`, variable-based dependencies show their resolved version and the latest available version, but the variable reference is preserved in the file.
 
-### Advanced format
+#### Using with [here-sbt-bom](https://github.com/heremaps/here-sbt-bom)
 
-Groups support an advanced format that enables additional configuration beyond just listing dependencies:
+The `here-sbt-bom` plugin reads Maven BOM files and exposes version constants. You can reference these in your `dependencies.conf`:
 
 ```hocon
-my-project {
-  scala-versions = ["2.13.12", "2.12.18", "3.3.1"]
-  dependencies = [
-    "org.typelevel::cats-core:2.10.0"
-    "org.scalameta::munit:1.2.1:test"
-  ]
-}
+my-project = [
+  "com.fasterxml.jackson.core:jackson-core:{{jackson}}"
+  "com.fasterxml.jackson.core:jackson-databind:{{jackson}}"
+]
 ```
 
-The simple format (array of dependencies) and advanced format (object with `dependencies` key) can be mixed in the same file.
+```scala
+// build.sbt
+val jacksonBom = Bom("com.fasterxml.jackson" % "jackson-bom" % "2.14.2")
 
-### Scala versions
+dependencyVersionVariables := Map(
+  "jackson" -> { artifact => artifact % jacksonBom.key.value }
+)
+```
 
-You can configure `scalaVersion` and `crossScalaVersions` directly in `dependencies.conf` using the advanced format:
+---
+
+</details>
+
+<details><summary><b id="configure-scala-versions">Configure Scala versions</b></summary><br/>
+
+You can configure `scalaVersion` and `crossScalaVersions` directly in `dependencies.conf` using the [advanced format](#user-content-use-advanced-group-format):
 
 ```hocon
 sbt-build {
@@ -146,120 +230,97 @@ Use `scala-version` (singular) for a single version or `scala-versions` (plural)
 
 This allows you to set a default Scala version for all projects while letting specific projects use different versions.
 
-#### Example: Using with [here-sbt-bom](https://github.com/heremaps/here-sbt-bom)
+---
 
-The `here-sbt-bom` plugin reads Maven BOM files and exposes version constants. You can reference these in your `dependencies.conf`:
+</details>
+
+<details><summary><b id="use-advanced-group-format">Use the advanced group format</b></summary><br/>
+
+Groups support an advanced format that enables additional configuration beyond just listing dependencies:
 
 ```hocon
-my-project = [
-  "com.fasterxml.jackson.core:jackson-core:{{jackson}}"
-  "com.fasterxml.jackson.core:jackson-databind:{{jackson}}"
-]
+my-project {
+  scala-versions = ["2.13.12", "2.12.18", "3.3.1"]
+  dependencies = [
+    "org.typelevel::cats-core:2.10.0"
+    "org.scalameta::munit:1.2.1:test"
+  ]
+}
 ```
 
-```scala
-// build.sbt
-val jacksonBom = Bom("com.fasterxml.jackson" % "jackson-bom" % "2.14.2")
+The simple format (array of dependencies) and advanced format (object with `dependencies` key) can be mixed in the same file.
 
-dependencyVersionVariables := Map(
-  "jackson" -> { artifact => artifact % jacksonBom.key.value }
-)
-```
+---
 
-## Commands & Tasks
+</details>
 
-### `initDependenciesFile`
+<details><summary><b id="install-a-new-dependency">Install a new dependency</b></summary><br/>
 
-Creates (or recreates) the `dependencies.conf` file based on your current `libraryDependencies` and `addSbtPlugin` settings. This is useful when migrating an existing project to use this plugin.
-
-```bash
-sbt> initDependenciesFile
-```
-
-After running this command, remember to remove the `libraryDependencies +=` and `addSbtPlugin` lines from your build files, as the plugin will now manage them via `dependencies.conf`.
-
-### `showLibraryDependencies`
-
-Displays the library dependencies for the current project in a formatted, colored output. Shows both direct dependencies and those inherited from dependent projects (via `.dependsOn`).
-
-```bash
-sbt> showLibraryDependencies
-```
-
-- Green = direct dependencies
-- Yellow = inherited from other projects
-
-### `updateDependencies [filter]`
-
-Updates dependencies in the current project to their latest versions.
-
-```bash
-sbt> updateDependencies # Update all project dependencies
-sbt> updateDependencies org.typelevel: # Update all `org.typelevel` dependencies
-sbt> updateDependencies :cats-core # Update `cats-core` from any organization
-sbt> updateDependencies org.typelevel:cats-core # Update specific dependency
-```
-
-### `install <dependency>`
-
-Installs a new dependency to the current project.
+Use `install` to add a new dependency to the current project's group in `dependencies.conf`:
 
 ```bash
 sbt> install org.typelevel::cats-core:2.10.0
-sbt> install org.typelevel::cats-effect # Resolves latest version
+sbt> install org.typelevel::cats-effect  # Resolves latest version
 sbt> install org.scalameta::munit:1.2.1:test
 ```
 
-### `updateBuildDependencies`
+---
 
-Updates dependencies in the meta-build (`project/dependencies.conf`, group `sbt-build`).
+</details>
 
-```bash
-sbt> updateBuildDependencies
-```
+<details><summary><b id="install-a-build-dependency">Install a build dependency</b></summary><br/>
 
-### `installBuildDependencies <dependency>`
-
-Installs a new dependency to the meta-build.
+Use `installBuildDependencies` to add a new dependency to the meta-build (`sbt-build` group):
 
 ```bash
 sbt> installBuildDependencies ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
 ```
 
-### `updateAllDependencies`
+---
 
-Updates everything: the plugin itself, Scala versions, dependencies, and SBT version.
+</details>
 
-```bash
-sbt> updateAllDependencies
-```
+<details><summary><b id="update-project-dependencies">Update project dependencies</b></summary><br/>
 
-### `updateSbtPlugin`
-
-Updates the `sbt-dependencies` plugin itself in `project/project/plugins.sbt`.
+Use `updateDependencies` to update dependencies in the current project to their latest versions (respecting [version markers](#user-content-pin-a-dependency)):
 
 ```bash
-sbt> updateSbtPlugin
+sbt> updateDependencies
 ```
 
-By default, this command updates the `com.alejandrohdezma % sbt-dependencies` plugin. Wrapper plugins can override which plugin gets updated by setting these keys in their own `buildSettings`:
+---
 
-```scala
-sbtDependenciesPluginOrganization := "com.example"
-sbtDependenciesPluginName         := "sbt-my-plugin"
-```
+</details>
 
-### `updateSbt`
+<details><summary><b id="update-specific-dependencies">Update only specific dependencies</b></summary><br/>
 
-Updates the SBT version in `project/build.properties` to the latest version. If updated, triggers a reboot to apply the new version.
+Pass a filter to `updateDependencies` to update only matching dependencies:
 
 ```bash
-sbt> updateSbt
+sbt> updateDependencies org.typelevel:          # Update all org.typelevel dependencies
+sbt> updateDependencies :cats-core              # Update cats-core from any organization
+sbt> updateDependencies org.typelevel:cats-core # Update a specific dependency
 ```
 
-### `updateScalaVersions`
+---
 
-Updates Scala versions in the current project to their latest versions within the same minor line.
+</details>
+
+<details><summary><b id="update-build-dependencies">Update build dependencies</b></summary><br/>
+
+Use `updateBuildDependencies` to update dependencies in the meta-build (`project/dependencies.conf`, group `sbt-build`):
+
+```bash
+sbt> updateBuildDependencies
+```
+
+---
+
+</details>
+
+<details><summary><b id="update-scala-versions">Update Scala versions</b></summary><br/>
+
+Use `updateScalaVersions` to update Scala versions in the current project to their latest versions within the same minor line:
 
 ```bash
 sbt> updateScalaVersions
@@ -270,13 +331,135 @@ Each version is updated within its minor line:
 - `2.12.18` → latest `2.12.x`
 - `3.3.1` → latest `3.3.x`
 
-### `updateBuildScalaVersions`
-
-Updates Scala versions in the `sbt-build` group (build-level settings).
+Use `updateBuildScalaVersions` to update Scala versions in the `sbt-build` group (build-level settings):
 
 ```bash
 sbt> updateBuildScalaVersions
 ```
+
+---
+
+</details>
+
+<details><summary><b id="update-sbt-version">Update the SBT version</b></summary><br/>
+
+Use `updateSbt` to update the SBT version in `project/build.properties` to the latest version. If updated, it triggers a reboot to apply the new version.
+
+```bash
+sbt> updateSbt
+```
+
+---
+
+</details>
+
+<details><summary><b id="update-scalafmt-version">Update the scalafmt version</b></summary><br/>
+
+Use `updateScalafmtVersion` to update the scalafmt version in `.scalafmt.conf` to the latest version:
+
+```bash
+sbt> updateScalafmtVersion
+```
+
+---
+
+</details>
+
+<details><summary><b id="update-the-plugin">Update the plugin itself</b></summary><br/>
+
+Use `updateSbtPlugin` to update the `sbt-dependencies` plugin itself in `project/project/plugins.sbt`:
+
+```bash
+sbt> updateSbtPlugin
+```
+
+Wrapper plugins can override which plugin gets updated by setting these keys in their own `buildSettings`:
+
+```scala
+sbtDependenciesPluginOrganization := "com.example"
+sbtDependenciesPluginName         := "sbt-my-plugin"
+```
+
+---
+
+</details>
+
+<details><summary><b id="update-everything">Update everything at once</b></summary><br/>
+
+Use `updateAllDependencies` to update the plugin itself, Scala versions, dependencies, scalafmt version, and the SBT version all at once:
+
+```bash
+sbt> updateAllDependencies
+```
+
+---
+
+</details>
+
+<details><summary><b id="show-library-dependencies">Show library dependencies</b></summary><br/>
+
+Use `showLibraryDependencies` to display the library dependencies for the current project in a formatted, colored output. It shows both direct dependencies and those inherited from dependent projects (via `.dependsOn`).
+
+```bash
+sbt> showLibraryDependencies
+```
+
+- Green = direct dependencies
+- Yellow = inherited from other projects
+
+---
+
+</details>
+
+<details><summary><b id="get-all-resolved-dependencies">Get all resolved dependencies</b></summary><br/>
+
+Use `allProjectDependencies` to get the complete list of resolved library dependencies for the project after conflict resolution and eviction:
+
+```bash
+sbt> show allProjectDependencies
+```
+
+This is useful for programmatic access to dependencies in custom tasks or checks.
+
+---
+
+</details>
+
+<details><summary><b id="validate-resolved-dependencies">Validate resolved dependencies</b></summary><br/>
+
+Use `dependenciesCheck` to register custom check functions that validate resolved dependencies after `update`. If any check throws, the build fails.
+
+```scala
+// build.sbt
+dependenciesCheck += { (deps: List[ModuleID]) =>
+  if (deps.exists(_.name.contains("log4j")))
+    throw new MessageOnlyException("log4j is banned - use logback instead")
+}
+```
+
+Each function receives the full list of resolved `ModuleID`s after conflict resolution and eviction.
+
+---
+
+</details>
+
+<details><summary><b id="disable-eviction-warnings">Disable eviction warnings</b></summary><br/>
+
+Use `disableEvictionWarnings` to downgrade eviction errors to info level, preventing them from failing the build:
+
+```bash
+sbt> disableEvictionWarnings
+```
+
+To restore eviction warnings to error level (default behavior), use `enableEvictionWarnings`:
+
+```bash
+sbt> enableEvictionWarnings
+```
+
+---
+
+</details>
 
 ## Contributors to this project
 
