@@ -80,6 +80,29 @@ class Keys {
     "Check functions that validate resolved dependencies after update"
   }
 
+  /** URLs pointing to artifact migration files in Scala Steward's HOCON format.
+    *
+    * When `updateDependencies` runs, it loads migrations from these URLs and automatically migrates dependencies to new
+    * coordinates when a newer version is available under the new groupId/artifactId.
+    *
+    * Default: Scala Steward's public artifact-migrations.v2.conf
+    *
+    * @example
+    *   {{{
+    * // Disable all migrations
+    * ThisBuild / dependencyMigrations := Nil
+    *
+    * // Add custom migrations URL
+    * ThisBuild / dependencyMigrations += url("https://example.com/my-migrations.conf")
+    *
+    * // Use a local file
+    * ThisBuild / dependencyMigrations += file("migrations.conf").toURI.toURL
+    *   }}}
+    */
+  val dependencyMigrations = settingKey[List[java.net.URL]] {
+    "URLs pointing to artifact migration files (Scala Steward HOCON format). Default: Scala Steward's public migrations"
+  }
+
 }
 
 object Keys extends Keys
