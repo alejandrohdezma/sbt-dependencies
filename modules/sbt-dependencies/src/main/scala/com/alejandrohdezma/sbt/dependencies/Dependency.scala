@@ -326,7 +326,15 @@ object Dependency {
         * @param filter
         *   The filter function to determine if a candidate version is acceptable.
         */
-      sealed abstract class Marker(val prefix: String, val filter: (Numeric, Numeric) => Boolean)
+      sealed abstract class Marker(val prefix: String, val filter: (Numeric, Numeric) => Boolean) {
+
+        /** Checks if this marker is an exact marker. */
+        def isExact: Boolean = this match {
+          case Marker.Exact => true
+          case _            => false
+        }
+
+      }
 
       object Marker {
 

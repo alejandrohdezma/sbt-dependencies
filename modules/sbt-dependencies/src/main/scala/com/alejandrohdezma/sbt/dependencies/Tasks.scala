@@ -48,37 +48,46 @@ class Tasks {
     } else {
       logger.info(s"\n🔄 Updating ${filter.show} dependencies for `$group`\n")
 
-      val updated =
-        dependencies.par.map {
-          case dep if filter.matches(dep) =>
-            val latest = dep.findLatestVersion
+      val filtered = dependencies.filterNot(filter.matches)
 
-            dep.version match {
-              case numeric: Dependency.Version.Numeric if latest.isSameVersion(numeric) =>
+      val updated =
+        dependencies.par
+          .filter(filter.matches)
+          .map {
+            // Pinned version with Exact marker
+            case (dep @ Dependency(_, _, v: Dependency.Version.Numeric, _, _, _)) if v.marker.isExact =>
+              logger.info(s" ↳ 📌 $CYAN${dep.toLine}$RESET")
+              dep
+
+            // Numeric version
+            case (dep @ Dependency(_, _, numeric: Dependency.Version.Numeric, _, _, _)) =>
+              val latest = dep.findLatestVersion
+
+              if (latest.isSameVersion(numeric)) {
                 logger.info(s" ↳ ✅ $GREEN${dep.toLine}$RESET")
                 dep
-
-              case _: Dependency.Version.Numeric =>
+              } else {
                 logger.info(s" ↳ ⬆️ $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
                 dep.withVersion(latest)
+              }
 
-              case variable: Dependency.Version.Variable if latest.isSameVersion(variable.resolved) =>
-                logger.info {
-                  s" ↳ ✅ $GREEN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`)"
-                }
-                dep
+            // Variable version
+            case (dep @ Dependency(_, _, variable: Dependency.Version.Variable, _, _, _)) =>
+              val latest = dep.findLatestVersion
 
-              case variable: Dependency.Version.Variable =>
+              if (latest.isSameVersion(variable.resolved))
+                logger.info(s" ↳ ✅ $GREEN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`)")
+              else
                 logger.info {
                   s" ↳ 🔗 $CYAN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`, " +
                     s"latest: `$YELLOW${latest.toVersionString}$RESET`)"
                 }
-                dep
-            }
-          case dep => dep
-        }.toList
 
-      DependenciesFile.write(file, group, updated)
+              dep
+          }
+          .toList
+
+      DependenciesFile.write(file, group, filtered ++ updated)
     }
   }
 
