@@ -80,7 +80,12 @@ object DependenciesFile {
     if (dependencies.nonEmpty || scalaVersions.nonEmpty) {
       val existingConfigs = readRaw(file)
 
-      val dependencyLines = dependencies.distinct.sorted.map(_.toLine)
+      val dependencyLines = dependencies
+        .foldLeft(List.empty[Dependency]) { (acc, dep) =>
+          if (acc.exists(_.isSameArtifact(dep))) acc else acc :+ dep
+        }
+        .sorted
+        .map(_.toLine)
 
       val newConfig =
         if (scalaVersions.nonEmpty) GroupConfig.Advanced(dependencyLines, scalaVersions)

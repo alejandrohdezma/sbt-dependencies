@@ -45,12 +45,12 @@ sealed abstract class Dependency {
 
   def configuration: String
 
-  override def hashCode: Int = (organization, name, isCross, configuration).hashCode // scalafix:ok
+  override def hashCode: Int = (organization, name, version, isCross, configuration).hashCode // scalafix:ok
 
   override def equals(other: Any): Boolean = other match { // scalafix:ok
     case other: Dependency =>
-      organization === other.organization && name === other.name && isCross === other.isCross &&
-      configuration === other.configuration
+      organization === other.organization && name === other.name && version === other.version &&
+      isCross === other.isCross && configuration === other.configuration
     case _ => false
   }
 
@@ -247,6 +247,12 @@ object Dependency {
 
   object Version {
 
+    implicit val VersionEq: Eq[Version] = {
+      case (a: Numeric, b: Numeric)   => a.parts === b.parts && a.suffix === b.suffix && a.marker === b.marker
+      case (a: Variable, b: Variable) => a.name === b.name && VersionEq.eqv(a.resolved, b.resolved)
+      case _                          => false
+    }
+
     /** A numeric version with variable-length parts and optional suffix.
       *
       * Supports formats like:
@@ -300,8 +306,7 @@ object Dependency {
 
     object Numeric {
 
-      implicit val NumericVersionEq: Eq[Numeric] = (a, b) =>
-        a.parts === b.parts && a.suffix === b.suffix && a.marker === b.marker
+      implicit val NumericEq: Eq[Numeric] = (a, b) => VersionEq.eqv(a, b)
 
       /** Ordering for versions: compares numeric parts left-to-right, then suffix numbers. */
       implicit val NumericVersionOrdering: Ordering[Numeric] = (v1: Numeric, v2: Numeric) => {
@@ -399,10 +404,10 @@ object Dependency {
 
     object Variable {
 
+      implicit val VariableEq: Eq[Variable] = (a, b) => VersionEq.eqv(a, b)
+
       /** Regex for variable references. Only allows alphanumeric characters and underscores. */
       val regex = """\{\{(\w+)\}\}""".r
-
-      implicit val VariableEq: Eq[Variable] = (a, b) => a.name === b.name && a.resolved === b.resolved
 
     }
 
