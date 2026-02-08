@@ -91,41 +91,33 @@ object Utils {
     *
     * For variable versions, delegates to the resolved numeric version.
     *
-    * @param organization
-    *   The organization/groupId.
-    * @param name
-    *   The artifact name.
-    * @param isCross
-    *   Whether the dependency is cross-compiled for Scala.
-    * @param current
-    *   The current version (may be numeric or variable).
-    * @param configuration
-    *   The dependency configuration (e.g., "compile", "test", "sbt-plugin").
+    * @param dependency
+    *   The dependency to find the latest version for.
     * @return
     *   A [[Dependency.WithNumericVersion]] with the latest resolved version, preserving the original marker.
     */
   def findLatestVersion(
-      organization: String,
-      name: String,
-      isCross: Boolean,
-      current: Dependency.Version,
-      configuration: String
+      dependency: Dependency
   )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.WithNumericVersion = {
-    val isSbtPlugin = configuration === "sbt-plugin"
+    val isSbtPlugin = dependency.configuration === "sbt-plugin"
 
-    current match {
+    dependency.version match {
       case variable: Dependency.Version.Variable =>
-        findLatestVersion(organization, name, isCross, variable.resolved, configuration)
+        findLatestVersion(dependency.withVersion(variable.resolved))
 
       case numeric: Dependency.Version.Numeric =>
         if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) {
-          Dependency.WithNumericVersion(organization, name, numeric, isCross, configuration)
+          Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric, dependency.isCross,
+            dependency.configuration)
         } else {
           val latest = Utils
-            .findLatestVersion(organization, name, isCross, isSbtPlugin)(numeric.isValidCandidate)
+            .findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
+              numeric.isValidCandidate
+            }
             .copy(marker = numeric.marker)
 
-          Dependency.WithNumericVersion(organization, name, latest, isCross, configuration)
+          Dependency.WithNumericVersion(dependency.organization, dependency.name, latest, dependency.isCross,
+            dependency.configuration)
         }
     }
 
@@ -171,16 +163,8 @@ object Utils {
     * @return
     *   The latest version within the allowed range, preserving the original marker.
     */
-  def findLatestScalaVersion(currentVersion: Numeric)(implicit
-      versionFinder: VersionFinder,
-      logger: Logger
-  ): Numeric = {
-    val name =
-      if (currentVersion.major === 3 && currentVersion.minor < 8) "scala3-library_3"
-      else "scala-library"
-
-    findLatestVersion("org.scala-lang", name, isCross = false, currentVersion, "compile").version
-  }
+  def findLatestScalaVersion(currentVersion: Numeric)(implicit versionFinder: VersionFinder, logger: Logger): Numeric =
+    Dependency.scala(currentVersion).findLatestVersion.version
 
   /** Logs an error message and throws a RuntimeException. */
   def fail(message: String)(implicit logger: Logger): Nothing = {

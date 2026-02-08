@@ -47,8 +47,7 @@ object Scalafmt {
 
       versionRegex.findFirstMatchIn(content).map(_.group(2)) match {
         case Some(Version.Numeric(current)) =>
-          val latest =
-            Utils.findLatestVersion("org.scalameta", "scalafmt-core", isCross = true, current, "compile").version
+          val latest = Dependency.scalafmt(current).findLatestVersion.version
 
           if (latest === current) {
             logger.info(s" ↳ ✅ $GREEN${current.toVersionString}$RESET")

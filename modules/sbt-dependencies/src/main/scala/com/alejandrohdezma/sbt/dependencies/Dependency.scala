@@ -87,7 +87,7 @@ sealed abstract class Dependency {
     *   A [[Dependency.WithNumericVersion]] containing the latest version found.
     */
   def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.WithNumericVersion =
-    Utils.findLatestVersion(organization, name, isCross, version, configuration)
+    Utils.findLatestVersion(this)
 
   /** Converts the dependency to a line. */
   def toLine: String = {
@@ -120,6 +120,30 @@ sealed abstract class Dependency {
 }
 
 object Dependency {
+
+  def scala(current: Version.Numeric) =
+    Dependency.WithNumericVersion(
+      organization = "org.scala-lang",
+      name = if (current.major === 3 && current.minor < 8) "scala3-library_3" else "scala-library",
+      version = current,
+      isCross = false
+    )
+
+  def scalafmt(current: Version.Numeric) =
+    Dependency.WithNumericVersion(
+      organization = "org.scalameta",
+      name = "scalafmt-core",
+      version = current,
+      isCross = true
+    )
+
+  def sbt(current: Version.Numeric) =
+    Dependency.WithNumericVersion(
+      organization = "org.scala-sbt",
+      name = "sbt",
+      version = current,
+      isCross = false
+    )
 
   final case class WithNumericVersion(
       organization: String,
