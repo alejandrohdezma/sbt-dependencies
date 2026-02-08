@@ -113,8 +113,8 @@ class Commands {
     * `project/plugins.sbt`.
     */
   lazy val updateSbtPlugin = Command.command("updateSbtPlugin") { state =>
-    implicit val logger: Logger                     = state.log
-    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
+    implicit val logger: Logger               = state.log
+    implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("not-relevant")
 
     val project = Project.extract(state)
 
@@ -192,7 +192,7 @@ class Commands {
 
     logger.info("\n🔄 Checking for new versions of Scalafmt\n")
 
-    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("2.13")
+    implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("2.13")
 
     Scalafmt.updateVersion(base)
 
@@ -221,7 +221,7 @@ class Commands {
       } else {
         logger.info("\n🔄 Checking for new versions of SBT\n")
 
-        implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
+        implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("not-relevant")
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>

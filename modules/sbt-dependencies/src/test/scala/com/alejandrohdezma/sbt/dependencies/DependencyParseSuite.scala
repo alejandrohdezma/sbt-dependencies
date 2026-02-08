@@ -36,7 +36,7 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   // Dummy VersionFinder that always returns 0.1.0
-  implicit val dummyVersionFinder: Utils.VersionFinder = (_, _, _, _) =>
+  implicit val dummyVersionFinder: VersionFinder = (_, _, _, _) =>
     List(Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker))
 
   test("parse cross-version dependency with version") {

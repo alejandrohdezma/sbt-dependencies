@@ -55,7 +55,7 @@ object DependenciesFile {
     *   List of parsed dependencies for the specified group.
     */
   def read(file: File, group: String, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
-      versionFinder: Utils.VersionFinder,
+      versionFinder: VersionFinder,
       logger: Logger
   ): List[Dependency] =
     readRaw(file).get(group).map(_.dependencies).toList.flatten.map(Dependency.parse(_, variableResolvers))

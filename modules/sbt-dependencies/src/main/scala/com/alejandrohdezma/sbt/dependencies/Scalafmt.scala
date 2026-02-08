@@ -32,7 +32,7 @@ object Scalafmt {
     * @return
     *   `true` if the version was updated, `false` otherwise.
     */
-  def updateVersion(baseDir: File)(implicit versionFinder: Utils.VersionFinder, logger: Logger): Boolean = {
+  def updateVersion(baseDir: File)(implicit versionFinder: VersionFinder, logger: Logger): Boolean = {
     val file = baseDir / ".scalafmt.conf"
 
     if (!file.exists()) {

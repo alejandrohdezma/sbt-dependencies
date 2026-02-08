@@ -86,7 +86,7 @@ sealed abstract class Dependency {
     * @return
     *   A [[Dependency.WithNumericVersion]] containing the latest version found.
     */
-  def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.WithNumericVersion =
+  def findLatestVersion(implicit versionFinder: VersionFinder, logger: Logger): Dependency.WithNumericVersion =
     Utils.findLatestVersion(this)
 
   /** Converts the dependency to a line. */
@@ -193,7 +193,7 @@ object Dependency {
       organization: String,
       name: String,
       isCross: Boolean
-  )(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency = {
+  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency = {
     val version =
       Try(Utils.findLatestVersion(organization, name, isCross, false)(_.isStableVersion))
         .getOrElse(Utils.findLatestVersion(organization, name, isCross, true)(_.isStableVersion))
@@ -221,7 +221,7 @@ object Dependency {
   def parse(
       line: String,
       variableResolvers: Map[String, OrganizationArtifactName => ModuleID] = Map.empty
-  )(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency =
+  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency =
     line match {
       case dependencyRegex(org, sep, name, null, _) => // scalafix:ok
         Dependency.withLatestStableVersion(org, name, isCross = sep === "::")
