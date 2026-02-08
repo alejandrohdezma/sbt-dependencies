@@ -124,7 +124,6 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(result.head.name, "cats-core")
     assertEquals(result.head.version.toVersionString, "2.10.0")
     assertEquals(result.head.isCross, true)
-    assertEquals(result.head.group, "my-project")
   }
 
   withDependenciesFile {
@@ -144,8 +143,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "my-project"
+        isCross = true
       )
     )
 
@@ -155,15 +153,13 @@ class DependenciesFileSuite extends munit.FunSuite {
         "sbt-scalafix",
         Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
         isCross = false,
-        "sbt-build",
         "sbt-plugin"
       ),
       Dependency.WithNumericVersion(
         "io.get-coursier",
         "coursier",
         Version.Numeric(List(2, 1, 24), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "sbt-build"
+        isCross = true
       )
     )
 
@@ -193,7 +189,6 @@ class DependenciesFileSuite extends munit.FunSuite {
         "z-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = false,
-        "group",
         "test"
       ),
       Dependency.WithNumericVersion(
@@ -201,7 +196,6 @@ class DependenciesFileSuite extends munit.FunSuite {
         "a-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = false,
-        "group",
         "compile"
       ),
       Dependency.WithNumericVersion(
@@ -209,7 +203,6 @@ class DependenciesFileSuite extends munit.FunSuite {
         "m-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = false,
-        "group",
         "test"
       ),
       Dependency.WithNumericVersion(
@@ -217,7 +210,6 @@ class DependenciesFileSuite extends munit.FunSuite {
         "b-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = false,
-        "group",
         "compile"
       )
     )
@@ -238,15 +230,13 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "project-a"
+        isCross = true
       ),
       Dependency.WithNumericVersion(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
         isCross = true,
-        "project-a",
         "test"
       )
     )
@@ -256,8 +246,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "com.google.guava",
         "guava",
         Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "project-b"
+        isCross = false
       )
     )
 
@@ -292,8 +281,7 @@ class DependenciesFileSuite extends munit.FunSuite {
           "org",
           "z-lib",
           Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-          false,
-          "z-group"
+          false
         )
       )
     )
@@ -305,8 +293,7 @@ class DependenciesFileSuite extends munit.FunSuite {
           "org",
           "a-lib",
           Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-          false,
-          "a-group"
+          false
         )
       )
     )
@@ -318,8 +305,7 @@ class DependenciesFileSuite extends munit.FunSuite {
           "org",
           "m-lib",
           Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-          false,
-          "m-group"
+          false
         )
       )
     )
@@ -336,22 +322,19 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org",
         "z-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        false,
-        "group"
+        false
       ),
       Dependency.WithNumericVersion(
         "org",
         "a-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        false,
-        "group"
+        false
       ),
       Dependency.WithNumericVersion(
         "org",
         "m-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        false,
-        "group"
+        false
       )
     )
 
@@ -399,22 +382,19 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
-        isCross = true,
-        "my-project"
+        isCross = true
       ),
       Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.Major),
-        isCross = true,
-        "my-project"
+        isCross = true
       ),
       Dependency.WithNumericVersion(
         "org.typelevel",
         "fs2-core",
         Version.Numeric(List(3, 9, 0), None, Version.Numeric.Marker.Minor),
-        isCross = true,
-        "my-project"
+        isCross = true
       )
     )
 
@@ -485,7 +465,6 @@ class DependenciesFileSuite extends munit.FunSuite {
         "munit",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         true,
-        "new-group",
         "test"
       )
     )
@@ -513,22 +492,19 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org",
         "lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "group"
+        isCross = false
       ),
       Dependency.WithNumericVersion(
         "org",
         "lib",
         Version.Numeric(List(2, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "group"
+        isCross = false
       ), // duplicate artifact, different version
       Dependency.WithNumericVersion(
         "org",
         "other",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "group"
+        isCross = false
       )
     )
 
@@ -600,8 +576,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "my-project"
+        isCross = true
       )
     )
 
@@ -631,8 +606,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "my-project"
+        isCross = true
       )
     )
 
@@ -668,8 +642,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "simple-project"
+        isCross = true
       )
     )
     val advancedDeps = List(
@@ -678,7 +651,6 @@ class DependenciesFileSuite extends munit.FunSuite {
         "scalatest",
         Version.Numeric(List(3, 2, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = true,
-        "advanced-project",
         "test"
       )
     )
@@ -709,8 +681,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "my-project"
+        isCross = true
       )
     )
 
@@ -754,8 +725,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "new-project"
+        isCross = true
       )
     )
 
@@ -871,8 +841,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "my-project"
+        isCross = true
       )
     )
 

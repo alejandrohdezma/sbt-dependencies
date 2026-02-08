@@ -101,7 +101,7 @@ class Tasks {
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
     val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
-    val dependency   = Dependency.parse(installParser.parsed, group)
+    val dependency   = Dependency.parse(installParser.parsed)
 
     logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 
@@ -127,7 +127,7 @@ class Tasks {
     val directDependencies = libraryDependencies.value.map(m => (m.organization, m.name)).toSet
 
     val dependencies = allDependencies
-      .map(Dependency.fromModuleID(_, Settings.currentGroup.value))
+      .map(Dependency.fromModuleID(_))
       .flatMap(_.toList)
       .distinct
       .sortBy(dep => (dep.organization, dep.name))

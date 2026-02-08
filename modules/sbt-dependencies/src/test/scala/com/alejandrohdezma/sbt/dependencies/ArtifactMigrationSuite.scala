@@ -245,8 +245,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
     org,
     name,
     Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-    isCross = true,
-    "test"
+    isCross = true
   )
 
   test("matches returns true for group-only migration") {

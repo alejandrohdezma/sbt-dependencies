@@ -50,15 +50,18 @@ class Commands {
       if (isSbtBuild) "sbt-build" else project.get(ref / name)
     }.toSet
 
-    val newDependencies = project.structure.allProjectRefs.flatMap { ref =>
-      val group = if (isSbtBuild) "sbt-build" else project.get(ref / name)
+    val dependenciesByGroup: Map[String, List[Dependency]] =
+      project.structure.allProjectRefs.flatMap { ref =>
+        val group = if (isSbtBuild) "sbt-build" else project.get(ref / name)
 
-      project
-        .get(ref / libraryDependencies)
-        .flatMap(Dependency.fromModuleID(_, group).toList)
-    }.toList
-      .filterNot(d => d.organization === pluginOrg && d.name === pluginName)
-      .filterNot(d => d.organization === "org.scala-lang")
+        project
+          .get(ref / libraryDependencies)
+          .flatMap(Dependency.fromModuleID(_).toList)
+          .map(group -> _)
+      }.groupBy(_._1)
+        .mapValues(_.map(_._2).toList)
+        .mapValues(_.filterNot(_.organization === "org.scala-lang"))
+        .mapValues(_.filterNot(dep => dep.organization === pluginOrg && dep.name === pluginName))
 
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
     val scalaVersionsByGroup: Map[String, List[String]] =
@@ -78,13 +81,13 @@ class Commands {
 
     // Write sbt-build group with shared scala versions (if any)
     if (sharedVersions.nonEmpty || newGroups.contains("sbt-build")) {
-      val deps = newDependencies.filter(_.group === "sbt-build")
+      val deps = dependenciesByGroup.getOrElse("sbt-build", Nil)
       DependenciesFile.write(file, "sbt-build", deps, sharedVersions)
     }
 
     // Write each group's dependencies (and scala versions if not shared)
     newGroups.filterNot(_ === "sbt-build").foreach { group =>
-      val deps          = newDependencies.filter(_.group === group)
+      val deps          = dependenciesByGroup.getOrElse(group, Nil)
       val scalaVersions = if (sharedVersions.isEmpty) scalaVersionsByGroup.getOrElse(group, Nil) else Nil
       DependenciesFile.write(file, group, deps, scalaVersions)
     }

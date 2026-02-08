@@ -43,25 +43,23 @@ sealed abstract class Dependency {
 
   def isCross: Boolean
 
-  def group: String
-
   def configuration: String
 
-  override def hashCode: Int = (organization, name, isCross, group, configuration).hashCode // scalafix:ok
+  override def hashCode: Int = (organization, name, isCross, configuration).hashCode // scalafix:ok
 
   override def equals(other: Any): Boolean = other match { // scalafix:ok
     case other: Dependency =>
       organization === other.organization && name === other.name && isCross === other.isCross &&
-      group === other.group && configuration === other.configuration
+      configuration === other.configuration
     case _ => false
   }
 
   /** Returns a copy of this dependency with the given version. */
   def withVersion(version: Dependency.Version): Dependency = version match {
     case v: Dependency.Version.Numeric =>
-      Dependency.WithNumericVersion(organization, name, v, isCross, group, configuration)
+      Dependency.WithNumericVersion(organization, name, v, isCross, configuration)
     case v: Dependency.Version.Variable =>
-      Dependency.WithVariableVersion(organization, name, v, isCross, group, configuration)
+      Dependency.WithVariableVersion(organization, name, v, isCross, configuration)
   }
 
   /** Converts this dependency to an SBT ModuleID for use in libraryDependencies. */
@@ -78,7 +76,7 @@ sealed abstract class Dependency {
 
   /** Checks if the dependency is the same artifact as another dependency. */
   def isSameArtifact(other: Dependency): Boolean =
-    organization === other.organization && name === other.name && isCross === other.isCross && group === other.group
+    organization === other.organization && name === other.name && isCross === other.isCross
 
   /** Finds the latest version for this dependency.
     *
@@ -90,7 +88,7 @@ sealed abstract class Dependency {
     */
   def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.WithNumericVersion = {
     val latest = Utils.findLatestVersion(organization, name, isCross, configuration === "sbt-plugin", version)
-    Dependency.WithNumericVersion(organization, name, latest, isCross, group, configuration)
+    Dependency.WithNumericVersion(organization, name, latest, isCross, configuration)
   }
 
   /** Converts the dependency to a line. */
@@ -130,7 +128,6 @@ object Dependency {
       name: String,
       version: Version.Numeric,
       isCross: Boolean,
-      group: String,
       configuration: String = "compile"
   ) extends Dependency
 
@@ -139,14 +136,13 @@ object Dependency {
       name: String,
       version: Version.Variable,
       isCross: Boolean,
-      group: String,
       configuration: String = "compile"
   ) extends Dependency
 
-  def unapply(dep: Dependency): Option[(String, String, Version, Boolean, String, String)] =
-    Some((dep.organization, dep.name, dep.version, dep.isCross, dep.group, dep.configuration))
+  def unapply(dep: Dependency): Option[(String, String, Version, Boolean, String)] =
+    Some((dep.organization, dep.name, dep.version, dep.isCross, dep.configuration))
 
-  def fromModuleID(moduleID: ModuleID, group: String): Option[Dependency] =
+  def fromModuleID(moduleID: ModuleID): Option[Dependency] =
     Version.Numeric.from(moduleID.revision, Version.Numeric.Marker.NoMarker).map { version =>
       // Detect sbt plugins by checking for sbtVersion in extraAttributes
       val isSbtPlugin = moduleID.extraAttributes.contains("e:sbtVersion")
@@ -160,7 +156,6 @@ object Dependency {
         moduleID.name,
         version,
         moduleID.crossVersion != CrossVersion.disabled, // scalafix:ok
-        group,
         configuration
       )
     }
@@ -175,14 +170,13 @@ object Dependency {
   def withLatestStableVersion(
       organization: String,
       name: String,
-      isCross: Boolean,
-      group: String
+      isCross: Boolean
   )(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency = {
     val version =
       Try(Utils.findLatestVersion(organization, name, isCross, false)(_.isStableVersion))
         .getOrElse(Utils.findLatestVersion(organization, name, isCross, true)(_.isStableVersion))
 
-    WithNumericVersion(organization, name, version, isCross, group)
+    WithNumericVersion(organization, name, version, isCross)
   }
 
   /** Regex for parsing dependency lines.
@@ -204,12 +198,11 @@ object Dependency {
   /** Parses a dependency line into a dependency */
   def parse(
       line: String,
-      group: String,
       variableResolvers: Map[String, OrganizationArtifactName => ModuleID] = Map.empty
   )(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency =
     line match {
       case dependencyRegex(org, sep, name, null, _) => // scalafix:ok
-        Dependency.withLatestStableVersion(org, name, isCross = sep === "::", group)
+        Dependency.withLatestStableVersion(org, name, isCross = sep === "::")
 
       case dependencyRegex(org, sep, name, Version.Variable.regex(variable), config) =>
         variableResolvers
@@ -218,7 +211,7 @@ object Dependency {
           .map(_.revision)
           .flatMap(Version.Numeric.unapply)
           .map(Version.Variable(variable, _))
-          .map(WithVariableVersion(org, name, _, sep === "::", group, Option(config).getOrElse("compile")))
+          .map(WithVariableVersion(org, name, _, sep === "::", Option(config).getOrElse("compile")))
           .getOrElse {
             val available =
               if (variableResolvers.isEmpty) "(none defined)"
@@ -229,7 +222,7 @@ object Dependency {
           }
 
       case dependencyRegex(org, sep, name, Version.Numeric(version), config) =>
-        WithNumericVersion(org, name, version, isCross = sep === "::", group, Option(config).getOrElse("compile"))
+        WithNumericVersion(org, name, version, isCross = sep === "::", Option(config).getOrElse("compile"))
 
       case _ =>
         Utils.fail(s"$line is not a valid dependency")

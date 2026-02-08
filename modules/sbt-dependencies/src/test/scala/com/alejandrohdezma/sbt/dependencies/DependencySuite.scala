@@ -37,8 +37,7 @@ class DependencySuite extends munit.FunSuite {
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
-      "test"
+      isCross = true
     )
 
     val newVersion = Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.NoMarker)
@@ -56,8 +55,7 @@ class DependencySuite extends munit.FunSuite {
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
-      "test"
+      isCross = true
     )
 
     val module = dep.toModuleID("1.0", "2.13")
@@ -73,8 +71,7 @@ class DependencySuite extends munit.FunSuite {
       "com.google.guava",
       "guava",
       Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
-      isCross = false,
-      "test"
+      isCross = false
     )
 
     val module = dep.toModuleID("1.0", "2.13")
@@ -91,7 +88,6 @@ class DependencySuite extends munit.FunSuite {
       "munit",
       Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
       isCross = true,
-      "test",
       "test"
     )
 
@@ -106,7 +102,6 @@ class DependencySuite extends munit.FunSuite {
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
       isCross = true,
-      "test",
       "compile"
     )
 
@@ -121,7 +116,6 @@ class DependencySuite extends munit.FunSuite {
       "sbt-scalafix",
       Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
       isCross = false,
-      "sbt-build",
       "sbt-plugin"
     )
 
@@ -141,15 +135,13 @@ class DependencySuite extends munit.FunSuite {
       "org",
       "name",
       Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
-      "group"
+      isCross = true
     )
     val dep2 = Dependency.WithNumericVersion(
       "org",
       "name",
       Version.Numeric(List(2, 0, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
-      "group"
+      isCross = true
     )
 
     assert(dep1.isSameArtifact(dep2))
@@ -161,16 +153,14 @@ class DependencySuite extends munit.FunSuite {
         "org1",
         "name",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "group"
+        isCross = true
       )
     val dep2 =
       Dependency.WithNumericVersion(
         "org2",
         "name",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "group"
+        isCross = true
       )
 
     assert(!dep1.isSameArtifact(dep2))
@@ -182,16 +172,14 @@ class DependencySuite extends munit.FunSuite {
         "org",
         "name1",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "group"
+        isCross = true
       )
     val dep2 =
       Dependency.WithNumericVersion(
         "org",
         "name2",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "group"
+        isCross = true
       )
 
     assert(!dep1.isSameArtifact(dep2))
@@ -202,37 +190,14 @@ class DependencySuite extends munit.FunSuite {
       "org",
       "name",
       Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
-      "group"
+      isCross = true
     )
     val dep2 =
       Dependency.WithNumericVersion(
         "org",
         "name",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "group"
-      )
-
-    assert(!dep1.isSameArtifact(dep2))
-  }
-
-  test("isSameArtifact returns false for different group") {
-    val dep1 =
-      Dependency.WithNumericVersion(
-        "org",
-        "name",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "group1"
-      )
-    val dep2 =
-      Dependency.WithNumericVersion(
-        "org",
-        "name",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "group2"
+        isCross = false
       )
 
     assert(!dep1.isSameArtifact(dep2))
@@ -245,8 +210,7 @@ class DependencySuite extends munit.FunSuite {
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
-      "test"
+      isCross = true
     )
 
     assertEquals(dep.toLine, "org.typelevel::cats-core:2.10.0")
@@ -257,8 +221,7 @@ class DependencySuite extends munit.FunSuite {
       "com.google.guava",
       "guava",
       Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
-      isCross = false,
-      "test"
+      isCross = false
     )
 
     assertEquals(dep.toLine, "com.google.guava:guava:32.1.0-jre")
@@ -270,7 +233,6 @@ class DependencySuite extends munit.FunSuite {
       "munit",
       Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
       isCross = true,
-      "test",
       "test"
     )
 
@@ -283,7 +245,6 @@ class DependencySuite extends munit.FunSuite {
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
       isCross = true,
-      "test",
       "compile"
     )
 
@@ -296,7 +257,6 @@ class DependencySuite extends munit.FunSuite {
       "sbt-scalafix",
       Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
       isCross = false,
-      "sbt-build",
       "sbt-plugin"
     )
 
@@ -308,8 +268,7 @@ class DependencySuite extends munit.FunSuite {
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
-      isCross = true,
-      "test"
+      isCross = true
     )
 
     assertEquals(dep.toLine, "org.typelevel::cats-core:=2.10.0")
@@ -325,8 +284,7 @@ class DependencySuite extends munit.FunSuite {
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
-      isCross = true,
-      "test"
+      isCross = true
     )
 
     val result = dep.findLatestVersion
@@ -347,8 +305,7 @@ class DependencySuite extends munit.FunSuite {
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
-      isCross = true,
-      "test"
+      isCross = true
     )
 
     val result = dep.findLatestVersion
@@ -369,8 +326,7 @@ class DependencySuite extends munit.FunSuite {
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
-      isCross = true,
-      "test"
+      isCross = true
     )
 
     val result = dep.findLatestVersion
@@ -390,8 +346,7 @@ class DependencySuite extends munit.FunSuite {
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Minor),
-      isCross = true,
-      "test"
+      isCross = true
     )
 
     val result = dep.findLatestVersion
@@ -406,8 +361,7 @@ class DependencySuite extends munit.FunSuite {
       "org",
       "cats-core",
       Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
-      "g"
+      isCross = true
     )
 
     assertEquals(dep.scalaVersionSuffix, None)
@@ -419,8 +373,7 @@ class DependencySuite extends munit.FunSuite {
         "org",
         "cats-core_2.13",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
 
     assertEquals(dep.scalaVersionSuffix, Some("2.13"))
@@ -432,8 +385,7 @@ class DependencySuite extends munit.FunSuite {
         "org",
         "cats-core_2.12",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
 
     assertEquals(dep.scalaVersionSuffix, Some("2.12"))
@@ -445,8 +397,7 @@ class DependencySuite extends munit.FunSuite {
         "org",
         "cats-core_3",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
 
     assertEquals(dep.scalaVersionSuffix, Some("3"))
@@ -458,8 +409,7 @@ class DependencySuite extends munit.FunSuite {
         "org",
         "cats-core_2.11",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
 
     assertEquals(dep.scalaVersionSuffix, Some("2.11"))
@@ -472,8 +422,7 @@ class DependencySuite extends munit.FunSuite {
       "org",
       "cats-core",
       Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
-      "g"
+      isCross = true
     )
 
     assert(dep.matchesScalaVersion("2.13"))
@@ -487,24 +436,21 @@ class DependencySuite extends munit.FunSuite {
         "org",
         "cats-core_2.13",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
     val dep212 =
       Dependency.WithNumericVersion(
         "org",
         "cats-core_2.12",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
     val dep3 =
       Dependency.WithNumericVersion(
         "org",
         "cats-core_3",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
 
     assert(dep213.matchesScalaVersion("2.13"))
@@ -518,24 +464,21 @@ class DependencySuite extends munit.FunSuite {
         "org",
         "cats-core_2.13",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
     val dep212 =
       Dependency.WithNumericVersion(
         "org",
         "cats-core_2.12",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
     val dep3 =
       Dependency.WithNumericVersion(
         "org",
         "cats-core_3",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "g"
+        isCross = false
       )
 
     assert(!dep213.matchesScalaVersion("2.12"))

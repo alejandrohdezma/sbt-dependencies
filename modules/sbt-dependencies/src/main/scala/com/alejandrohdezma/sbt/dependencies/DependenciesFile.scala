@@ -58,7 +58,7 @@ object DependenciesFile {
       versionFinder: Utils.VersionFinder,
       logger: Logger
   ): List[Dependency] =
-    readRaw(file).get(group).map(_.dependencies).toList.flatten.map(Dependency.parse(_, group, variableResolvers))
+    readRaw(file).get(group).map(_.dependencies).toList.flatten.map(Dependency.parse(_, variableResolvers))
 
   /** Writes dependencies for a specific group to the given HOCON file.
     *
