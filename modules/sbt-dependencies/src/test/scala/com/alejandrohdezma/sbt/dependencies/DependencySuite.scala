@@ -33,7 +33,7 @@ class DependencySuite extends munit.FunSuite {
   // --- withVersion tests ---
 
   test("withVersion returns copy with new version") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -52,7 +52,7 @@ class DependencySuite extends munit.FunSuite {
   // --- toModuleID tests ---
 
   test("toModuleID creates cross-compiled module") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -69,7 +69,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("toModuleID creates java module without cross version") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "com.google.guava",
       "guava",
       Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
@@ -86,7 +86,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("toModuleID sets test configuration") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.scalameta",
       "munit",
       Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
@@ -101,7 +101,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("toModuleID omits compile configuration") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -116,7 +116,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("toModuleID creates sbt plugin module") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "ch.epfl.scala",
       "sbt-scalafix",
       Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
@@ -137,14 +137,14 @@ class DependencySuite extends munit.FunSuite {
   // --- isSameArtifact tests ---
 
   test("isSameArtifact returns true for same artifact") {
-    val dep1 = Dependency(
+    val dep1 = Dependency.WithNumericVersion(
       "org",
       "name",
       Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
       isCross = true,
       "group"
     )
-    val dep2 = Dependency(
+    val dep2 = Dependency.WithNumericVersion(
       "org",
       "name",
       Version.Numeric(List(2, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -157,7 +157,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("isSameArtifact returns false for different organization") {
     val dep1 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org1",
         "name",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -165,7 +165,7 @@ class DependencySuite extends munit.FunSuite {
         "group"
       )
     val dep2 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org2",
         "name",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -178,7 +178,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("isSameArtifact returns false for different name") {
     val dep1 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "name1",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -186,7 +186,7 @@ class DependencySuite extends munit.FunSuite {
         "group"
       )
     val dep2 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "name2",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -198,7 +198,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("isSameArtifact returns false for different isCross") {
-    val dep1 = Dependency(
+    val dep1 = Dependency.WithNumericVersion(
       "org",
       "name",
       Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -206,7 +206,7 @@ class DependencySuite extends munit.FunSuite {
       "group"
     )
     val dep2 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "name",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -219,7 +219,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("isSameArtifact returns false for different group") {
     val dep1 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "name",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -227,7 +227,7 @@ class DependencySuite extends munit.FunSuite {
         "group1"
       )
     val dep2 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "name",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -241,7 +241,7 @@ class DependencySuite extends munit.FunSuite {
   // --- toLine tests ---
 
   test("toLine formats cross-compiled dependency") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -253,7 +253,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("toLine formats java dependency") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "com.google.guava",
       "guava",
       Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
@@ -265,7 +265,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("toLine includes configuration suffix") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.scalameta",
       "munit",
       Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
@@ -278,7 +278,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("toLine omits compile configuration") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -291,7 +291,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("toLine includes sbt-plugin configuration") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "ch.epfl.scala",
       "sbt-scalafix",
       Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
@@ -304,7 +304,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("toLine includes version marker") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
@@ -321,7 +321,7 @@ class DependencySuite extends munit.FunSuite {
     implicit val versionFinder: Utils.VersionFinder =
       (_, _, _, _) => List(Version.Numeric(List(3, 0, 0), None, Version.Numeric.Marker.NoMarker))
 
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
@@ -343,7 +343,7 @@ class DependencySuite extends munit.FunSuite {
         Version.Numeric(List(2, 12, 0), None, Version.Numeric.Marker.NoMarker)
       )
 
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
@@ -365,7 +365,7 @@ class DependencySuite extends munit.FunSuite {
         Version.Numeric(List(3, 0, 0), None, Version.Numeric.Marker.NoMarker)
       )
 
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
@@ -386,7 +386,7 @@ class DependencySuite extends munit.FunSuite {
         Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.NoMarker)
       )
 
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org.typelevel",
       "cats-core",
       Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Minor),
@@ -402,7 +402,7 @@ class DependencySuite extends munit.FunSuite {
   // --- scalaVersionSuffix tests ---
 
   test("scalaVersionSuffix returns None for regular artifact") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org",
       "cats-core",
       Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -415,7 +415,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("scalaVersionSuffix returns Some(2.13) for _2.13 suffix") {
     val dep =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_2.13",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -428,7 +428,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("scalaVersionSuffix returns Some(2.12) for _2.12 suffix") {
     val dep =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_2.12",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -441,7 +441,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("scalaVersionSuffix returns Some(3) for _3 suffix") {
     val dep =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_3",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -454,7 +454,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("scalaVersionSuffix returns Some(2.11) for _2.11 suffix") {
     val dep =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_2.11",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -468,7 +468,7 @@ class DependencySuite extends munit.FunSuite {
   // --- matchesScalaVersion tests ---
 
   test("matchesScalaVersion returns true for regular artifact with any Scala version") {
-    val dep = Dependency(
+    val dep = Dependency.WithNumericVersion(
       "org",
       "cats-core",
       Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -483,7 +483,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("matchesScalaVersion returns true when suffix matches Scala version") {
     val dep213 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_2.13",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -491,7 +491,7 @@ class DependencySuite extends munit.FunSuite {
         "g"
       )
     val dep212 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_2.12",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -499,7 +499,7 @@ class DependencySuite extends munit.FunSuite {
         "g"
       )
     val dep3 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_3",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -514,7 +514,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("matchesScalaVersion returns false when suffix does not match Scala version") {
     val dep213 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_2.13",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -522,7 +522,7 @@ class DependencySuite extends munit.FunSuite {
         "g"
       )
     val dep212 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_2.12",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -530,7 +530,7 @@ class DependencySuite extends munit.FunSuite {
         "g"
       )
     val dep3 =
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "cats-core_3",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),

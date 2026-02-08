@@ -143,18 +143,6 @@ object Dependency {
       configuration: String = "compile"
   ) extends Dependency
 
-  def apply(
-      organization: String,
-      name: String,
-      version: Version,
-      isCross: Boolean,
-      group: String,
-      configuration: String = "compile"
-  ): Dependency = version match {
-    case v: Version.Numeric  => WithNumericVersion(organization, name, v, isCross, group, configuration)
-    case v: Version.Variable => WithVariableVersion(organization, name, v, isCross, group, configuration)
-  }
-
   def unapply(dep: Dependency): Option[(String, String, Version, Boolean, String, String)] =
     Some((dep.organization, dep.name, dep.version, dep.isCross, dep.group, dep.configuration))
 
@@ -167,7 +155,7 @@ object Dependency {
         if (isSbtPlugin) "sbt-plugin"
         else moduleID.configurations.getOrElse("compile")
 
-      Dependency(
+      WithNumericVersion(
         moduleID.organization,
         moduleID.name,
         version,
@@ -194,7 +182,7 @@ object Dependency {
       Try(Utils.findLatestVersion(organization, name, isCross, false)(_.isStableVersion))
         .getOrElse(Utils.findLatestVersion(organization, name, isCross, true)(_.isStableVersion))
 
-    Dependency(organization, name, version, isCross, group)
+    WithNumericVersion(organization, name, version, isCross, group)
   }
 
   /** Regex for parsing dependency lines.
@@ -230,7 +218,7 @@ object Dependency {
           .map(_.revision)
           .flatMap(Version.Numeric.unapply)
           .map(Version.Variable(variable, _))
-          .map(Dependency(org, name, _, sep === "::", group, Option(config).getOrElse("compile")))
+          .map(WithVariableVersion(org, name, _, sep === "::", group, Option(config).getOrElse("compile")))
           .getOrElse {
             val available =
               if (variableResolvers.isEmpty) "(none defined)"
@@ -241,7 +229,7 @@ object Dependency {
           }
 
       case dependencyRegex(org, sep, name, Version.Numeric(version), config) =>
-        Dependency(org, name, version, isCross = sep === "::", group, Option(config).getOrElse("compile"))
+        WithNumericVersion(org, name, version, isCross = sep === "::", group, Option(config).getOrElse("compile"))
 
       case _ =>
         Utils.fail(s"$line is not a valid dependency")

@@ -42,7 +42,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse cross-version dependency with version") {
     val result = Dependency.parse("org.typelevel::cats-core:2.10.0", "test")
 
-    val expected = Dependency(
+    val expected = Dependency.WithNumericVersion(
       organization = "org.typelevel",
       name = "cats-core",
       version = Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -56,7 +56,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse cross-version dependency without version") {
     val result = Dependency.parse("org.typelevel::cats-core", "test")
 
-    val expected = Dependency(
+    val expected = Dependency.WithNumericVersion(
       organization = "org.typelevel",
       name = "cats-core",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
@@ -70,7 +70,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse java dependency with version") {
     val result = Dependency.parse("com.google.guava:guava:32.1.0-jre", "test")
 
-    val expected = Dependency(
+    val expected = Dependency.WithNumericVersion(
       organization = "com.google.guava",
       name = "guava",
       version = Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
@@ -84,7 +84,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse java dependency without version") {
     val result = Dependency.parse("com.google.guava:guava", "test")
 
-    val expected = Dependency(
+    val expected = Dependency.WithNumericVersion(
       organization = "com.google.guava",
       name = "guava",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
@@ -106,7 +106,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse cross-version dependency with version and configuration") {
     val result = Dependency.parse("org.scalameta::munit:1.2.1:test", "my-project")
 
-    val expected = Dependency(
+    val expected = Dependency.WithNumericVersion(
       organization = "org.scalameta",
       name = "munit",
       version = Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
@@ -121,7 +121,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse java dependency with version and configuration") {
     val result = Dependency.parse("ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin", "sbt-build")
 
-    val expected = Dependency(
+    val expected = Dependency.WithNumericVersion(
       organization = "ch.epfl.scala",
       name = "sbt-scalafix",
       version = Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
@@ -136,7 +136,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse dependency with provided configuration") {
     val result = Dependency.parse("javax.servlet:javax.servlet-api:4.0.1:provided", "web")
 
-    val expected = Dependency(
+    val expected = Dependency.WithNumericVersion(
       organization = "javax.servlet",
       name = "javax.servlet-api",
       version = Version.Numeric(List(4, 0, 1), None, Version.Numeric.Marker.NoMarker),

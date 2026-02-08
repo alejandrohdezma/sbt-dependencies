@@ -241,7 +241,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
 
   // --- Matching tests ---
 
-  private def dep(org: String, name: String) = Dependency(
+  private def dep(org: String, name: String) = Dependency.WithNumericVersion(
     org,
     name,
     Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),

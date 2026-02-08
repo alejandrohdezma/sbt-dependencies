@@ -20,7 +20,7 @@ import com.alejandrohdezma.sbt.dependencies.Dependency.Version
 
 class UpdateFilterSuite extends munit.FunSuite {
 
-  val dep = Dependency(
+  val dep = Dependency.WithNumericVersion(
     organization = "org.typelevel",
     name = "cats-core",
     version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),

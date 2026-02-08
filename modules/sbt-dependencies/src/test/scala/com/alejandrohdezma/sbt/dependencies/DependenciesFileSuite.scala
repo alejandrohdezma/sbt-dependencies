@@ -140,7 +140,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write dependencies creates properly formatted HOCON") { file =>
     val myProjectDeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -150,7 +150,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     )
 
     val sbtBuildDeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "ch.epfl.scala",
         "sbt-scalafix",
         Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
@@ -158,7 +158,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "sbt-build",
         "sbt-plugin"
       ),
-      Dependency(
+      Dependency.WithNumericVersion(
         "io.get-coursier",
         "coursier",
         Version.Numeric(List(2, 1, 24), None, Version.Numeric.Marker.NoMarker),
@@ -188,7 +188,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write sorts dependencies by configuration then alphabetically") { file =>
     val dependencies = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "z-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -196,7 +196,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "group",
         "test"
       ),
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "a-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -204,7 +204,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "group",
         "compile"
       ),
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "m-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -212,7 +212,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "group",
         "test"
       ),
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "b-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -234,14 +234,14 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write then read round-trip preserves dependencies") { file =>
     val projectADeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = true,
         "project-a"
       ),
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
@@ -252,7 +252,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     )
 
     val projectBDeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "com.google.guava",
         "guava",
         Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
@@ -288,7 +288,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       file,
       "z-group",
       List(
-        Dependency(
+        Dependency.WithNumericVersion(
           "org",
           "z-lib",
           Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -301,7 +301,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       file,
       "a-group",
       List(
-        Dependency(
+        Dependency.WithNumericVersion(
           "org",
           "a-lib",
           Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -314,7 +314,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       file,
       "m-group",
       List(
-        Dependency(
+        Dependency.WithNumericVersion(
           "org",
           "m-lib",
           Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -332,9 +332,27 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write sorts dependencies within group alphabetically") { file =>
     val dependencies = List(
-      Dependency("org", "z-lib", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), false, "group"),
-      Dependency("org", "a-lib", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), false, "group"),
-      Dependency("org", "m-lib", Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker), false, "group")
+      Dependency.WithNumericVersion(
+        "org",
+        "z-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        false,
+        "group"
+      ),
+      Dependency.WithNumericVersion(
+        "org",
+        "a-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        false,
+        "group"
+      ),
+      Dependency.WithNumericVersion(
+        "org",
+        "m-lib",
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+        false,
+        "group"
+      )
     )
 
     DependenciesFile.write(file, "group", dependencies)
@@ -377,21 +395,21 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write preserves version markers") { file =>
     val dependencies = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
         isCross = true,
         "my-project"
       ),
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.Major),
         isCross = true,
         "my-project"
       ),
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "fs2-core",
         Version.Numeric(List(3, 9, 0), None, Version.Numeric.Marker.Minor),
@@ -462,7 +480,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves other groups") { file =>
     val newDeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -491,21 +509,21 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write removes duplicate dependencies") { file =>
     val dependencies = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = false,
         "group"
       ),
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "lib",
         Version.Numeric(List(2, 0, 0), None, Version.Numeric.Marker.NoMarker),
         isCross = false,
         "group"
       ), // duplicate artifact, different version
-      Dependency(
+      Dependency.WithNumericVersion(
         "org",
         "other",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
@@ -578,7 +596,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves simple format") { file =>
     val newDeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
@@ -609,7 +627,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves advanced format") { file =>
     val newDeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
@@ -646,7 +664,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves format in mixed file") { file =>
     val simpleDeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
@@ -655,7 +673,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
     val advancedDeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.scalatest",
         "scalatest",
         Version.Numeric(List(3, 2, 0), None, Version.Numeric.Marker.NoMarker),
@@ -687,7 +705,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write then read round-trip preserves advanced format") { file =>
     val deps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -732,7 +750,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write new group uses simple format") { file =>
     val deps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
@@ -849,7 +867,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves scalaVersions in advanced format") { file =>
     val newDeps = List(
-      Dependency(
+      Dependency.WithNumericVersion(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
