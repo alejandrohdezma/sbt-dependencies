@@ -86,10 +86,8 @@ sealed abstract class Dependency {
     * @return
     *   A [[Dependency.WithNumericVersion]] containing the latest version found.
     */
-  def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.WithNumericVersion = {
-    val latest = Utils.findLatestVersion(organization, name, isCross, configuration === "sbt-plugin", version)
-    Dependency.WithNumericVersion(organization, name, latest, isCross, configuration)
-  }
+  def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.WithNumericVersion =
+    Utils.findLatestVersion(organization, name, isCross, version, configuration)
 
   /** Converts the dependency to a line. */
   def toLine: String = {

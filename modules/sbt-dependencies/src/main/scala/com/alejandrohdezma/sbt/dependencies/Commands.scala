@@ -139,8 +139,7 @@ class Commands {
 
         val updatedLines = lines.map {
           case line @ pluginRegex(Numeric(current)) =>
-            val latest =
-              Utils.findLatestVersion(pluginOrg, pluginName, isCross = false, isSbtPlugin = true, current)
+            val latest = Utils.findLatestVersion(pluginOrg, pluginName, isCross = false, current, "sbt-plugin").version
 
             if (latest.isSameVersion(current)) {
               logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
@@ -223,7 +222,7 @@ class Commands {
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
-            val latest = Utils.findLatestVersion("org.scala-sbt", "sbt", isCross = false, isSbtPlugin = false, current)
+            val latest = Utils.findLatestVersion("org.scala-sbt", "sbt", isCross = false, current, "compile").version
 
             if (latest.isSameVersion(current)) {
               logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")

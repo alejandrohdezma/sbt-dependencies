@@ -97,32 +97,39 @@ object Utils {
     *   The artifact name.
     * @param isCross
     *   Whether the dependency is cross-compiled for Scala.
-    * @param isSbtPlugin
-    *   Whether the dependency is an SBT plugin.
     * @param current
     *   The current version (may be numeric or variable).
+    * @param configuration
+    *   The dependency configuration (e.g., "compile", "test", "sbt-plugin").
     * @return
-    *   The latest valid version, preserving the original marker.
+    *   A [[Dependency.WithNumericVersion]] with the latest resolved version, preserving the original marker.
     */
   def findLatestVersion(
       organization: String,
       name: String,
       isCross: Boolean,
-      isSbtPlugin: Boolean,
-      current: Dependency.Version
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.Version.Numeric =
+      current: Dependency.Version,
+      configuration: String
+  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.WithNumericVersion = {
+    val isSbtPlugin = configuration === "sbt-plugin"
+
     current match {
       case variable: Dependency.Version.Variable =>
-        Utils.findLatestVersion(organization, name, isCross, isSbtPlugin, variable.resolved)
+        findLatestVersion(organization, name, isCross, variable.resolved, configuration)
 
       case numeric: Dependency.Version.Numeric =>
-        if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) numeric
-        else {
-          Utils
+        if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) {
+          Dependency.WithNumericVersion(organization, name, numeric, isCross, configuration)
+        } else {
+          val latest = Utils
             .findLatestVersion(organization, name, isCross, isSbtPlugin)(numeric.isValidCandidate)
             .copy(marker = numeric.marker)
+
+          Dependency.WithNumericVersion(organization, name, latest, isCross, configuration)
         }
     }
+
+  }
 
   /** Finds the latest version of a dependency that passes the validation function.
     *
@@ -172,7 +179,7 @@ object Utils {
       if (currentVersion.major === 3 && currentVersion.minor < 8) "scala3-library_3"
       else "scala-library"
 
-    findLatestVersion("org.scala-lang", name, isCross = false, isSbtPlugin = false, currentVersion)
+    findLatestVersion("org.scala-lang", name, isCross = false, currentVersion, "compile").version
   }
 
   /** Logs an error message and throws a RuntimeException. */
