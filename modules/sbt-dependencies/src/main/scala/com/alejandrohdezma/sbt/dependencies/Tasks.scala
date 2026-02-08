@@ -55,32 +55,32 @@ class Tasks {
           .filter(filter.matches)
           .map {
             // Pinned version with Exact marker
-            case (dep @ Dependency(_, _, v: Dependency.Version.Numeric, _, _, _)) if v.marker.isExact =>
+            case dep: Dependency.WithNumericVersion if dep.version.marker.isExact =>
               logger.info(s" ↳ 📌 $CYAN${dep.toLine}$RESET")
               dep
 
             // Numeric version
-            case (dep @ Dependency(_, _, numeric: Dependency.Version.Numeric, _, _, _)) =>
-              val latest = dep.findLatestVersion
+            case dep: Dependency.WithNumericVersion =>
+              val updated = dep.findLatestVersion
 
-              if (latest.isSameVersion(numeric)) {
+              if (updated.version.isSameVersion(dep.version)) {
                 logger.info(s" ↳ ✅ $GREEN${dep.toLine}$RESET")
                 dep
               } else {
-                logger.info(s" ↳ ⬆️ $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
-                dep.withVersion(latest)
+                logger.info(s" ↳ ⬆️ $YELLOW${dep.toLine}$RESET -> $CYAN${updated.version.show}$RESET")
+                updated
               }
 
             // Variable version
-            case (dep @ Dependency(_, _, variable: Dependency.Version.Variable, _, _, _)) =>
-              val latest = dep.findLatestVersion
+            case dep: Dependency.WithVariableVersion =>
+              val updated = dep.findLatestVersion
 
-              if (latest.isSameVersion(variable.resolved))
-                logger.info(s" ↳ ✅ $GREEN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`)")
+              if (updated.version.isSameVersion(dep.version.resolved))
+                logger.info(s" ↳ ✅ $GREEN${dep.toLine}$RESET (resolves to `${dep.version.toVersionString}`)")
               else
                 logger.info {
-                  s" ↳ 🔗 $CYAN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`, " +
-                    s"latest: `$YELLOW${latest.toVersionString}$RESET`)"
+                  s" ↳ 🔗 $CYAN${dep.toLine}$RESET (resolves to `${dep.version.toVersionString}`, " +
+                    s"latest: `$YELLOW${updated.version.toVersionString}$RESET`)"
                 }
 
               dep

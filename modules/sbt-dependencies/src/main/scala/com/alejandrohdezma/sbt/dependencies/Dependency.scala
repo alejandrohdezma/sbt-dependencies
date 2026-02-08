@@ -29,27 +29,23 @@ import com.alejandrohdezma.sbt.dependencies.Eq._
 
 /** Represents a dependency line from the dependencies file.
   *
-  * @param organization
-  *   The organization/groupId of the dependency (e.g., "org.typelevel").
-  * @param name
-  *   The artifact name of the dependency (e.g., "cats-core").
-  * @param version
-  *   The version of the dependency.
-  * @param isCross
-  *   Whether the dependency is cross-compiled for Scala (uses `%%`).
-  * @param group
-  *   The group this dependency belongs to (matches project name or "sbt-build").
-  * @param configuration
-  *   The configuration scope (e.g., "compile", "test", "sbt-plugin"). Defaults to "compile".
+  * This is a sealed abstract class with two concrete subtypes:
+  *   - [[Dependency.WithNumericVersion]] for dependencies with numeric versions (e.g., `1.2.3`).
+  *   - [[Dependency.WithVariableVersion]] for dependencies with variable versions (e.g., `{{myVar}}`).
   */
-final case class Dependency(
-    organization: String,
-    name: String,
-    version: Dependency.Version,
-    isCross: Boolean,
-    group: String,
-    configuration: String = "compile"
-) {
+sealed abstract class Dependency {
+
+  def organization: String
+
+  def name: String
+
+  def version: Dependency.Version
+
+  def isCross: Boolean
+
+  def group: String
+
+  def configuration: String
 
   override def hashCode: Int = (organization, name, isCross, group, configuration).hashCode // scalafix:ok
 
@@ -61,7 +57,12 @@ final case class Dependency(
   }
 
   /** Returns a copy of this dependency with the given version. */
-  def withVersion(version: Dependency.Version): Dependency = copy(version = version)
+  def withVersion(version: Dependency.Version): Dependency = version match {
+    case v: Dependency.Version.Numeric =>
+      Dependency.WithNumericVersion(organization, name, v, isCross, group, configuration)
+    case v: Dependency.Version.Variable =>
+      Dependency.WithVariableVersion(organization, name, v, isCross, group, configuration)
+  }
 
   /** Converts this dependency to an SBT ModuleID for use in libraryDependencies. */
   def toModuleID(sbtBinaryVersion: String, scalaBinaryVersion: String): ModuleID = {
@@ -83,9 +84,14 @@ final case class Dependency(
     *
     * For numeric versions, finds the latest version matching the marker constraints. For variable versions, finds the
     * latest stable version (variables always use NoMarker).
+    *
+    * @return
+    *   A [[Dependency.WithNumericVersion]] containing the latest version found.
     */
-  def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.Version.Numeric =
-    Utils.findLatestVersion(organization, name, isCross, configuration === "sbt-plugin", version)
+  def findLatestVersion(implicit versionFinder: Utils.VersionFinder, logger: Logger): Dependency.WithNumericVersion = {
+    val latest = Utils.findLatestVersion(organization, name, isCross, configuration === "sbt-plugin", version)
+    Dependency.WithNumericVersion(organization, name, latest, isCross, group, configuration)
+  }
 
   /** Converts the dependency to a line. */
   def toLine: String = {
@@ -118,6 +124,39 @@ final case class Dependency(
 }
 
 object Dependency {
+
+  final case class WithNumericVersion(
+      organization: String,
+      name: String,
+      version: Version.Numeric,
+      isCross: Boolean,
+      group: String,
+      configuration: String = "compile"
+  ) extends Dependency
+
+  final case class WithVariableVersion(
+      organization: String,
+      name: String,
+      version: Version.Variable,
+      isCross: Boolean,
+      group: String,
+      configuration: String = "compile"
+  ) extends Dependency
+
+  def apply(
+      organization: String,
+      name: String,
+      version: Version,
+      isCross: Boolean,
+      group: String,
+      configuration: String = "compile"
+  ): Dependency = version match {
+    case v: Version.Numeric  => WithNumericVersion(organization, name, v, isCross, group, configuration)
+    case v: Version.Variable => WithVariableVersion(organization, name, v, isCross, group, configuration)
+  }
+
+  def unapply(dep: Dependency): Option[(String, String, Version, Boolean, String, String)] =
+    Some((dep.organization, dep.name, dep.version, dep.isCross, dep.group, dep.configuration))
 
   def fromModuleID(moduleID: ModuleID, group: String): Option[Dependency] =
     Version.Numeric.from(moduleID.revision, Version.Numeric.Marker.NoMarker).map { version =>

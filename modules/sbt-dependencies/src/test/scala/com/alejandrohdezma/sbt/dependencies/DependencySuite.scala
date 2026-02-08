@@ -331,8 +331,8 @@ class DependencySuite extends munit.FunSuite {
 
     val result = dep.findLatestVersion
 
-    assertEquals(result.toVersionString, "2.10.0")
-    assertEquals(result.marker, Version.Numeric.Marker.Exact)
+    assertEquals(result.version.toVersionString, "2.10.0")
+    assertEquals(result.version.marker, Version.Numeric.Marker.Exact)
   }
 
   test("findLatestVersion finds latest version and preserves marker") {
@@ -353,8 +353,8 @@ class DependencySuite extends munit.FunSuite {
 
     val result = dep.findLatestVersion
 
-    assertEquals(result.toVersionString, "2.12.0")
-    assertEquals(result.marker, Version.Numeric.Marker.Major)
+    assertEquals(result.version.toVersionString, "2.12.0")
+    assertEquals(result.version.marker, Version.Numeric.Marker.Major)
   }
 
   test("findLatestVersion respects major version constraint") {
@@ -375,7 +375,7 @@ class DependencySuite extends munit.FunSuite {
 
     val result = dep.findLatestVersion
 
-    assertEquals(result.toVersionString, "2.11.0")
+    assertEquals(result.version.toVersionString, "2.11.0")
   }
 
   test("findLatestVersion respects minor version constraint") {
@@ -396,7 +396,7 @@ class DependencySuite extends munit.FunSuite {
 
     val result = dep.findLatestVersion
 
-    assertEquals(result.toVersionString, "2.10.5")
+    assertEquals(result.version.toVersionString, "2.10.5")
   }
 
   // --- scalaVersionSuffix tests ---
