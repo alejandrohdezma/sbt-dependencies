@@ -186,11 +186,7 @@ class Tasks {
     val groupExists = DependenciesFile.hasGroup(file, group)
     val versions    = DependenciesFile.readScalaVersions(file, group)
 
-    if (!groupExists) {
-      // Group not in YAML file - silently skip
-    } else if (versions.isEmpty) {
-      logger.info(s"\n🫙 No scala-versions configured for `$group`\n")
-    } else {
+    if (groupExists && versions.nonEmpty) {
       logger.info(s"\n🔄 Updating Scala versions for `$group`\n")
 
       val updated = versions.map { version =>

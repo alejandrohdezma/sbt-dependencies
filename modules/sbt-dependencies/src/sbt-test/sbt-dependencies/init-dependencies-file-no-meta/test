@@ -1,0 +1,3 @@
+# Verify initDependenciesFile works when plugin is only in project/plugins.sbt (no meta-build)
+> initDependenciesFile
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected
