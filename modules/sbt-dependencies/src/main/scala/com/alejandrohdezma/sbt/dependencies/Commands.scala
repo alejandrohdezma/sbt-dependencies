@@ -50,15 +50,18 @@ class Commands {
       if (isSbtBuild) "sbt-build" else project.get(ref / name)
     }.toSet
 
-    val newDependencies = project.structure.allProjectRefs.flatMap { ref =>
-      val group = if (isSbtBuild) "sbt-build" else project.get(ref / name)
+    val dependenciesByGroup: Map[String, List[Dependency]] =
+      project.structure.allProjectRefs.flatMap { ref =>
+        val group = if (isSbtBuild) "sbt-build" else project.get(ref / name)
 
-      project
-        .get(ref / libraryDependencies)
-        .flatMap(Dependency.fromModuleID(_, group).toList)
-    }.toList
-      .filterNot(d => d.organization === pluginOrg && d.name === pluginName)
-      .filterNot(d => d.organization === "org.scala-lang")
+        project
+          .get(ref / libraryDependencies)
+          .flatMap(Dependency.fromModuleID(_).toList)
+          .map(group -> _)
+      }.groupBy(_._1)
+        .mapValues(_.map(_._2).toList)
+        .mapValues(_.filterNot(_.organization === "org.scala-lang"))
+        .mapValues(_.filterNot(dep => dep.organization === pluginOrg && dep.name === pluginName))
 
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
     val scalaVersionsByGroup: Map[String, List[String]] =
@@ -78,13 +81,13 @@ class Commands {
 
     // Write sbt-build group with shared scala versions (if any)
     if (sharedVersions.nonEmpty || newGroups.contains("sbt-build")) {
-      val deps = newDependencies.filter(_.group === "sbt-build")
+      val deps = dependenciesByGroup.getOrElse("sbt-build", Nil)
       DependenciesFile.write(file, "sbt-build", deps, sharedVersions)
     }
 
     // Write each group's dependencies (and scala versions if not shared)
     newGroups.filterNot(_ === "sbt-build").foreach { group =>
-      val deps          = newDependencies.filter(_.group === group)
+      val deps          = dependenciesByGroup.getOrElse(group, Nil)
       val scalaVersions = if (sharedVersions.isEmpty) scalaVersionsByGroup.getOrElse(group, Nil) else Nil
       DependenciesFile.write(file, group, deps, scalaVersions)
     }
@@ -110,10 +113,13 @@ class Commands {
     * `project/plugins.sbt`.
     */
   lazy val updateSbtPlugin = Command.command("updateSbtPlugin") { state =>
-    implicit val logger: Logger                     = state.log
-    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
+    implicit val logger: Logger               = state.log
+    implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("not-relevant")
 
     val project = Project.extract(state)
+    val urls    = project.get(ThisBuild / Keys.dependencyMigrations)
+
+    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
 
     val base       = project.get(ThisBuild / baseDirectory)
     val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
@@ -136,8 +142,10 @@ class Commands {
 
         val updatedLines = lines.map {
           case line @ pluginRegex(Numeric(current)) =>
-            val latest =
-              Utils.findLatestVersion(pluginOrg, pluginName, isCross = false, isSbtPlugin = true, current)
+            val latest = Dependency
+              .WithNumericVersion(pluginOrg, pluginName, current, isCross = false, "sbt-plugin")
+              .findLatestVersion
+              .version
 
             if (latest.isSameVersion(current)) {
               logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
@@ -185,9 +193,12 @@ class Commands {
 
     val base = Project.extract(state).get(ThisBuild / baseDirectory)
 
+    val urls = Project.extract(state).get(ThisBuild / Keys.dependencyMigrations)
+
     logger.info("\n🔄 Checking for new versions of Scalafmt\n")
 
-    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("2.13")
+    implicit val versionFinder: VersionFinder     = VersionFinder.fromCoursier("2.13")
+    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
 
     Scalafmt.updateVersion(base)
 
@@ -199,6 +210,10 @@ class Commands {
     implicit val logger: Logger = state.log
 
     val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+    val urls = Project.extract(state).get(ThisBuild / Keys.dependencyMigrations)
+
+    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
 
     val buildProperties = base / "project" / "build.properties"
 
@@ -216,11 +231,11 @@ class Commands {
       } else {
         logger.info("\n🔄 Checking for new versions of SBT\n")
 
-        implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier("not-relevant")
+        implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("not-relevant")
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
-            val latest = Utils.findLatestVersion("org.scala-sbt", "sbt", isCross = false, isSbtPlugin = false, current)
+            val latest = Dependency.sbt(current).findLatestVersion.version
 
             if (latest.isSameVersion(current)) {
               logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")

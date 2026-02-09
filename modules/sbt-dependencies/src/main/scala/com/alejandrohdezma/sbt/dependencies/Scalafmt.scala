@@ -32,7 +32,11 @@ object Scalafmt {
     * @return
     *   `true` if the version was updated, `false` otherwise.
     */
-  def updateVersion(baseDir: File)(implicit versionFinder: Utils.VersionFinder, logger: Logger): Boolean = {
+  def updateVersion(baseDir: File)(implicit
+      versionFinder: VersionFinder,
+      migrationFinder: MigrationFinder,
+      logger: Logger
+  ): Boolean = {
     val file = baseDir / ".scalafmt.conf"
 
     if (!file.exists()) {
@@ -47,8 +51,7 @@ object Scalafmt {
 
       versionRegex.findFirstMatchIn(content).map(_.group(2)) match {
         case Some(Version.Numeric(current)) =>
-          val latest =
-            Utils.findLatestVersion("org.scalameta", "scalafmt-core", isCross = true, isSbtPlugin = false, current)
+          val latest = Dependency.scalafmt(current).findLatestVersion.version
 
           if (latest === current) {
             logger.info(s" ↳ ✅ $GREEN${current.toVersionString}$RESET")

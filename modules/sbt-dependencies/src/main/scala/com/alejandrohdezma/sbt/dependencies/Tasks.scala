@@ -32,14 +32,16 @@ class Tasks {
 
   /** Updates dependencies to their latest versions based on the filter and version constraints. */
   val updateDependencies = Def.inputTask {
-    implicit val logger: Logger                     = streams.value.log
-    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
+    implicit val logger: Logger               = streams.value.log
+    implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier(scalaBinaryVersion.value)
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
     val groupExists  = DependenciesFile.hasGroup(file, group)
     val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
     val filter       = updateFilterParser.parsed
+
+    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
 
     if (!groupExists) {
       // Group not in YAML file - silently skip
@@ -48,37 +50,61 @@ class Tasks {
     } else {
       logger.info(s"\n🔄 Updating ${filter.show} dependencies for `$group`\n")
 
+      val filtered = dependencies.filterNot(filter.matches)
+
       val updated =
-        dependencies.par.map {
-          case dep if filter.matches(dep) =>
-            val latest = dep.findLatestVersion
+        dependencies.par
+          .filter(filter.matches)
+          .map(dep => (dep, dep.findLatestVersion))
+          .map {
+            case (original: Dependency.WithNumericVersion, _) if original.version.marker.isExact =>
+              logger.info(s" ↳ 📌 $CYAN${original.toLine}$RESET")
+              original
 
-            dep.version match {
-              case numeric: Dependency.Version.Numeric if latest.isSameVersion(numeric) =>
-                logger.info(s" ↳ ✅ $GREEN${dep.toLine}$RESET")
-                dep
+            case (original: Dependency.WithNumericVersion, updated) if !updated.isSameArtifact(original) =>
+              logger.info(s" ↳ 🔀 $YELLOW${original.toLine}$RESET -> $CYAN${updated.toLine}$RESET")
+              updated
 
-              case _: Dependency.Version.Numeric =>
-                logger.info(s" ↳ ⬆️ $YELLOW${dep.toLine}$RESET -> $CYAN${latest.show}$RESET")
-                dep.withVersion(latest)
+            case (original: Dependency.WithNumericVersion, updated)
+                if updated.version.isSameVersion(original.version) =>
+              logger.info(s" ↳ ✅ $GREEN${original.toLine}$RESET")
+              original
 
-              case variable: Dependency.Version.Variable if latest.isSameVersion(variable.resolved) =>
-                logger.info {
-                  s" ↳ ✅ $GREEN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`)"
-                }
-                dep
+            case (original: Dependency.WithNumericVersion, updated) =>
+              logger.info(s" ↳ ⬆️ $YELLOW${original.toLine}$RESET -> $CYAN${updated.version.show}$RESET")
+              updated
 
-              case variable: Dependency.Version.Variable =>
-                logger.info {
-                  s" ↳ 🔗 $CYAN${dep.toLine}$RESET (resolves to `${variable.toVersionString}`, " +
-                    s"latest: `$YELLOW${latest.toVersionString}$RESET`)"
-                }
-                dep
-            }
-          case dep => dep
-        }.toList
+            case (original: Dependency.WithVariableVersion, updated)
+                if !updated.isSameArtifact(original) && updated.version.isSameVersion(original.version.resolved) =>
+              logger.info {
+                s" ↳ ✅ $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`), migration " +
+                  s"to ${updated.organization}:${updated.name} available"
+              }
+              original
 
-      DependenciesFile.write(file, group, updated)
+            case (original: Dependency.WithVariableVersion, updated) if !updated.isSameArtifact(original) =>
+              logger.info {
+                s" ↳ 🔗 $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
+                  s"latest: `$YELLOW${updated.version.toVersionString}$RESET`, migration to" +
+                  s" ${updated.organization}:${updated.name} available)"
+              }
+              original
+
+            case (original: Dependency.WithVariableVersion, updated)
+                if updated.version.isSameVersion(original.version.resolved) =>
+              logger.info(s" ↳ ✅ $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`)")
+              original
+
+            case (original: Dependency.WithVariableVersion, updated) =>
+              logger.info {
+                s" ↳ 🔗 $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
+                  s"latest: `$YELLOW${updated.version.toVersionString}$RESET`)"
+              }
+              original
+          }
+          .toList
+
+      DependenciesFile.write(file, group, filtered ++ updated)
     }
   }
 
@@ -86,13 +112,13 @@ class Tasks {
     * not provided.
     */
   val install = Def.inputTask {
-    implicit val logger: Logger                     = streams.value.log
-    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
+    implicit val logger: Logger               = streams.value.log
+    implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier(scalaBinaryVersion.value)
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
     val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
-    val dependency   = Dependency.parse(installParser.parsed, group)
+    val dependency   = Dependency.parse(installParser.parsed)
 
     logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 
@@ -118,7 +144,7 @@ class Tasks {
     val directDependencies = libraryDependencies.value.map(m => (m.organization, m.name)).toSet
 
     val dependencies = allDependencies
-      .map(Dependency.fromModuleID(_, Settings.currentGroup.value))
+      .map(Dependency.fromModuleID(_))
       .flatMap(_.toList)
       .distinct
       .sortBy(dep => (dep.organization, dep.name))
@@ -151,8 +177,9 @@ class Tasks {
 
   /** Updates Scala versions to their latest versions within the same minor line. */
   val updateScalaVersions = Def.inputTask {
-    implicit val logger: Logger                     = streams.value.log
-    implicit val versionFinder: Utils.VersionFinder = Utils.VersionFinder.fromCoursier(scalaBinaryVersion.value)
+    implicit val logger: Logger                   = streams.value.log
+    implicit val versionFinder: VersionFinder     = VersionFinder.fromCoursier(scalaBinaryVersion.value)
+    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
 
     val file        = Settings.dependenciesFile.value
     val group       = Settings.currentGroup.value

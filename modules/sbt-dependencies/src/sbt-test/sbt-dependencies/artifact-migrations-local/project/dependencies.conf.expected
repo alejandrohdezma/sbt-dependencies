@@ -1,0 +1,4 @@
+myproject = [
+  "io.github.json4s::json4s-core:4.1.0"
+  "org.json4s::json4s-ast:=4.0.7"
+]

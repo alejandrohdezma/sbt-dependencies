@@ -46,6 +46,7 @@ object DependenciesPlugin extends AutoPlugin {
     dependencyVersionVariables        := Map.empty,
     sbtDependenciesPluginOrganization := "com.alejandrohdezma",
     sbtDependenciesPluginName         := "sbt-dependencies",
+    dependencyMigrations              := ArtifactMigration.default,
     scalaVersion := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {

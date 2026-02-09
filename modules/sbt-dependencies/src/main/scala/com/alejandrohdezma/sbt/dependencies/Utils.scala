@@ -16,71 +16,13 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import scala.concurrent.ExecutionContext.Implicits.global
-
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.Eq._
-import coursier.cache.FileCache
-import coursier.{Dependency => _, _}
 
 /** Utility functions for dependency resolution. */
 object Utils {
-
-  /** Abstraction for finding available versions of a dependency. */
-  trait VersionFinder {
-
-    /** Finds all available versions for the given dependency coordinates.
-      *
-      * @param organization
-      *   The organization/groupId.
-      * @param name
-      *   The artifact name.
-      * @param isCross
-      *   Whether the dependency is cross-compiled for Scala.
-      * @param isSbtPlugin
-      *   Whether the dependency is an SBT plugin.
-      * @return
-      *   List of available versions.
-      */
-    def findVersions(
-        organization: String,
-        name: String,
-        isCross: Boolean,
-        isSbtPlugin: Boolean
-    ): List[Dependency.Version.Numeric]
-
-  }
-
-  object VersionFinder {
-
-    private def findVersionsUsingCoursier(module: Module): List[Dependency.Version.Numeric] =
-      Versions()
-        .withCache(FileCache().noCredentials.withTtl(None))
-        .withModule(module)
-        .versions()
-        .unsafeRun()
-        .available
-        .collect { case Dependency.Version.Numeric(v) => v }
-
-    /** Creates a VersionFinder that uses Coursier to resolve versions. */
-    def fromCoursier(scalaBinaryVersion: String): VersionFinder = {
-      case (organization, name, true, _) =>
-        findVersionsUsingCoursier(Module(Organization(organization), ModuleName(s"${name}_$scalaBinaryVersion")))
-      case (organization, name, _, true) =>
-        val binaryModule =
-          Module(Organization(organization), ModuleName(s"${name}_2.12_1.0"))
-
-        val moduleWithAttributes =
-          Module(Organization(organization), ModuleName(name), Map("scalaVersion" -> "2.12", "sbtVersion" -> "1.0"))
-
-        findVersionsUsingCoursier(binaryModule) ++ findVersionsUsingCoursier(moduleWithAttributes)
-      case (organization, name, _, _) =>
-        findVersionsUsingCoursier(Module(Organization(organization), ModuleName(name)))
-    }
-
-  }
 
   /** Finds the latest version of a dependency based on the current version's marker.
     *
@@ -91,38 +33,67 @@ object Utils {
     *
     * For variable versions, delegates to the resolved numeric version.
     *
-    * @param organization
-    *   The organization/groupId.
-    * @param name
-    *   The artifact name.
-    * @param isCross
-    *   Whether the dependency is cross-compiled for Scala.
-    * @param isSbtPlugin
-    *   Whether the dependency is an SBT plugin.
-    * @param current
-    *   The current version (may be numeric or variable).
+    * @param dependency
+    *   The dependency to find the latest version for.
     * @return
-    *   The latest valid version, preserving the original marker.
+    *   A [[Dependency.WithNumericVersion]] with the latest resolved version, preserving the original marker.
     */
   def findLatestVersion(
-      organization: String,
-      name: String,
-      isCross: Boolean,
-      isSbtPlugin: Boolean,
-      current: Dependency.Version
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.Version.Numeric =
-    current match {
-      case variable: Dependency.Version.Variable =>
-        Utils.findLatestVersion(organization, name, isCross, isSbtPlugin, variable.resolved)
+      dependency: Dependency
+  )(implicit
+      versionFinder: VersionFinder,
+      migrationFinder: MigrationFinder,
+      logger: Logger
+  ): Dependency.WithNumericVersion = {
+    val isSbtPlugin = dependency.configuration === "sbt-plugin"
 
-      case numeric: Dependency.Version.Numeric =>
-        if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) numeric
-        else {
-          Utils
-            .findLatestVersion(organization, name, isCross, isSbtPlugin)(numeric.isValidCandidate)
-            .copy(marker = numeric.marker)
+    (dependency.version, migrationFinder.findMigration(dependency)) match {
+      case (variable: Dependency.Version.Variable, _) =>
+        findLatestVersion(dependency.withVersion(variable.resolved))
+
+      case (numeric: Dependency.Version.Numeric, _) if numeric.marker.isExact =>
+        Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric, dependency.isCross,
+          dependency.configuration)
+
+      case (numeric: Dependency.Version.Numeric, Some(migration)) =>
+        val oldVersions = versionFinder
+          .findVersions(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin)
+          .filter(numeric.isValidCandidate)
+
+        val newVersions = scala.util.Try {
+          versionFinder
+            .findVersions(migration.groupIdAfter, migration.artifactIdAfter, dependency.isCross, isSbtPlugin)
+            .filter(numeric.isValidCandidate)
+        }.getOrElse(Nil)
+
+        val bestOld = oldVersions.sorted.reverse.headOption
+        val bestNew = newVersions.sorted.reverse.headOption
+
+        (bestOld, bestNew) match {
+          case (None, Some(nv)) =>
+            Dependency.WithNumericVersion(migration.groupIdAfter, migration.artifactIdAfter,
+              nv.copy(marker = numeric.marker), dependency.isCross, dependency.configuration)
+          case (Some(ov), Some(nv)) if Ordering[Numeric].lt(ov, nv) =>
+            Dependency.WithNumericVersion(migration.groupIdAfter, migration.artifactIdAfter,
+              nv.copy(marker = numeric.marker), dependency.isCross, dependency.configuration)
+          case (Some(ov), _) =>
+            Dependency.WithNumericVersion(dependency.organization, dependency.name, ov.copy(marker = numeric.marker),
+              dependency.isCross, dependency.configuration)
+          case (None, None) =>
+            fail(s"Could not resolve ${dependency.organization}:${dependency.name}")
         }
+
+      case (numeric: Dependency.Version.Numeric, None) =>
+        val latest =
+          Utils.findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
+            numeric.isValidCandidate
+          }
+
+        Dependency.WithNumericVersion(dependency.organization, dependency.name, latest.copy(marker = numeric.marker),
+          dependency.isCross, dependency.configuration)
     }
+
+  }
 
   /** Finds the latest version of a dependency that passes the validation function.
     *
@@ -164,16 +135,10 @@ object Utils {
     * @return
     *   The latest version within the allowed range, preserving the original marker.
     */
-  def findLatestScalaVersion(currentVersion: Numeric)(implicit
-      versionFinder: VersionFinder,
-      logger: Logger
-  ): Numeric = {
-    val name =
-      if (currentVersion.major === 3 && currentVersion.minor < 8) "scala3-library_3"
-      else "scala-library"
-
-    findLatestVersion("org.scala-lang", name, isCross = false, isSbtPlugin = false, currentVersion)
-  }
+  def findLatestScalaVersion(
+      currentVersion: Numeric
+  )(implicit versionFinder: VersionFinder, migrationFinder: MigrationFinder, logger: Logger): Numeric =
+    Dependency.scala(currentVersion).findLatestVersion.version
 
   /** Logs an error message and throws a RuntimeException. */
   def fail(message: String)(implicit logger: Logger): Nothing = {

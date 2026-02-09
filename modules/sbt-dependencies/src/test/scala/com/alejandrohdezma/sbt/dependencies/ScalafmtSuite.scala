@@ -26,6 +26,8 @@ import com.alejandrohdezma.sbt.dependencies.Dependency.Version
 
 class ScalafmtSuite extends munit.FunSuite {
 
+  implicit val migrationFinder: MigrationFinder = _ => None
+
   implicit val logger: Logger = new Logger {
     override def trace(t: => Throwable): Unit                      = ()
     override def success(message: => String): Unit                 = ()
@@ -38,7 +40,7 @@ class ScalafmtSuite extends munit.FunSuite {
     """version = "3.7.0"
       |runner.dialect = scala213""".stripMargin
   }.test("updateVersion updates quoted version") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.8.0")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -56,7 +58,7 @@ class ScalafmtSuite extends munit.FunSuite {
     """version = 3.7.0
       |runner.dialect = scala213""".stripMargin
   }.test("updateVersion updates unquoted version") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.8.0")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -74,7 +76,7 @@ class ScalafmtSuite extends munit.FunSuite {
     """version = "3.8.0"
       |runner.dialect = scala213""".stripMargin
   }.test("updateVersion returns false when already at latest") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.8.0")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -89,7 +91,7 @@ class ScalafmtSuite extends munit.FunSuite {
   }
 
   withoutScalafmtConf.test("updateVersion returns false when file doesn't exist") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.8.0")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -100,7 +102,7 @@ class ScalafmtSuite extends munit.FunSuite {
     """runner.dialect = scala213
       |maxColumn = 120""".stripMargin
   }.test("updateVersion returns false when no version field exists") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.8.0")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -111,7 +113,7 @@ class ScalafmtSuite extends munit.FunSuite {
     """  version = "3.7.0"
       |runner.dialect = scala213""".stripMargin
   }.test("updateVersion preserves leading whitespace") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.8.0")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -129,7 +131,7 @@ class ScalafmtSuite extends munit.FunSuite {
     """version="3.7.0"
       |runner.dialect = scala213""".stripMargin
   }.test("updateVersion preserves no spaces around equals") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.8.0")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -148,7 +150,7 @@ class ScalafmtSuite extends munit.FunSuite {
       |version = "3.7.0"
       |maxColumn = 120""".stripMargin
   }.test("updateVersion updates version when not on first line") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.8.0")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -167,7 +169,7 @@ class ScalafmtSuite extends munit.FunSuite {
     """version = "3.7.0-RC1"
       |runner.dialect = scala213""".stripMargin
   }.test("updateVersion handles pre-release versions") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.7.0-RC2")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.7.0-RC2")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -188,7 +190,7 @@ class ScalafmtSuite extends munit.FunSuite {
       |align.preset = more
       |rewrite.rules = [SortImports]""".stripMargin
   }.test("updateVersion preserves complex config") { dir =>
-    implicit val versionFinder: Utils.VersionFinder = mockVersionFinder("3.8.0")
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
 
     val updated = Scalafmt.updateVersion(dir)
 
@@ -210,7 +212,7 @@ class ScalafmtSuite extends munit.FunSuite {
   //////////////
 
   // Mock VersionFinder that returns a specific "latest" version
-  def mockVersionFinder(latestVersion: String): Utils.VersionFinder =
+  def mockVersionFinder(latestVersion: String): VersionFinder =
     (_, _, _, _) => List(Version.Numeric.from(latestVersion, Version.Numeric.Marker.NoMarker).get)
 
   // Fixture that creates a temp directory with a .scalafmt.conf file

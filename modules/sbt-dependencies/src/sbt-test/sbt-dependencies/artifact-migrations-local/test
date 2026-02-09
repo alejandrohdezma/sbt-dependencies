@@ -1,0 +1,8 @@
+# Verify local artifact migration files can be configured via dependencyMigrations
+# This test sets dependencyMigrations to a local file URL
+
+> compile
+
+> myproject/updateDependencies
+
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

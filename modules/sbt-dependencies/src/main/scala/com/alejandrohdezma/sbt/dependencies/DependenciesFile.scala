@@ -55,10 +55,10 @@ object DependenciesFile {
     *   List of parsed dependencies for the specified group.
     */
   def read(file: File, group: String, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
-      versionFinder: Utils.VersionFinder,
+      versionFinder: VersionFinder,
       logger: Logger
   ): List[Dependency] =
-    readRaw(file).get(group).map(_.dependencies).toList.flatten.map(Dependency.parse(_, group, variableResolvers))
+    readRaw(file).get(group).map(_.dependencies).toList.flatten.map(Dependency.parse(_, variableResolvers))
 
   /** Writes dependencies for a specific group to the given HOCON file.
     *
@@ -80,7 +80,12 @@ object DependenciesFile {
     if (dependencies.nonEmpty || scalaVersions.nonEmpty) {
       val existingConfigs = readRaw(file)
 
-      val dependencyLines = dependencies.distinct.sorted.map(_.toLine)
+      val dependencyLines = dependencies
+        .foldLeft(List.empty[Dependency]) { (acc, dep) =>
+          if (acc.exists(_.isSameArtifact(dep))) acc else acc :+ dep
+        }
+        .sorted
+        .map(_.toLine)
 
       val newConfig =
         if (scalaVersions.nonEmpty) GroupConfig.Advanced(dependencyLines, scalaVersions)
