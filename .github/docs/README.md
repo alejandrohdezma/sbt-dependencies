@@ -52,6 +52,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Update the scalafmt version](#user-content-update-scalafmt-version)
   + [Update the plugin itself](#user-content-update-the-plugin)
   + [Update everything at once](#user-content-update-everything)
+  + [Configure artifact migrations](#user-content-configure-artifact-migrations)
   + [Show library dependencies](#user-content-show-library-dependencies)
   + [Get all resolved dependencies](#user-content-get-all-resolved-dependencies)
   + [Validate resolved dependencies](#user-content-validate-resolved-dependencies)
@@ -391,6 +392,47 @@ Use `updateAllDependencies` to update the plugin itself, Scala versions, depende
 ```bash
 sbt> updateAllDependencies
 ```
+
+---
+
+</details>
+
+<details><summary><b id="configure-artifact-migrations">Configure artifact migrations</b></summary><br/>
+
+When running `updateDependencies`, the plugin automatically detects when a dependency has moved to new coordinates (new groupId or artifactId) and migrates it. This follows the same [artifact migrations scheme as Scala Steward](https://github.com/scala-steward-org/scala-steward/blob/main/docs/artifact-migrations.md) and uses [Scala Steward's artifact migration list](https://github.com/scala-steward-org/scala-steward/blob/main/modules/core/src/main/resources/artifact-migrations.v2.conf) by default.
+
+Migrated dependencies are shown with a `🔀` indicator:
+
+```
+ ↳ 🔀 org.json4s::json4s-core:4.0.7 -> io.github.json4s::json4s-core:4.1.0
+```
+
+You can customize the migration sources using the `dependencyMigrations` setting:
+
+```scala
+// Disable all migrations
+ThisBuild / dependencyMigrations := Nil
+
+// Add a custom migrations URL
+ThisBuild / dependencyMigrations += url("https://example.com/my-migrations.conf")
+
+// Use a local file
+ThisBuild / dependencyMigrations := List(file("project/artifact-migrations.conf").toURI.toURL)
+```
+
+Custom migration files use Scala Steward's HOCON format:
+
+```hocon
+changes = [
+  {
+    groupIdBefore = org.json4s
+    groupIdAfter = io.github.json4s
+    artifactIdAfter = json4s-core
+  }
+]
+```
+
+Each entry supports `groupIdBefore`, `groupIdAfter`, `artifactIdBefore`, and `artifactIdAfter`. At least one of `groupIdBefore` or `artifactIdBefore` must be defined.
 
 ---
 
