@@ -1,0 +1,9 @@
+# Verify artifact migrations work using default Scala Steward migrations
+# This test uses the default dependencyMigrations URL which points to
+# Scala Steward's public artifact-migrations.v2.conf file
+
+> compile
+
+> myproject/updateDependencies
+
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected
