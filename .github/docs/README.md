@@ -390,6 +390,19 @@ sbtDependenciesPluginOrganization := "com.example"
 sbtDependenciesPluginName         := "sbt-my-plugin"
 ```
 
+#### Checking if Scala versions are managed
+
+Wrapper plugins that set `crossScalaVersions` or `scalaVersion` in their own files can check `dependenciesManagedScalaVersions` to avoid overriding values from `dependencies.conf`:
+
+```scala
+crossScalaVersions := {
+  if (dependenciesManagedScalaVersions.value) crossScalaVersions.value
+  else Seq("2.13.18", "3.3.7") // fallback when not managed by sbt-dependencies
+}
+```
+
+This setting is `true` when the project (or the `sbt-build` group) has `scala-version`/`scala-versions` defined in `dependencies.conf`.
+
 ---
 
 </details>
