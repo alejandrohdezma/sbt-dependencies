@@ -6,4 +6,5 @@ src/**
 out/**
 tsconfig.json
 esbuild.js
+vitest.config.ts
 .gitignore
