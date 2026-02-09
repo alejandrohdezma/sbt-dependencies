@@ -33,9 +33,19 @@ class Commands {
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
     enableEvictionWarnings)
 
-  /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions. */
-  lazy val initDependenciesFile = Command.command("initDependenciesFile") { state =>
+  /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
+    *
+    * Accepts optional flags:
+    *   - `--scala-versions` — include scala versions in the output
+    *   - `--compiler-plugins` — include compiler plugin dependencies
+    *   - `--all` — enables both of the above
+    */
+  lazy val initDependenciesFile = Command.args("initDependenciesFile", "<options>") { (state, args) =>
     implicit val logger: Logger = state.log
+
+    val includeAll             = args.contains("--all")
+    val includeScalaVersions   = includeAll || args.contains("--scala-versions")
+    val includeCompilerPlugins = includeAll || args.contains("--compiler-plugins")
 
     val project = Project.extract(state)
 
@@ -57,6 +67,7 @@ class Commands {
         project
           .get(ref / libraryDependencies)
           .flatMap(Dependency.fromModuleID(_).toList)
+          .filter(dep => includeCompilerPlugins || !dep.configuration.contains("plugin->default(compile)"))
           .map(group -> _)
       }.groupBy(_._1)
         .mapValues(_.map(_._2).toList)
@@ -65,7 +76,7 @@ class Commands {
 
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
     val scalaVersionsByGroup: Map[String, List[String]] =
-      if (isSbtBuild) Map.empty
+      if (!includeScalaVersions || isSbtBuild) Map.empty
       else
         project.structure.allProjectRefs.map { ref =>
           project.get(ref / name) -> project.get(ref / crossScalaVersions).toList
@@ -80,9 +91,10 @@ class Commands {
       else base / "project" / "dependencies.conf"
 
     // Write sbt-build group with shared scala versions (if any)
-    if (sharedVersions.nonEmpty || newGroups.contains("sbt-build")) {
-      val deps = dependenciesByGroup.getOrElse("sbt-build", Nil)
-      DependenciesFile.write(file, "sbt-build", deps, sharedVersions)
+    val sbtBuildDeps = dependenciesByGroup.getOrElse("sbt-build", Nil)
+
+    if (sharedVersions.nonEmpty || (newGroups.contains("sbt-build") && sbtBuildDeps.nonEmpty)) {
+      DependenciesFile.write(file, "sbt-build", sbtBuildDeps, sharedVersions)
     }
 
     // Write each group's dependencies (and scala versions if not shared)
@@ -95,8 +107,10 @@ class Commands {
     logger.info("📝 Created project/dependencies.conf file with your dependencies")
     logger.info("💡 Remember to remove any `libraryDependencies +=` or `addSbtPlugin` settings from your build files")
 
+    val flagsString = args.mkString(" ")
+
     if (isSbtBuild) state
-    else runInMetaBuild("initDependenciesFile")(state)
+    else runInMetaBuild(s"initDependenciesFile $flagsString")(state)
   }
 
   /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */

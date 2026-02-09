@@ -1,0 +1,3 @@
+# Verify initDependenciesFile --all creates output with scala versions
+> initDependenciesFile --all
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected
