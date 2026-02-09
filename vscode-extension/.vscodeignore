@@ -2,4 +2,8 @@
 node_modules/**
 examples/**
 tests/**
+src/**
+out/**
+tsconfig.json
+esbuild.js
 .gitignore
