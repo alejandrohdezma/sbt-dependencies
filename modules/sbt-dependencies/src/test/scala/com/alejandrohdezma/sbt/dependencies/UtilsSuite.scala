@@ -24,6 +24,8 @@ import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
 
 class UtilsSuite extends munit.FunSuite {
 
+  implicit val migrationFinder: MigrationFinder = _ => None
+
   implicit val logger: Logger = new Logger {
 
     override def trace(t: => Throwable): Unit = ()

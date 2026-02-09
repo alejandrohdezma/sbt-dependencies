@@ -117,6 +117,9 @@ class Commands {
     implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("not-relevant")
 
     val project = Project.extract(state)
+    val urls    = project.get(ThisBuild / Keys.dependencyMigrations)
+
+    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
 
     val base       = project.get(ThisBuild / baseDirectory)
     val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
@@ -190,9 +193,12 @@ class Commands {
 
     val base = Project.extract(state).get(ThisBuild / baseDirectory)
 
+    val urls = Project.extract(state).get(ThisBuild / Keys.dependencyMigrations)
+
     logger.info("\n🔄 Checking for new versions of Scalafmt\n")
 
-    implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("2.13")
+    implicit val versionFinder: VersionFinder     = VersionFinder.fromCoursier("2.13")
+    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
 
     Scalafmt.updateVersion(base)
 
@@ -204,6 +210,10 @@ class Commands {
     implicit val logger: Logger = state.log
 
     val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+    val urls = Project.extract(state).get(ThisBuild / Keys.dependencyMigrations)
+
+    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
 
     val buildProperties = base / "project" / "build.properties"
 

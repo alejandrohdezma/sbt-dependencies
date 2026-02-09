@@ -40,27 +40,57 @@ object Utils {
     */
   def findLatestVersion(
       dependency: Dependency
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.WithNumericVersion = {
+  )(implicit
+      versionFinder: VersionFinder,
+      migrationFinder: MigrationFinder,
+      logger: Logger
+  ): Dependency.WithNumericVersion = {
     val isSbtPlugin = dependency.configuration === "sbt-plugin"
 
-    dependency.version match {
-      case variable: Dependency.Version.Variable =>
+    (dependency.version, migrationFinder.findMigration(dependency)) match {
+      case (variable: Dependency.Version.Variable, _) =>
         findLatestVersion(dependency.withVersion(variable.resolved))
 
-      case numeric: Dependency.Version.Numeric =>
-        if (numeric.marker === Dependency.Version.Numeric.Marker.Exact) {
-          Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric, dependency.isCross,
-            dependency.configuration)
-        } else {
-          val latest = Utils
-            .findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
-              numeric.isValidCandidate
-            }
-            .copy(marker = numeric.marker)
+      case (numeric: Dependency.Version.Numeric, _) if numeric.marker.isExact =>
+        Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric, dependency.isCross,
+          dependency.configuration)
 
-          Dependency.WithNumericVersion(dependency.organization, dependency.name, latest, dependency.isCross,
-            dependency.configuration)
+      case (numeric: Dependency.Version.Numeric, Some(migration)) =>
+        val oldVersions = versionFinder
+          .findVersions(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin)
+          .filter(numeric.isValidCandidate)
+
+        val newVersions = scala.util.Try {
+          versionFinder
+            .findVersions(migration.groupIdAfter, migration.artifactIdAfter, dependency.isCross, isSbtPlugin)
+            .filter(numeric.isValidCandidate)
+        }.getOrElse(Nil)
+
+        val bestOld = oldVersions.sorted.reverse.headOption
+        val bestNew = newVersions.sorted.reverse.headOption
+
+        (bestOld, bestNew) match {
+          case (None, Some(nv)) =>
+            Dependency.WithNumericVersion(migration.groupIdAfter, migration.artifactIdAfter,
+              nv.copy(marker = numeric.marker), dependency.isCross, dependency.configuration)
+          case (Some(ov), Some(nv)) if Ordering[Numeric].lt(ov, nv) =>
+            Dependency.WithNumericVersion(migration.groupIdAfter, migration.artifactIdAfter,
+              nv.copy(marker = numeric.marker), dependency.isCross, dependency.configuration)
+          case (Some(ov), _) =>
+            Dependency.WithNumericVersion(dependency.organization, dependency.name, ov.copy(marker = numeric.marker),
+              dependency.isCross, dependency.configuration)
+          case (None, None) =>
+            fail(s"Could not resolve ${dependency.organization}:${dependency.name}")
         }
+
+      case (numeric: Dependency.Version.Numeric, None) =>
+        val latest =
+          Utils.findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
+            numeric.isValidCandidate
+          }
+
+        Dependency.WithNumericVersion(dependency.organization, dependency.name, latest.copy(marker = numeric.marker),
+          dependency.isCross, dependency.configuration)
     }
 
   }
@@ -105,7 +135,9 @@ object Utils {
     * @return
     *   The latest version within the allowed range, preserving the original marker.
     */
-  def findLatestScalaVersion(currentVersion: Numeric)(implicit versionFinder: VersionFinder, logger: Logger): Numeric =
+  def findLatestScalaVersion(
+      currentVersion: Numeric
+  )(implicit versionFinder: VersionFinder, migrationFinder: MigrationFinder, logger: Logger): Numeric =
     Dependency.scala(currentVersion).findLatestVersion.version
 
   /** Logs an error message and throws a RuntimeException. */

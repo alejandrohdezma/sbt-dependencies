@@ -86,7 +86,11 @@ sealed abstract class Dependency {
     * @return
     *   A [[Dependency.WithNumericVersion]] containing the latest version found.
     */
-  def findLatestVersion(implicit versionFinder: VersionFinder, logger: Logger): Dependency.WithNumericVersion =
+  def findLatestVersion(implicit
+      versionFinder: VersionFinder,
+      migrationFinder: MigrationFinder,
+      logger: Logger
+  ): Dependency.WithNumericVersion =
     Utils.findLatestVersion(this)
 
   /** Converts the dependency to a line. */

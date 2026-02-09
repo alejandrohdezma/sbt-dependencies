@@ -26,6 +26,8 @@ import com.alejandrohdezma.sbt.dependencies.Dependency.Version
 
 class ScalafmtSuite extends munit.FunSuite {
 
+  implicit val migrationFinder: MigrationFinder = _ => None
+
   implicit val logger: Logger = new Logger {
     override def trace(t: => Throwable): Unit                      = ()
     override def success(message: => String): Unit                 = ()
