@@ -92,13 +92,11 @@ class Commands {
       DependenciesFile.write(file, group, deps, scalaVersions)
     }
 
-    if (isSbtBuild) {
-      logger.info("📝 Created project/dependencies.conf file with your dependencies")
-      logger.info("💡 Remember to remove any `libraryDependencies +=` or `addSbtPlugin` settings from your build files")
-      state
-    } else {
-      runCommand("reload plugins", "initDependenciesFile", "reload return")(state)
-    }
+    logger.info("📝 Created project/dependencies.conf file with your dependencies")
+    logger.info("💡 Remember to remove any `libraryDependencies +=` or `addSbtPlugin` settings from your build files")
+
+    if (isSbtBuild) state
+    else runInMetaBuild("initDependenciesFile")(state)
   }
 
   /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */
@@ -174,17 +172,17 @@ class Commands {
 
   /** Updates dependencies in the meta-build (project/dependencies). */
   lazy val updateBuildDependencies = Command.command("updateBuildDependencies") { state =>
-    runCommand("reload plugins", "updateDependencies", "reload return")(state)
+    runInMetaBuild("updateDependencies")(state)
   }
 
   /** Updates Scala versions in the meta-build (project/dependencies). */
   lazy val updateBuildScalaVersions = Command.command("updateBuildScalaVersions") { state =>
-    runCommand("reload plugins", "updateScalaVersions", "reload return")(state)
+    runInMetaBuild("updateScalaVersions")(state)
   }
 
   /** Installs a dependency in the meta-build (project/dependencies). */
   lazy val installBuildDependencies = Command.single("installBuildDependencies") { case (state, dependency) =>
-    runCommand("reload plugins", s"install $dependency", "reload return")(state)
+    runInMetaBuild(s"install $dependency")(state)
   }
 
   /** Updates scalafmt version in `.scalafmt.conf` to the latest version. */
@@ -264,6 +262,25 @@ class Commands {
   lazy val enableEvictionWarnings = Command.command("enableEvictionWarnings") { state =>
     runCommand("set ThisBuild / evictionErrorLevel := Level.Error")(state)
   }
+
+  private def isPluginInMetaBuild(state: State): Boolean = {
+    val project    = Project.extract(state)
+    val base       = project.get(ThisBuild / baseDirectory)
+    val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
+    val pluginName = project.get(Keys.sbtDependenciesPluginName)
+    val escapedOrg = pluginOrg.replace(".", """\.""")
+
+    val pluginRegex =
+      s"""addSbtPlugin\\s*\\(\\s*"$escapedOrg"\\s*%\\s*"$pluginName"\\s*%\\s*"([^"]+)"\\s*\\).*""".r
+
+    val metaBuild = base / "project" / "project" / "plugins.sbt"
+
+    metaBuild.exists() && IO.readLines(metaBuild).exists(pluginRegex.findFirstIn(_).isDefined)
+  }
+
+  private def runInMetaBuild(commands: String*)(state: State): State =
+    if (isPluginInMetaBuild(state)) runCommand(("reload plugins" +: commands :+ "reload return"): _*)(state)
+    else state
 
   private def runCommand(commands: String*)(state: State): State = {
     implicit val logger: Logger = state.log
