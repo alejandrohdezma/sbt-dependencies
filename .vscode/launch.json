@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Extension Host",
+            "type": "extensionHost",
+            "cwd": "${workspaceFolder}/vscode-extension",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}/vscode-extension",
+                "${workspaceFolder}/vscode-extension/examples"
+            ]
+        }
+    ]
+}

@@ -1,5 +1,7 @@
 @DESCRIPTION@
 
+![](https://github.com/user-attachments/assets/f7144c2b-3171-40a8-9556-6aca28de7de2)
+
 ## Installation
 
 Add the following line to your `project/project/plugins.sbt` file:
@@ -57,6 +59,13 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Get all resolved dependencies](#user-content-get-all-resolved-dependencies)
   + [Validate resolved dependencies](#user-content-validate-resolved-dependencies)
   + [Disable eviction warnings](#user-content-disable-eviction-warnings)
+- [VS Code / Cursor Extension](#vs-code--cursor-extension)
+
+## VS Code / Cursor Extension
+
+An extension for VS Code and Cursor is available that provides syntax highlighting for `dependencies.conf` files. It highlights organizations, artifacts, versions, version markers, configurations, variable references, and comments.
+
+See the [extension's README](vscode-extension/README.md) for installation and usage instructions.
 
 ## How to...
 
