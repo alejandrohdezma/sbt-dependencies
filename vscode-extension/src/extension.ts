@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { parseDiagnostics } from "./diagnostics";
 
 /**
  * Matches dependency declarations in the form `org::artifact:version`.
@@ -9,6 +10,34 @@ import * as vscode from "vscode";
  */
 const dependencyPattern =
   /([^\s:"]+)(::?)([^\s:"]+)(?::(?:\{\{\w+\}\}|[=^~]?\d[^\s:"]*)(?::[^\s:"]+)?)?/g;
+
+/**
+ * Scans a `dependencies.conf` document for malformed dependency strings
+ * and publishes diagnostics.
+ */
+function updateDiagnostics(
+  document: vscode.TextDocument,
+  collection: vscode.DiagnosticCollection
+): void {
+  if (document.languageId !== "sbt-dependencies") {
+    return;
+  }
+
+  const lines: string[] = [];
+  for (let i = 0; i < document.lineCount; i++) {
+    lines.push(document.lineAt(i).text);
+  }
+
+  const results = parseDiagnostics(lines);
+  const diagnostics = results.map((r) => {
+    const range = new vscode.Range(r.range.startLine, r.range.startCol, r.range.endLine, r.range.endCol);
+    const d = new vscode.Diagnostic(range, r.message, vscode.DiagnosticSeverity.Error);
+    d.source = r.source;
+    return d;
+  });
+
+  collection.set(document.uri, diagnostics);
+}
 
 /** Cache of Maven Central availability checks to avoid redundant network requests. */
 const urlCache = new Map<string, boolean>();
@@ -99,7 +128,7 @@ class DependencyCodeLensProvider implements vscode.CodeLensProvider {
   }
 }
 
-/** Registers the CodeLens provider and the command to open mvnrepository links. */
+/** Registers the CodeLens provider, diagnostics, and the command to open mvnrepository links. */
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand(
@@ -114,6 +143,17 @@ export function activate(context: vscode.ExtensionContext): void {
       new DependencyCodeLensProvider()
     )
   );
+
+  const diagnostics = vscode.languages.createDiagnosticCollection("sbt-dependencies");
+  context.subscriptions.push(diagnostics);
+
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(doc => updateDiagnostics(doc, diagnostics)),
+    vscode.workspace.onDidChangeTextDocument(e => updateDiagnostics(e.document, diagnostics)),
+    vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri))
+  );
+
+  vscode.workspace.textDocuments.forEach(doc => updateDiagnostics(doc, diagnostics));
 }
 
 export function deactivate(): void {}
