@@ -7,7 +7,7 @@ Manage SBT dependencies from a single YAML file with version markers, auto-updat
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.11.1")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.11.2")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -389,6 +389,19 @@ Wrapper plugins can override which plugin gets updated by setting these keys in 
 sbtDependenciesPluginOrganization := "com.example"
 sbtDependenciesPluginName         := "sbt-my-plugin"
 ```
+
+#### Checking if Scala versions are managed
+
+Wrapper plugins that set `crossScalaVersions` or `scalaVersion` in their own files can check `dependenciesManagedScalaVersions` to avoid overriding values from `dependencies.conf`:
+
+```scala
+crossScalaVersions := {
+  if (dependenciesManagedScalaVersions.value) crossScalaVersions.value
+  else Seq("2.13.18", "3.3.7") // fallback when not managed by sbt-dependencies
+}
+```
+
+This setting is `true` when the project (or the `sbt-build` group) has `scala-version`/`scala-versions` defined in `dependencies.conf`.
 
 ---
 
