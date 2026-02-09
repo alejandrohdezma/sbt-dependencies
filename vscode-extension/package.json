@@ -2,7 +2,7 @@
   "name": "sbt-dependencies",
   "displayName": "sbt-dependencies",
   "description": "Syntax highlighting for sbt-dependencies configuration files",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "alejandrohdezma",
   "license": "Apache-2.0",
   "repository": {
