@@ -2,6 +2,8 @@
 
 Syntax highlighting for [`sbt-dependencies`](../README.md) configuration files (`dependencies.conf`). Works with both VS Code and Cursor.
 
+![](https://github.com/user-attachments/assets/f7144c2b-3171-40a8-9556-6aca28de7de2)
+
 ## Features
 
 - Syntax highlighting for dependency strings (organization, artifact, version, configuration)

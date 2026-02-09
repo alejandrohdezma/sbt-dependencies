@@ -1,5 +1,7 @@
 @DESCRIPTION@
 
+![](https://github.com/user-attachments/assets/f7144c2b-3171-40a8-9556-6aca28de7de2)
+
 ## Installation
 
 Add the following line to your `project/project/plugins.sbt` file:
