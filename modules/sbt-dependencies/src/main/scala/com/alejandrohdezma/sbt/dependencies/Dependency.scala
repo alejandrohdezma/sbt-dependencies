@@ -325,7 +325,10 @@ object Dependency {
         // Must pass marker filter
         val passesMarker = marker.filter(this, candidate)
 
-        sameShape && sameSuffix && passesMarker
+        // Must be greater than or equal to current version
+        val isNewerOrEqual = Ordering[Numeric].gteq(candidate, this)
+
+        sameShape && sameSuffix && passesMarker && isNewerOrEqual
       }
 
     }

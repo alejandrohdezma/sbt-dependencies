@@ -50,7 +50,7 @@ object VersionFinder {
 
   private def findVersionsUsingCoursier(module: Module): List[Dependency.Version.Numeric] =
     Versions()
-      .withCache(FileCache().noCredentials.withTtl(None))
+      .withCache(FileCache().withTtl(None))
       .withModule(module)
       .versions()
       .unsafeRun()
