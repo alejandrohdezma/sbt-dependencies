@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { parseDiagnostics } from "./diagnostics";
 import { parseDependency, buildHoverMarkdown } from "./hover";
+import { findReferences } from "./references";
 import { parseDocumentSymbols } from "./symbols";
 
 /**
@@ -165,7 +166,34 @@ class DependencyDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
   }
 }
 
-/** Registers the hover provider, document symbol provider, and diagnostics. */
+/**
+ * Provides "Find All References" for variables (`{{varName}}`) and
+ * dependencies (`org::artifact`) in `dependencies.conf` files.
+ */
+class DependencyReferenceProvider implements vscode.ReferenceProvider {
+  provideReferences(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): vscode.Location[] | undefined {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const refs = findReferences(lines, position.line, position.character);
+    if (!refs) return undefined;
+
+    return refs.map(
+      (r) =>
+        new vscode.Location(
+          document.uri,
+          new vscode.Range(r.line, r.startCol, r.line, r.endCol)
+        )
+    );
+  }
+}
+
+/** Registers the hover provider, document symbol provider, reference provider, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
@@ -175,6 +203,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerDocumentSymbolProvider(
       "sbt-dependencies",
       new DependencyDocumentSymbolProvider()
+    ),
+    vscode.languages.registerReferenceProvider(
+      "sbt-dependencies",
+      new DependencyReferenceProvider()
     )
   );
 
