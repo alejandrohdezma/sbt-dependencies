@@ -31,12 +31,6 @@
         "path": "./syntaxes/dependencies.tmLanguage.json"
       }
     ],
-    "commands": [
-      {
-        "command": "sbt-dependencies.openMvnRepository",
-        "title": "Open on mvnrepository"
-      }
-    ],
     "configurationDefaults": {
       "files.associations": {
         "dependencies.conf": "sbt-dependencies"
