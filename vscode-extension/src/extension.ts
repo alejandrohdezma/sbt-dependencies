@@ -1,17 +1,6 @@
 import * as vscode from "vscode";
 import { parseDiagnostics } from "./diagnostics";
-
-/**
- * Matches dependency declarations in the form `org::artifact:version`.
- *
- * - Group 1: organization (e.g. `org.typelevel`)
- * - Group 2: separator (`:` for Java, `::` for Scala)
- * - Group 3: artifact name (e.g. `cats-core`)
- * - Group 4: version (e.g. `^2.10.0`), if present
- * - Group 5: configuration (e.g. `sbt-plugin`), if present
- */
-const dependencyPattern =
-  /([^\s:"]+)(::?)([^\s:"]+)(?::(\{\{\w+\}\}|[=^~]?\d[^\s:"]*)(?::([^\s:"]+))?)?/g;
+import { parseDependency, buildHoverMarkdown } from "./hover";
 
 /**
  * Scans a `dependencies.conf` document for malformed dependency strings
@@ -92,16 +81,12 @@ function warmAvailabilityCache(document: vscode.TextDocument): void {
 
   for (let i = 0; i < document.lineCount; i++) {
     const text = document.lineAt(i).text;
+    const dep = parseDependency(text);
 
-    dependencyPattern.lastIndex = 0;
-    const match = dependencyPattern.exec(text);
-
-    if (match) {
-      const org = match[1];
-      const artifact = match[3];
-      const isScala = match[2] === "::";
-      const isSbtPlugin = match[5] === "sbt-plugin";
-      checkAvailability(org, artifact, isScala, isSbtPlugin);
+    if (dep) {
+      const isScala = dep.separator === "::";
+      const isSbtPlugin = dep.config === "sbt-plugin";
+      checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
     }
   }
 }
@@ -116,65 +101,24 @@ class DependencyHoverProvider implements vscode.HoverProvider {
     document: vscode.TextDocument,
     position: vscode.Position
   ): Promise<vscode.Hover | undefined> {
-    const line = document.lineAt(position.line);
-    const text = line.text;
+    const text = document.lineAt(position.line).text;
+    const dep = parseDependency(text);
 
-    dependencyPattern.lastIndex = 0;
-    const match = dependencyPattern.exec(text);
+    if (!dep) return undefined;
 
-    if (!match || match.index === undefined) return undefined;
+    if (position.character < dep.matchStart || position.character > dep.matchEnd) return undefined;
 
-    const matchStart = match.index;
-    const matchEnd = matchStart + match[0].length;
-
-    if (position.character < matchStart || position.character > matchEnd) return undefined;
-
-    const org = match[1];
-    const separator = match[2];
-    const artifact = match[3];
-    const version = match[4];
-    const config = match[5];
-    const isSbtPlugin = config === "sbt-plugin";
-    const isScala = separator === "::";
-    const artifactForUrl = isSbtPlugin ? `${artifact}_2.12_1.0` : artifact;
-    const url = `https://mvnrepository.com/artifact/${org}/${artifactForUrl}`;
-
-    const available = await checkAvailability(org, artifact, isScala, isSbtPlugin);
+    const isScala = dep.separator === "::";
+    const isSbtPlugin = dep.config === "sbt-plugin";
+    const available = await checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
 
     const md = new vscode.MarkdownString();
     md.isTrusted = true;
-
-    md.appendMarkdown(`**${org}** \`${separator}\` **${artifact}**\n\n`);
-
-    if (version) {
-      let explanation: string;
-      if (version.startsWith("{{")) {
-        explanation = "resolved from variable";
-      } else if (version.startsWith("=")) {
-        explanation = "pinned";
-      } else if (version.startsWith("^")) {
-        explanation = "update within major";
-      } else if (version.startsWith("~")) {
-        explanation = "update within minor";
-      } else {
-        explanation = "update to latest";
-      }
-      md.appendMarkdown(`Version: \`${version}\` *(${explanation})*`);
-    } else {
-      md.appendMarkdown(`Version: *resolved to latest*`);
-    }
-
-    if (config) {
-      md.appendMarkdown(`\\\nConfiguration: \`${config}\``);
-    }
-
-    if (available) {
-      md.appendMarkdown(`\n\n[Open on mvnrepository](${url})`);
-    }
+    md.appendMarkdown(buildHoverMarkdown(dep, available));
 
     const matchRange = new vscode.Range(
-      position.line, matchStart,
-      position.line, matchEnd
+      position.line, dep.matchStart,
+      position.line, dep.matchEnd
     );
 
     return new vscode.Hover(md, matchRange);
