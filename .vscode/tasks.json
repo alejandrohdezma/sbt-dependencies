@@ -2,11 +2,19 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "npm-install",
+            "type": "shell",
+            "command": "npm install",
+            "options": { "cwd": "${workspaceFolder}/vscode-extension" },
+            "problemMatcher": []
+        },
+        {
             "label": "build-extension",
             "type": "shell",
             "command": "npm run build",
             "options": { "cwd": "${workspaceFolder}/vscode-extension" },
             "group": "build",
+            "dependsOn": "npm-install",
             "problemMatcher": []
         }
     ]

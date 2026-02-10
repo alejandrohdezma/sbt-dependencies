@@ -184,6 +184,33 @@ describe("parseDiagnostics", () => {
       expect(result[0].message).toBe('Malformed dependency: expected format "org:artifact" or "org::artifact"');
     });
 
+    it("handles empty dependencies array on single line in advanced block", () => {
+      const lines = [
+        'sbt-build {',
+        '  scala-version = "~2.12.21"',
+        '  dependencies = []',
+        '}',
+        '',
+        'sbt-permutive {',
+        '  scala-version = "~2.12.21"',
+        '  dependencies = [',
+        '    "org.typelevel::cats-core:2.10.0"',
+        '  ]',
+        '}',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("handles empty simple group array on single line", () => {
+      const lines = [
+        'my-group = []',
+        'other-group = [',
+        '  "org.typelevel::cats-core:2.10.0"',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
     it("resets state correctly across multiple sequential groups", () => {
       const lines = [
         'group-a = [',
