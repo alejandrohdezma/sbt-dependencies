@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { parseDiagnostics } from "./diagnostics";
 import { parseDependency, buildHoverMarkdown } from "./hover";
+import { parseDocumentSymbols } from "./symbols";
 
 /**
  * Scans a `dependencies.conf` document for malformed dependency strings
@@ -125,12 +126,55 @@ class DependencyHoverProvider implements vscode.HoverProvider {
   }
 }
 
-/** Registers the hover provider and diagnostics. */
+/**
+ * Provides document symbols (Outline / breadcrumbs) for `dependencies.conf` files,
+ * showing groups as namespaces and their dependencies as packages.
+ */
+class DependencyDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+  provideDocumentSymbols(document: vscode.TextDocument): vscode.DocumentSymbol[] {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    return parseDocumentSymbols(lines).map((group) => {
+      const groupRange = new vscode.Range(
+        group.range.startLine, group.range.startCol,
+        group.range.endLine, group.range.endCol
+      );
+      const groupSelection = new vscode.Range(
+        group.range.startLine, group.range.startCol,
+        group.range.startLine, group.range.startCol + group.name.length
+      );
+      const groupSymbol = new vscode.DocumentSymbol(
+        group.name, "", vscode.SymbolKind.Namespace, groupRange, groupSelection
+      );
+
+      groupSymbol.children = (group.children ?? []).map((dep) => {
+        const depRange = new vscode.Range(
+          dep.range.startLine, dep.range.startCol,
+          dep.range.endLine, dep.range.endCol
+        );
+        return new vscode.DocumentSymbol(
+          dep.name, "", vscode.SymbolKind.Package, depRange, depRange
+        );
+      });
+
+      return groupSymbol;
+    });
+  }
+}
+
+/** Registers the hover provider, document symbol provider, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
       "sbt-dependencies",
       new DependencyHoverProvider()
+    ),
+    vscode.languages.registerDocumentSymbolProvider(
+      "sbt-dependencies",
+      new DependencyDocumentSymbolProvider()
     )
   );
 
