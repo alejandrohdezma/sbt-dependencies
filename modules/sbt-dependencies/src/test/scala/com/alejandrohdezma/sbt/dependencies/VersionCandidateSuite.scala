@@ -64,4 +64,15 @@ class VersionCandidateSuite extends munit.FunSuite {
     assertEquals(minor.isValidCandidate(differentMinor), false)
   }
 
+  test("candidate must be greater than or equal to current version") {
+    val current = Version.Numeric(List(0, 23, 1), None, Marker.NoMarker)
+    val older   = Version.Numeric(List(0, 20, 14), None, Marker.NoMarker)
+    val same    = Version.Numeric(List(0, 23, 1), None, Marker.NoMarker)
+    val newer   = Version.Numeric(List(0, 24, 0), None, Marker.NoMarker)
+
+    assertEquals(current.isValidCandidate(older), false)
+    assertEquals(current.isValidCandidate(same), true)
+    assertEquals(current.isValidCandidate(newer), true)
+  }
+
 }
