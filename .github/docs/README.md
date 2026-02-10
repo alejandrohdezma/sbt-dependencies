@@ -1,6 +1,6 @@
 @DESCRIPTION@
 
-![](https://github.com/user-attachments/assets/5df762db-956d-4bd5-8583-d8b25877b5dc)
+![](vscode-extension/example.png)
 
 ## Installation
 

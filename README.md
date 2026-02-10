@@ -1,6 +1,6 @@
 Manage SBT dependencies from a single YAML file with version markers, auto-updates, and cross-project support
 
-![](https://github.com/user-attachments/assets/5df762db-956d-4bd5-8583-d8b25877b5dc)
+![](vscode-extension/example.png)
 
 ## Installation
 

@@ -1,8 +1,8 @@
 # `sbt-dependencies` VS Code / Cursor Extension
 
-Syntax highlighting for [`sbt-dependencies`](../README.md) configuration files (`dependencies.conf`). Works with both VS Code and Cursor.
+Syntax highlighting for [`sbt-dependencies`](https://github.com/alejandrohdezma/sbt-dependencies/blob/main/README.md) configuration files (`dependencies.conf`). Works with both VS Code and Cursor.
 
-![](https://github.com/user-attachments/assets/5df762db-956d-4bd5-8583-d8b25877b5dc)
+![](example.png)
 
 ## Features
 
