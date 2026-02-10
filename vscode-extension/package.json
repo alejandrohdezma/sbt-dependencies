@@ -53,8 +53,7 @@
     "prepackage": "npm run build -- --production",
     "package": "vsce package",
     "publish": "vsce publish",
-    "test": "npx vscode-tmgrammar-test -g syntaxes/dependencies.tmLanguage.json tests/**/*.test.conf",
-    "test:unit": "vitest run"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/vscode": "^1.75.0",
