@@ -1,16 +1,6 @@
 import * as vscode from "vscode";
 import { parseDiagnostics } from "./diagnostics";
-
-/**
- * Matches dependency declarations in the form `org::artifact:version`.
- *
- * - Group 1: organization (e.g. `org.typelevel`)
- * - Group 2: separator (`:` for Java, `::` for Scala)
- * - Group 3: artifact name (e.g. `cats-core`)
- * - Group 4: configuration (e.g. `sbt-plugin`), if present
- */
-const dependencyPattern =
-  /([^\s:"]+)(::?)([^\s:"]+)(?::(?:\{\{\w+\}\}|[=^~]?\d[^\s:"]*)(?::([^\s:"]+))?)?/g;
+import { parseDependency, buildHoverMarkdown } from "./hover";
 
 /**
  * Scans a `dependencies.conf` document for malformed dependency strings
@@ -40,8 +30,8 @@ function updateDiagnostics(
   collection.set(document.uri, diagnostics);
 }
 
-/** Cache of Maven Central availability checks to avoid redundant network requests. */
-const urlCache = new Map<string, boolean>();
+/** Cache of Maven Central availability checks. */
+const availabilityCache = new Map<string, boolean>();
 
 /**
  * Checks whether a dependency is available on Maven Central by sending HEAD
@@ -51,16 +41,16 @@ const urlCache = new Map<string, boolean>();
  * returning `true` if either exists.
  *
  * Results are cached. On network errors the result is not cached and the
- * dependency is assumed available so the CodeLens link still shows.
+ * dependency is assumed available so the link still shows.
  */
-async function isAvailable(
+async function checkAvailability(
   org: string,
   artifact: string,
   isScala: boolean,
   isSbtPlugin: boolean
 ): Promise<boolean> {
   const cacheKey = `${org}:${artifact}:${isScala}:${isSbtPlugin}`;
-  const cached = urlCache.get(cacheKey);
+  const cached = availabilityCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
   const orgPath = org.split(".").join("/");
@@ -71,80 +61,76 @@ async function isAvailable(
       const url = `https://repo1.maven.org/maven2/${orgPath}/${artifact}${suffix}/`;
       const response = await fetch(url, { method: "HEAD" });
       if (response.ok) {
-        urlCache.set(cacheKey, true);
+        availabilityCache.set(cacheKey, true);
         return true;
       }
     }
-    urlCache.set(cacheKey, false);
+    availabilityCache.set(cacheKey, false);
     return false;
   } catch {
-    // Network error — don't cache, assume available so the link still shows
     return true;
   }
 }
 
 /**
- * Provides CodeLens links to mvnrepository.com for dependencies found in
- * `dependencies.conf` files. Only shows links for dependencies that exist
- * on Maven Central.
+ * Scans a document for dependencies and pre-checks their availability on
+ * Maven Central, populating the cache so hovers can read it synchronously.
  */
-class DependencyCodeLensProvider implements vscode.CodeLensProvider {
-  async provideCodeLenses(
-    document: vscode.TextDocument
-  ): Promise<vscode.CodeLens[]> {
-    const candidates: { range: vscode.Range; url: string; org: string; artifact: string; isScala: boolean; isSbtPlugin: boolean }[] = [];
+function warmAvailabilityCache(document: vscode.TextDocument): void {
+  if (document.languageId !== "sbt-dependencies") return;
 
-    for (let i = 0; i < document.lineCount; i++) {
-      const line = document.lineAt(i);
-      const text = line.text;
+  for (let i = 0; i < document.lineCount; i++) {
+    const text = document.lineAt(i).text;
+    const dep = parseDependency(text);
 
-      dependencyPattern.lastIndex = 0;
-      const match = dependencyPattern.exec(text);
-
-      if (match) {
-        const org = match[1];
-        const artifact = match[3];
-        const isScala = match[2] === "::";
-        const isSbtPlugin = match[4] === "sbt-plugin";
-        const artifactForUrl = isSbtPlugin ? `${artifact}_2.12_1.0` : artifact;
-        const url = `https://mvnrepository.com/artifact/${org}/${artifactForUrl}`;
-        candidates.push({ range: line.range, url, org, artifact, isScala, isSbtPlugin });
-      }
+    if (dep) {
+      const isScala = dep.separator === "::";
+      const isSbtPlugin = dep.config === "sbt-plugin";
+      checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
     }
-
-    const results = await Promise.all(
-      candidates.map(async (c) => ({
-        ...c,
-        available: await isAvailable(c.org, c.artifact, c.isScala, c.isSbtPlugin),
-      }))
-    );
-
-    return results
-      .filter((c) => c.available)
-      .map(
-        (c) =>
-          new vscode.CodeLens(c.range, {
-            title: "$(link-external) Open on mvnrepository",
-            command: "sbt-dependencies.openMvnRepository",
-            arguments: [c.url],
-          })
-      );
   }
 }
 
-/** Registers the CodeLens provider, diagnostics, and the command to open mvnrepository links. */
+/**
+ * Provides hover tooltips for dependencies found in `dependencies.conf` files,
+ * showing organization, artifact, version marker explanation, configuration,
+ * and a link to mvnrepository.com.
+ */
+class DependencyHoverProvider implements vscode.HoverProvider {
+  async provideHover(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): Promise<vscode.Hover | undefined> {
+    const text = document.lineAt(position.line).text;
+    const dep = parseDependency(text);
+
+    if (!dep) return undefined;
+
+    if (position.character < dep.matchStart || position.character > dep.matchEnd) return undefined;
+
+    const isScala = dep.separator === "::";
+    const isSbtPlugin = dep.config === "sbt-plugin";
+    const available = await checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
+
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+    md.appendMarkdown(buildHoverMarkdown(dep, available));
+
+    const matchRange = new vscode.Range(
+      position.line, dep.matchStart,
+      position.line, dep.matchEnd
+    );
+
+    return new vscode.Hover(md, matchRange);
+  }
+}
+
+/** Registers the hover provider and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "sbt-dependencies.openMvnRepository",
-      (url: string) => vscode.env.openExternal(vscode.Uri.parse(url))
-    )
-  );
-
-  context.subscriptions.push(
-    vscode.languages.registerCodeLensProvider(
+    vscode.languages.registerHoverProvider(
       "sbt-dependencies",
-      new DependencyCodeLensProvider()
+      new DependencyHoverProvider()
     )
   );
 
@@ -152,12 +138,21 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(diagnostics);
 
   context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument(doc => updateDiagnostics(doc, diagnostics)),
-    vscode.workspace.onDidChangeTextDocument(e => updateDiagnostics(e.document, diagnostics)),
+    vscode.workspace.onDidOpenTextDocument(doc => {
+      updateDiagnostics(doc, diagnostics);
+      warmAvailabilityCache(doc);
+    }),
+    vscode.workspace.onDidChangeTextDocument(e => {
+      updateDiagnostics(e.document, diagnostics);
+      warmAvailabilityCache(e.document);
+    }),
     vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri))
   );
 
-  vscode.workspace.textDocuments.forEach(doc => updateDiagnostics(doc, diagnostics));
+  vscode.workspace.textDocuments.forEach(doc => {
+    updateDiagnostics(doc, diagnostics);
+    warmAvailabilityCache(doc);
+  });
 }
 
 export function deactivate(): void {}
