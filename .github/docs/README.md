@@ -1,6 +1,6 @@
 @DESCRIPTION@
 
-![](https://github.com/user-attachments/assets/f7144c2b-3171-40a8-9556-6aca28de7de2)
+![](https://github.com/user-attachments/assets/5df762db-956d-4bd5-8583-d8b25877b5dc)
 
 ## Installation
 

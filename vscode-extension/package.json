@@ -2,7 +2,7 @@
   "name": "sbt-dependencies",
   "displayName": "sbt-dependencies",
   "description": "Syntax highlighting for sbt-dependencies configuration files",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "alejandrohdezma",
   "license": "Apache-2.0",
   "repository": {
@@ -53,8 +53,7 @@
     "prepackage": "npm run build -- --production",
     "package": "vsce package",
     "publish": "vsce publish",
-    "test": "npx vscode-tmgrammar-test -g syntaxes/dependencies.tmLanguage.json tests/**/*.test.conf",
-    "test:unit": "vitest run"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/vscode": "^1.75.0",

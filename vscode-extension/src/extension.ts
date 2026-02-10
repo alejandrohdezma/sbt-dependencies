@@ -7,9 +7,10 @@ import { parseDiagnostics } from "./diagnostics";
  * - Group 1: organization (e.g. `org.typelevel`)
  * - Group 2: separator (`:` for Java, `::` for Scala)
  * - Group 3: artifact name (e.g. `cats-core`)
+ * - Group 4: configuration (e.g. `sbt-plugin`), if present
  */
 const dependencyPattern =
-  /([^\s:"]+)(::?)([^\s:"]+)(?::(?:\{\{\w+\}\}|[=^~]?\d[^\s:"]*)(?::[^\s:"]+)?)?/g;
+  /([^\s:"]+)(::?)([^\s:"]+)(?::(?:\{\{\w+\}\}|[=^~]?\d[^\s:"]*)(?::([^\s:"]+))?)?/g;
 
 /**
  * Scans a `dependencies.conf` document for malformed dependency strings
@@ -55,14 +56,15 @@ const urlCache = new Map<string, boolean>();
 async function isAvailable(
   org: string,
   artifact: string,
-  isScala: boolean
+  isScala: boolean,
+  isSbtPlugin: boolean
 ): Promise<boolean> {
-  const cacheKey = `${org}:${artifact}:${isScala}`;
+  const cacheKey = `${org}:${artifact}:${isScala}:${isSbtPlugin}`;
   const cached = urlCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
   const orgPath = org.split(".").join("/");
-  const suffixes = isScala ? ["_3", "_2.13"] : [""];
+  const suffixes = isSbtPlugin ? ["_2.12_1.0"] : isScala ? ["_3", "_2.13"] : [""];
 
   try {
     for (const suffix of suffixes) {
@@ -90,7 +92,7 @@ class DependencyCodeLensProvider implements vscode.CodeLensProvider {
   async provideCodeLenses(
     document: vscode.TextDocument
   ): Promise<vscode.CodeLens[]> {
-    const candidates: { range: vscode.Range; url: string; org: string; artifact: string; isScala: boolean }[] = [];
+    const candidates: { range: vscode.Range; url: string; org: string; artifact: string; isScala: boolean; isSbtPlugin: boolean }[] = [];
 
     for (let i = 0; i < document.lineCount; i++) {
       const line = document.lineAt(i);
@@ -103,15 +105,17 @@ class DependencyCodeLensProvider implements vscode.CodeLensProvider {
         const org = match[1];
         const artifact = match[3];
         const isScala = match[2] === "::";
-        const url = `https://mvnrepository.com/artifact/${org}/${artifact}`;
-        candidates.push({ range: line.range, url, org, artifact, isScala });
+        const isSbtPlugin = match[4] === "sbt-plugin";
+        const artifactForUrl = isSbtPlugin ? `${artifact}_2.12_1.0` : artifact;
+        const url = `https://mvnrepository.com/artifact/${org}/${artifactForUrl}`;
+        candidates.push({ range: line.range, url, org, artifact, isScala, isSbtPlugin });
       }
     }
 
     const results = await Promise.all(
       candidates.map(async (c) => ({
         ...c,
-        available: await isAvailable(c.org, c.artifact, c.isScala),
+        available: await isAvailable(c.org, c.artifact, c.isScala, c.isSbtPlugin),
       }))
     );
 
