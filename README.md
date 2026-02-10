@@ -1,13 +1,13 @@
 Manage SBT dependencies from a single YAML file with version markers, auto-updates, and cross-project support
 
-![](https://github.com/user-attachments/assets/f7144c2b-3171-40a8-9556-6aca28de7de2)
+![](https://github.com/user-attachments/assets/5df762db-956d-4bd5-8583-d8b25877b5dc)
 
 ## Installation
 
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.11.2")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.11.3")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
