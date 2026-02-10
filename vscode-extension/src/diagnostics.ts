@@ -111,13 +111,13 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
 
     if (state === "outside") {
       if (simpleGroupStart.test(effectiveLine)) {
-        state = "simple_array";
+        state = effectiveLine.includes("]") ? "outside" : "simple_array";
       } else if (advancedGroupStart.test(effectiveLine)) {
         state = "advanced_block";
       }
     } else if (state === "advanced_block") {
       if (dependenciesArrayStart.test(effectiveLine)) {
-        state = "dependencies_array";
+        state = effectiveLine.includes("]") ? "advanced_block" : "dependencies_array";
       } else if (effectiveLine.includes("}")) {
         state = "outside";
       }
