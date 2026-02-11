@@ -16,7 +16,10 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
+import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.DurationInt
+import scala.util.chaining._
 
 import coursier.cache.FileCache
 import coursier.{Dependency => _, _}
@@ -53,7 +56,8 @@ object VersionFinder {
       .withCache(FileCache().withTtl(None))
       .withModule(module)
       .versions()
-      .unsafeRun()
+      .future()
+      .pipe(Await.result(_, 20.seconds))
       .available
       .collect { case Dependency.Version.Numeric(v) => v }
 
