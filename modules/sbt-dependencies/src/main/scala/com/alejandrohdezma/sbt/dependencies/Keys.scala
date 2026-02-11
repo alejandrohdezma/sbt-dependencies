@@ -111,7 +111,7 @@ class Keys {
     * When resolving available versions for a dependency, Coursier will wait at most this many seconds before timing
     * out.
     *
-    * Default: 20 seconds
+    * Default: 60 seconds
     *
     * @example
     *   {{{
@@ -120,7 +120,7 @@ class Keys {
     *   }}}
     */
   val dependencyResolverTimeout = settingKey[Int] {
-    "Timeout in seconds for Coursier version resolution requests. Default: 20"
+    "Timeout in seconds for Coursier version resolution requests. Default: 60"
   }
 
 }

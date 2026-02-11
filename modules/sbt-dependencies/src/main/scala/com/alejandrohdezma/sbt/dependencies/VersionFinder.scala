@@ -91,7 +91,7 @@ object VersionFinder {
     * @param timeout
     *   Timeout in seconds for Coursier version resolution requests.
     */
-  def fromCoursier(scalaBinaryVersion: String, timeout: Int = 20)(implicit logger: Logger): VersionFinder = {
+  def fromCoursier(scalaBinaryVersion: String, timeout: Int = 60)(implicit logger: Logger): VersionFinder = {
     case (organization, name, true, _) =>
       findVersionsUsingCoursier(Module(Organization(organization), ModuleName(s"${name}_$scalaBinaryVersion")), timeout)
     case (organization, name, _, true) =>
