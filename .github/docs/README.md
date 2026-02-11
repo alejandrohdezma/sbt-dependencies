@@ -1,6 +1,6 @@
 @DESCRIPTION@
 
-![](vscode-extension/example.png)
+![](vscode-extension/example.gif)
 
 ## Installation
 
