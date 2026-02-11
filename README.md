@@ -1,4 +1,4 @@
-Manage SBT dependencies from a single YAML file with version markers, auto-updates, and cross-project support
+Manage SBT dependencies from a single YAML file with version markers, auto-updates, and cross-project support.
 
 ![](vscode-extension/example.png)
 
