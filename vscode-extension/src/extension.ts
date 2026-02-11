@@ -236,6 +236,81 @@ function runUpdateSpecificDependency(org: string, artifact: string): void {
 }
 
 /**
+ * Returns the correct sbtn command for installing a dependency in a group.
+ * The `sbt-build` group uses a separate global command.
+ */
+function getInstallCommand(groupName: string, dependency: string): string {
+  if (groupName === "sbt-build") {
+    return `sbtn installBuildDependencies ${dependency}`;
+  }
+  return `sbtn ${groupName}/install ${dependency}`;
+}
+
+/**
+ * Command Palette handler: prompts the user to pick a group and enter a
+ * dependency string, then runs the install command in the SBT terminal.
+ */
+async function runInstallDependency(): Promise<void> {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== "sbt-dependencies") {
+    vscode.window.showErrorMessage("Open a dependencies.conf file first.");
+    return;
+  }
+
+  const lines: string[] = [];
+  for (let i = 0; i < editor.document.lineCount; i++) {
+    lines.push(editor.document.lineAt(i).text);
+  }
+
+  const groupNames = parseDocumentSymbols(lines).map((g) => g.name);
+  if (groupNames.length === 0) {
+    vscode.window.showErrorMessage("No dependency groups found in the current file.");
+    return;
+  }
+
+  const group = await vscode.window.showQuickPick(groupNames, {
+    placeHolder: "Select the dependency group",
+  });
+  if (!group) return;
+
+  const dependency = await vscode.window.showInputBox({
+    prompt: `Enter the dependency to install in '${group}'`,
+    placeHolder: "org.typelevel::cats-core:2.10.0",
+  });
+  if (!dependency) return;
+
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText(getInstallCommand(group, dependency));
+}
+
+/**
+ * Code Action handler: prompts the user for a dependency string and runs the
+ * install command for the given group.
+ */
+async function runInstallDependencyInGroup(groupName: string): Promise<void> {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+
+  const dependency = await vscode.window.showInputBox({
+    prompt: `Enter the dependency to install in '${groupName}'`,
+    placeHolder: "org.typelevel::cats-core:2.10.0",
+  });
+  if (!dependency) return;
+
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText(getInstallCommand(groupName, dependency));
+}
+
+/**
  * Provides code actions to update individual dependencies via the SBT plugin.
  */
 class DependencyCodeActionProvider implements vscode.CodeActionProvider {
@@ -246,20 +321,38 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
     const line = document.lineAt(range.start.line).text;
     const dep = parseDependency(line);
 
-    if (!dep) return undefined;
-    if (range.start.character < dep.matchStart || range.start.character > dep.matchEnd) return undefined;
+    if (dep && range.start.character >= dep.matchStart && range.start.character <= dep.matchEnd) {
+      const action = new vscode.CodeAction(
+        `Update ${dep.org}:${dep.artifact}`,
+        vscode.CodeActionKind.RefactorRewrite
+      );
+      action.command = {
+        command: "sbt-dependencies.updateSpecificDependency",
+        title: `Update ${dep.org}:${dep.artifact}`,
+        arguments: [dep.org, dep.artifact],
+      };
+      return [action];
+    }
 
-    const action = new vscode.CodeAction(
-      `Update ${dep.org}:${dep.artifact}`,
-      vscode.CodeActionKind.RefactorRewrite
-    );
-    action.command = {
-      command: "sbt-dependencies.updateSpecificDependency",
-      title: `Update ${dep.org}:${dep.artifact}`,
-      arguments: [dep.org, dep.artifact],
-    };
+    // Check if cursor is on a group header line
+    const simpleMatch = /^(\s*)([\w][\w.-]*)\s*=\s*\[/.exec(line);
+    const advancedMatch = /^(\s*)([\w][\w.-]*)\s*\{/.exec(line);
+    const groupName = simpleMatch?.[2] ?? advancedMatch?.[2];
 
-    return [action];
+    if (groupName) {
+      const action = new vscode.CodeAction(
+        `Install dependency in '${groupName}'`,
+        vscode.CodeActionKind.RefactorRewrite
+      );
+      action.command = {
+        command: "sbt-dependencies.installDependencyInGroup",
+        title: `Install dependency in '${groupName}'`,
+        arguments: [groupName],
+      };
+      return [action];
+    }
+
+    return undefined;
   }
 }
 
@@ -293,6 +386,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "sbt-dependencies.updateSpecificDependency",
       runUpdateSpecificDependency
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.installDependency",
+      runInstallDependency
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.installDependencyInGroup",
+      runInstallDependencyInGroup
     )
   );
 

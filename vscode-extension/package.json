@@ -43,6 +43,12 @@
         "title": "Update Dependencies",
         "category": "SBT Dependencies",
         "enablement": "resourceLangId == sbt-dependencies"
+      },
+      {
+        "command": "sbt-dependencies.installDependency",
+        "title": "Install Dependency",
+        "category": "SBT Dependencies",
+        "enablement": "resourceLangId == sbt-dependencies"
       }
     ],
     "configurationDefaults": {
