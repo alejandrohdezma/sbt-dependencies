@@ -81,8 +81,8 @@ object VersionFinder {
 
   implicit class VersionFinderOps(private val underlying: VersionFinder) extends AnyVal {
 
-    /** Wraps this `VersionFinder` with a `ConcurrentHashMap`-backed cache so each unique coordinate
-      * tuple is resolved at most once.
+    /** Wraps this `VersionFinder` with a `ConcurrentHashMap`-backed cache so each unique coordinate tuple is resolved
+      * at most once.
       */
     def cached: VersionFinder = {
       val cache = new ConcurrentHashMap[(String, String, Boolean, Boolean), List[Dependency.Version.Numeric]]()
