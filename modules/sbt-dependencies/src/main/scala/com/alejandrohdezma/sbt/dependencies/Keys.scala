@@ -106,6 +106,23 @@ class Keys {
     "URLs pointing to artifact migration files (Scala Steward HOCON format). Default: Scala Steward's public migrations"
   }
 
+  /** Timeout in seconds for Coursier version resolution requests.
+    *
+    * When resolving available versions for a dependency, Coursier will wait at most this many seconds before timing
+    * out.
+    *
+    * Default: 20 seconds
+    *
+    * @example
+    *   {{{
+    * // Increase timeout for slow networks
+    * ThisBuild / dependencyResolverTimeout := 60
+    *   }}}
+    */
+  val dependencyResolverTimeout = settingKey[Int] {
+    "Timeout in seconds for Coursier version resolution requests. Default: 20"
+  }
+
 }
 
 object Keys extends Keys

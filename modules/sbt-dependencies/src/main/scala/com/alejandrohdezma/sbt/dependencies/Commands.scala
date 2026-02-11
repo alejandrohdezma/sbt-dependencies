@@ -125,12 +125,13 @@ class Commands {
     * `project/plugins.sbt`.
     */
   lazy val updateSbtPlugin = Command.command("updateSbtPlugin") { state =>
-    implicit val logger: Logger               = state.log
-    implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("not-relevant").cached
+    implicit val logger: Logger = state.log
 
     val project = Project.extract(state)
+    val timeout = project.get(ThisBuild / Keys.dependencyResolverTimeout)
     val urls    = project.get(ThisBuild / Keys.dependencyMigrations)
 
+    implicit val versionFinder: VersionFinder     = VersionFinder.fromCoursier("not-relevant", timeout).cached
     implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
 
     val base       = project.get(ThisBuild / baseDirectory)
@@ -209,7 +210,9 @@ class Commands {
 
     logger.info("\n🔄 Checking for new versions of Scalafmt\n")
 
-    implicit val versionFinder: VersionFinder     = VersionFinder.fromCoursier("2.13").cached
+    val timeout = Project.extract(state).get(ThisBuild / Keys.dependencyResolverTimeout)
+
+    implicit val versionFinder: VersionFinder     = VersionFinder.fromCoursier("2.13", timeout).cached
     implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
 
     Scalafmt.updateVersion(base)
@@ -243,7 +246,9 @@ class Commands {
       } else {
         logger.info("\n🔄 Checking for new versions of SBT\n")
 
-        implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("not-relevant").cached
+        val timeout = Project.extract(state).get(ThisBuild / Keys.dependencyResolverTimeout)
+
+        implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("not-relevant", timeout).cached
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
