@@ -1,4 +1,4 @@
-Manage SBT dependencies from a single YAML file with version markers, auto-updates, and cross-project support.
+Manage SBT dependencies from a single YAML file with version markers, auto-updates, and cross-project support
 
 ![](vscode-extension/example.png)
 
@@ -7,7 +7,7 @@ Manage SBT dependencies from a single YAML file with version markers, auto-updat
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.12.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.12.1")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
