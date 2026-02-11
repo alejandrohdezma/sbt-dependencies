@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { parseDiagnostics } from "./diagnostics";
 import { parseDependency, buildHoverMarkdown } from "./hover";
+import { findReferences } from "./references";
+import { parseDocumentSymbols } from "./symbols";
 
 /**
  * Scans a `dependencies.conf` document for malformed dependency strings
@@ -125,12 +127,273 @@ class DependencyHoverProvider implements vscode.HoverProvider {
   }
 }
 
-/** Registers the hover provider and diagnostics. */
+/**
+ * Provides document symbols (Outline / breadcrumbs) for `dependencies.conf` files,
+ * showing groups as namespaces and their dependencies as packages.
+ */
+class DependencyDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+  provideDocumentSymbols(document: vscode.TextDocument): vscode.DocumentSymbol[] {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    return parseDocumentSymbols(lines).map((group) => {
+      const groupRange = new vscode.Range(
+        group.range.startLine, group.range.startCol,
+        group.range.endLine, group.range.endCol
+      );
+      const groupSelection = new vscode.Range(
+        group.range.startLine, group.range.startCol,
+        group.range.startLine, group.range.startCol + group.name.length
+      );
+      const groupSymbol = new vscode.DocumentSymbol(
+        group.name, "", vscode.SymbolKind.Namespace, groupRange, groupSelection
+      );
+
+      groupSymbol.children = (group.children ?? []).map((dep) => {
+        const depRange = new vscode.Range(
+          dep.range.startLine, dep.range.startCol,
+          dep.range.endLine, dep.range.endCol
+        );
+        return new vscode.DocumentSymbol(
+          dep.name, "", vscode.SymbolKind.Package, depRange, depRange
+        );
+      });
+
+      return groupSymbol;
+    });
+  }
+}
+
+/**
+ * Provides "Find All References" for variables (`{{varName}}`) and
+ * dependencies (`org::artifact`) in `dependencies.conf` files.
+ */
+class DependencyReferenceProvider implements vscode.ReferenceProvider {
+  provideReferences(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): vscode.Location[] | undefined {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const refs = findReferences(lines, position.line, position.character);
+    if (!refs) return undefined;
+
+    return refs.map(
+      (r) =>
+        new vscode.Location(
+          document.uri,
+          new vscode.Range(r.line, r.startCol, r.line, r.endCol)
+        )
+    );
+  }
+}
+
+/**
+ * Returns an existing terminal named `"sbt-dependencies"` or creates a new
+ * one with `cwd` set to the first workspace folder.
+ */
+function getSbtTerminal(): vscode.Terminal {
+  const existing = vscode.window.terminals.find(t => t.name === "sbt-dependencies");
+  if (existing) return existing;
+
+  const cwd = vscode.workspace.workspaceFolders?.[0]?.uri;
+  return vscode.window.createTerminal({ name: "sbt-dependencies", cwd });
+}
+
+function runUpdateAllDependencies(): void {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText("sbtn updateAllDependencies");
+}
+
+function runUpdateDependencies(): void {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText("sbtn updateDependencies");
+}
+
+function runUpdateSpecificDependency(org: string, artifact: string): void {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText(`sbtn updateDependencies ${org}:${artifact}`);
+}
+
+/**
+ * Returns the correct sbtn command for installing a dependency in a group.
+ * The `sbt-build` group uses a separate global command.
+ */
+function getInstallCommand(groupName: string, dependency: string): string {
+  if (groupName === "sbt-build") {
+    return `sbtn installBuildDependencies ${dependency}`;
+  }
+  return `sbtn ${groupName}/install ${dependency}`;
+}
+
+/**
+ * Command Palette handler: prompts the user to pick a group and enter a
+ * dependency string, then runs the install command in the SBT terminal.
+ */
+async function runInstallDependency(): Promise<void> {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== "sbt-dependencies") {
+    vscode.window.showErrorMessage("Open a dependencies.conf file first.");
+    return;
+  }
+
+  const lines: string[] = [];
+  for (let i = 0; i < editor.document.lineCount; i++) {
+    lines.push(editor.document.lineAt(i).text);
+  }
+
+  const groupNames = parseDocumentSymbols(lines).map((g) => g.name);
+  if (groupNames.length === 0) {
+    vscode.window.showErrorMessage("No dependency groups found in the current file.");
+    return;
+  }
+
+  const group = await vscode.window.showQuickPick(groupNames, {
+    placeHolder: "Select the dependency group",
+  });
+  if (!group) return;
+
+  const dependency = await vscode.window.showInputBox({
+    prompt: `Enter the dependency to install in '${group}'`,
+    placeHolder: "org.typelevel::cats-core:2.10.0",
+  });
+  if (!dependency) return;
+
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText(getInstallCommand(group, dependency));
+}
+
+/**
+ * Code Action handler: prompts the user for a dependency string and runs the
+ * install command for the given group.
+ */
+async function runInstallDependencyInGroup(groupName: string): Promise<void> {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+
+  const dependency = await vscode.window.showInputBox({
+    prompt: `Enter the dependency to install in '${groupName}'`,
+    placeHolder: "org.typelevel::cats-core:2.10.0",
+  });
+  if (!dependency) return;
+
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText(getInstallCommand(groupName, dependency));
+}
+
+/**
+ * Provides code actions to update individual dependencies via the SBT plugin.
+ */
+class DependencyCodeActionProvider implements vscode.CodeActionProvider {
+  provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range | vscode.Selection
+  ): vscode.CodeAction[] | undefined {
+    const line = document.lineAt(range.start.line).text;
+    const dep = parseDependency(line);
+
+    if (dep && range.start.character >= dep.matchStart && range.start.character <= dep.matchEnd) {
+      const action = new vscode.CodeAction(
+        `Update ${dep.org}:${dep.artifact}`,
+        vscode.CodeActionKind.RefactorRewrite
+      );
+      action.command = {
+        command: "sbt-dependencies.updateSpecificDependency",
+        title: `Update ${dep.org}:${dep.artifact}`,
+        arguments: [dep.org, dep.artifact],
+      };
+      return [action];
+    }
+
+    // Check if cursor is on a group header line
+    const simpleMatch = /^(\s*)([\w][\w.-]*)\s*=\s*\[/.exec(line);
+    const advancedMatch = /^(\s*)([\w][\w.-]*)\s*\{/.exec(line);
+    const groupName = simpleMatch?.[2] ?? advancedMatch?.[2];
+
+    if (groupName) {
+      const action = new vscode.CodeAction(
+        `Install dependency in '${groupName}'`,
+        vscode.CodeActionKind.RefactorRewrite
+      );
+      action.command = {
+        command: "sbt-dependencies.installDependencyInGroup",
+        title: `Install dependency in '${groupName}'`,
+        arguments: [groupName],
+      };
+      return [action];
+    }
+
+    return undefined;
+  }
+}
+
+/** Registers providers, commands, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
       "sbt-dependencies",
       new DependencyHoverProvider()
+    ),
+    vscode.languages.registerDocumentSymbolProvider(
+      "sbt-dependencies",
+      new DependencyDocumentSymbolProvider()
+    ),
+    vscode.languages.registerReferenceProvider(
+      "sbt-dependencies",
+      new DependencyReferenceProvider()
+    ),
+    vscode.languages.registerCodeActionsProvider(
+      "sbt-dependencies",
+      new DependencyCodeActionProvider()
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.updateAllDependencies",
+      runUpdateAllDependencies
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.updateDependencies",
+      runUpdateDependencies
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.updateSpecificDependency",
+      runUpdateSpecificDependency
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.installDependency",
+      runInstallDependency
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.installDependencyInGroup",
+      runInstallDependencyInGroup
     )
   );
 

@@ -2,7 +2,7 @@
   "name": "sbt-dependencies",
   "displayName": "sbt-dependencies",
   "description": "Syntax highlighting for sbt-dependencies configuration files",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "alejandrohdezma",
   "license": "Apache-2.0",
   "repository": {
@@ -29,6 +29,26 @@
         "language": "sbt-dependencies",
         "scopeName": "source.sbt-dependencies",
         "path": "./syntaxes/dependencies.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "sbt-dependencies.updateAllDependencies",
+        "title": "Update All Dependencies",
+        "category": "SBT Dependencies",
+        "enablement": "resourceLangId == sbt-dependencies"
+      },
+      {
+        "command": "sbt-dependencies.updateDependencies",
+        "title": "Update Dependencies",
+        "category": "SBT Dependencies",
+        "enablement": "resourceLangId == sbt-dependencies"
+      },
+      {
+        "command": "sbt-dependencies.installDependency",
+        "title": "Install Dependency",
+        "category": "SBT Dependencies",
+        "enablement": "resourceLangId == sbt-dependencies"
       }
     ],
     "configurationDefaults": {
