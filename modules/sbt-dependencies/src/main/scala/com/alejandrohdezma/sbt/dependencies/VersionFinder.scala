@@ -16,7 +16,12 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
+import java.util.concurrent.ConcurrentHashMap
+
+import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.DurationInt
+import scala.util.chaining._
 
 import coursier.cache.FileCache
 import coursier.{Dependency => _, _}
@@ -53,7 +58,8 @@ object VersionFinder {
       .withCache(FileCache().withTtl(None))
       .withModule(module)
       .versions()
-      .unsafeRun()
+      .future()
+      .pipe(Await.result(_, 20.seconds))
       .available
       .collect { case Dependency.Version.Numeric(v) => v }
 
@@ -71,6 +77,26 @@ object VersionFinder {
       findVersionsUsingCoursier(binaryModule) ++ findVersionsUsingCoursier(moduleWithAttributes)
     case (organization, name, _, _) =>
       findVersionsUsingCoursier(Module(Organization(organization), ModuleName(name)))
+  }
+
+  implicit class VersionFinderOps(private val underlying: VersionFinder) extends AnyVal {
+
+    /** Wraps this `VersionFinder` with a `ConcurrentHashMap`-backed cache so each unique coordinate tuple is resolved
+      * at most once.
+      */
+    def cached: VersionFinder = {
+      val cache = new ConcurrentHashMap[(String, String, Boolean, Boolean), List[Dependency.Version.Numeric]]()
+
+      (organization, name, isCross, isSbtPlugin) => {
+        val key = (organization, name, isCross, isSbtPlugin)
+        Option(cache.get(key)).getOrElse {
+          val result = underlying.findVersions(organization, name, isCross, isSbtPlugin)
+          cache.put(key, result)
+          result
+        }
+      }
+    }
+
   }
 
 }

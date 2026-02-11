@@ -56,18 +56,14 @@ object Utils {
           dependency.configuration)
 
       case (numeric: Dependency.Version.Numeric, Some(migration)) =>
-        val oldVersions = versionFinder
-          .findVersions(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin)
-          .filter(numeric.isValidCandidate)
+        val bestOld = findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
+          numeric.isValidCandidate
+        }
 
-        val newVersions = scala.util.Try {
-          versionFinder
-            .findVersions(migration.groupIdAfter, migration.artifactIdAfter, dependency.isCross, isSbtPlugin)
-            .filter(numeric.isValidCandidate)
-        }.getOrElse(Nil)
-
-        val bestOld = oldVersions.sorted.reverse.headOption
-        val bestNew = newVersions.sorted.reverse.headOption
+        val bestNew =
+          findLatestVersion(migration.groupIdAfter, migration.artifactIdAfter, dependency.isCross, isSbtPlugin) {
+            numeric.isValidCandidate
+          }
 
         (bestOld, bestNew) match {
           case (None, Some(nv)) =>
@@ -85,9 +81,11 @@ object Utils {
 
       case (numeric: Dependency.Version.Numeric, None) =>
         val latest =
-          Utils.findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
-            numeric.isValidCandidate
-          }
+          Utils
+            .findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
+              numeric.isValidCandidate
+            }
+            .getOrElse(fail(s"Could not resolve ${dependency.organization}:${dependency.name}"))
 
         Dependency.WithNumericVersion(dependency.organization, dependency.name, latest.copy(marker = numeric.marker),
           dependency.isCross, dependency.configuration)
@@ -112,14 +110,13 @@ object Utils {
     */
   def findLatestVersion(organization: String, name: String, isCross: Boolean, isSbtPlugin: Boolean)(
       validate: Dependency.Version.Numeric => Boolean
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency.Version.Numeric =
+  )(implicit versionFinder: VersionFinder): Option[Dependency.Version.Numeric] =
     versionFinder
       .findVersions(organization, name, isCross, isSbtPlugin)
       .filter(validate)
       .sorted
       .reverse
       .headOption
-      .getOrElse(fail(s"Could not resolve $organization:$name"))
 
   /** Finds the latest Scala version based on the version's marker.
     *

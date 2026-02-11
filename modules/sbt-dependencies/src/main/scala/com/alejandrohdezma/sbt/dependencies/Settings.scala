@@ -45,7 +45,7 @@ class Settings {
   val dependenciesFromFile: Def.Initialize[List[Dependency]] = Def.setting {
     implicit val logger: Logger = sLog.value
 
-    implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier(scalaBinaryVersion.value)
+    implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier(scalaBinaryVersion.value).cached
 
     val variableResolvers = Keys.dependencyVersionVariables.value
 

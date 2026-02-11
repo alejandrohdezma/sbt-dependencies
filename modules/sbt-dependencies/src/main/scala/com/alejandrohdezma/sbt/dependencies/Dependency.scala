@@ -16,8 +16,6 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import scala.util.Try
-
 import sbt.Defaults.sbtPluginExtra
 import sbt.librarymanagement.CrossVersion
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
@@ -199,8 +197,10 @@ object Dependency {
       isCross: Boolean
   )(implicit versionFinder: VersionFinder, logger: Logger): Dependency = {
     val version =
-      Try(Utils.findLatestVersion(organization, name, isCross, false)(_.isStableVersion))
-        .getOrElse(Utils.findLatestVersion(organization, name, isCross, true)(_.isStableVersion))
+      Utils
+        .findLatestVersion(organization, name, isCross, false)(_.isStableVersion)
+        .orElse(Utils.findLatestVersion(organization, name, isCross, true)(_.isStableVersion))
+        .getOrElse(Utils.fail(s"Could not resolve $organization:$name"))
 
     WithNumericVersion(organization, name, version, isCross)
   }
