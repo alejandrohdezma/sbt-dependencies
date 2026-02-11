@@ -5,6 +5,7 @@ lazy val myproject = project
   .settings(libraryDependencies += "org.typelevel" %% "cats-core" % "2.10.0")
   .settings(libraryDependencies += compilerPlugin(("org.typelevel" %% "kind-projector" % "0.13.4").cross(CrossVersion.full)))
   .settings(libraryDependencies += "org.scalameta" %% "munit" % "1.2.1" % Test)
+  .settings(libraryDependencies += "com.google.protobuf" % "protobuf-java" % "3.25.1" % "protobuf")
 
 lazy val otherproject = project
   .settings(libraryDependencies += "org.typelevel" %% "cats-effect" % "3.5.7")

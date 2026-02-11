@@ -17,6 +17,7 @@
 package com.alejandrohdezma.sbt.dependencies
 
 import sbt.librarymanagement.CrossVersion
+import sbt.librarymanagement.ModuleID
 import sbt.util.Level
 import sbt.util.Logger
 
@@ -203,6 +204,47 @@ class DependencySuite extends munit.FunSuite {
       )
 
     assert(!dep1.isSameArtifact(dep2))
+  }
+
+  test("isSameArtifact returns false for different configuration") {
+    val dep1 = Dependency.WithNumericVersion(
+      "org",
+      "name",
+      Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+      isCross = false
+    )
+    val dep2 = Dependency.WithNumericVersion(
+      "org",
+      "name",
+      Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
+      isCross = false,
+      "protobuf"
+    )
+
+    assert(!dep1.isSameArtifact(dep2))
+  }
+
+  // --- fromModuleID tests ---
+
+  test("fromModuleID preserves custom configuration") {
+    val moduleID = ModuleID("com.google.protobuf", "protobuf-java", "3.25.1")
+      .withConfigurations(Some("protobuf"))
+
+    val result = Dependency.fromModuleID(moduleID)
+
+    assert(result.isDefined)
+    assertEquals(result.get.configuration, "protobuf")
+    assertEquals(result.get.toLine, "com.google.protobuf:protobuf-java:3.25.1:protobuf")
+  }
+
+  test("fromModuleID defaults to compile when no configuration") {
+    val moduleID = ModuleID("org.typelevel", "cats-core", "2.10.0")
+      .withCrossVersion(sbt.librarymanagement.CrossVersion.binary)
+
+    val result = Dependency.fromModuleID(moduleID)
+
+    assert(result.isDefined)
+    assertEquals(result.get.configuration, "compile")
   }
 
   // --- toLine tests ---
