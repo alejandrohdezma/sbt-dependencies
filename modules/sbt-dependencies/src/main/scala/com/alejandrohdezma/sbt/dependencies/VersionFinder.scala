@@ -17,11 +17,14 @@
 package com.alejandrohdezma.sbt.dependencies
 
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeoutException
 
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration._
 import scala.util.chaining._
+
+import sbt.util.Logger
 
 import coursier.cache.FileCache
 import coursier.{Dependency => _, _}
@@ -53,20 +56,44 @@ trait VersionFinder {
 
 object VersionFinder {
 
-  private def findVersionsUsingCoursier(module: Module): List[Dependency.Version.Numeric] =
-    Versions()
-      .withCache(FileCache().withTtl(None))
-      .withModule(module)
-      .versions()
-      .future()
-      .pipe(Await.result(_, 20.seconds))
-      .available
-      .collect { case Dependency.Version.Numeric(v) => v }
+  private def findVersionsUsingCoursier(module: Module, timeoutSeconds: Int)(implicit
+      logger: Logger
+  ): List[Dependency.Version.Numeric] = {
+    logger.debug(s"Retrieving versions for ${module.organization.value}:${module.name.value}")
 
-  /** Creates a VersionFinder that uses Coursier to resolve versions. */
-  def fromCoursier(scalaBinaryVersion: String): VersionFinder = {
+    try {
+      val result = Versions()
+        .withCache(FileCache().withTtl(None))
+        .withModule(module)
+        .versions()
+        .future()
+        .pipe(Await.result(_, timeoutSeconds.seconds))
+        .available
+        .collect { case Dependency.Version.Numeric(v) => v }
+
+      logger.debug(s"Retrieved ${result.size} versions for ${module.organization.value}:${module.name.value}")
+
+      result
+    } catch {
+      case _: TimeoutException =>
+        Utils.fail(
+          s"Timed out after ${timeoutSeconds}s resolving versions for " +
+            s"${module.organization.value}:${module.name.value}. " +
+            "Try increasing `dependencyResolverTimeout`."
+        )
+    }
+  }
+
+  /** Creates a VersionFinder that uses Coursier to resolve versions.
+    *
+    * @param scalaBinaryVersion
+    *   The Scala binary version for cross-compiled dependencies.
+    * @param timeout
+    *   Timeout in seconds for Coursier version resolution requests.
+    */
+  def fromCoursier(scalaBinaryVersion: String, timeout: Int = 60)(implicit logger: Logger): VersionFinder = {
     case (organization, name, true, _) =>
-      findVersionsUsingCoursier(Module(Organization(organization), ModuleName(s"${name}_$scalaBinaryVersion")))
+      findVersionsUsingCoursier(Module(Organization(organization), ModuleName(s"${name}_$scalaBinaryVersion")), timeout)
     case (organization, name, _, true) =>
       val binaryModule =
         Module(Organization(organization), ModuleName(s"${name}_2.12_1.0"))
@@ -74,9 +101,9 @@ object VersionFinder {
       val moduleWithAttributes =
         Module(Organization(organization), ModuleName(name), Map("scalaVersion" -> "2.12", "sbtVersion" -> "1.0"))
 
-      findVersionsUsingCoursier(binaryModule) ++ findVersionsUsingCoursier(moduleWithAttributes)
+      findVersionsUsingCoursier(binaryModule, timeout) ++ findVersionsUsingCoursier(moduleWithAttributes, timeout)
     case (organization, name, _, _) =>
-      findVersionsUsingCoursier(Module(Organization(organization), ModuleName(name)))
+      findVersionsUsingCoursier(Module(Organization(organization), ModuleName(name)), timeout)
   }
 
   implicit class VersionFinderOps(private val underlying: VersionFinder) extends AnyVal {
