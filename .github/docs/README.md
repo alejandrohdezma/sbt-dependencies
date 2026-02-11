@@ -1,6 +1,6 @@
 @DESCRIPTION@
 
-![](vscode-extension/example.gif)
+<img src="vscode-extension/example.gif" alt="sbt-dependencies" width="600" loop="infinite" />
 
 ## Installation
 
