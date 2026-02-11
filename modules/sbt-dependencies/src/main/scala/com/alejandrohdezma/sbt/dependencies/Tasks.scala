@@ -55,53 +55,54 @@ class Tasks {
       val updated =
         dependencies.par
           .filter(filter.matches)
-          .map(dep => (dep, dep.findLatestVersion))
-          .map {
-            case (original: Dependency.WithNumericVersion, _) if original.version.marker.isExact =>
-              logger.info(s" ↳ 📌 $CYAN${original.toLine}$RESET")
-              original
+          .map(dep =>
+            (dep, dep.findLatestVersion) match {
+              case (original: Dependency.WithNumericVersion, _) if original.version.marker.isExact =>
+                logger.info(s" ↳ 📌 $CYAN${original.toLine}$RESET")
+                original
 
-            case (original: Dependency.WithNumericVersion, updated) if !updated.isSameArtifact(original) =>
-              logger.info(s" ↳ 🔀 $YELLOW${original.toLine}$RESET -> $CYAN${updated.toLine}$RESET")
-              updated
+              case (original: Dependency.WithNumericVersion, updated) if !updated.isSameArtifact(original) =>
+                logger.info(s" ↳ 🔀 $YELLOW${original.toLine}$RESET -> $CYAN${updated.toLine}$RESET")
+                updated
 
-            case (original: Dependency.WithNumericVersion, updated)
-                if updated.version.isSameVersion(original.version) =>
-              logger.info(s" ↳ ✅ $GREEN${original.toLine}$RESET")
-              original
+              case (original: Dependency.WithNumericVersion, updated)
+                  if updated.version.isSameVersion(original.version) =>
+                logger.info(s" ↳ ✅ $GREEN${original.toLine}$RESET")
+                original
 
-            case (original: Dependency.WithNumericVersion, updated) =>
-              logger.info(s" ↳ ⬆️ $YELLOW${original.toLine}$RESET -> $CYAN${updated.version.show}$RESET")
-              updated
+              case (original: Dependency.WithNumericVersion, updated) =>
+                logger.info(s" ↳ ⬆️ $YELLOW${original.toLine}$RESET -> $CYAN${updated.version.show}$RESET")
+                updated
 
-            case (original: Dependency.WithVariableVersion, updated)
-                if !updated.isSameArtifact(original) && updated.version.isSameVersion(original.version.resolved) =>
-              logger.info {
-                s" ↳ ✅ $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`), migration " +
-                  s"to ${updated.organization}:${updated.name} available"
-              }
-              original
+              case (original: Dependency.WithVariableVersion, updated)
+                  if !updated.isSameArtifact(original) && updated.version.isSameVersion(original.version.resolved) =>
+                logger.info {
+                  s" ↳ ✅ $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`), migration " +
+                    s"to ${updated.organization}:${updated.name} available"
+                }
+                original
 
-            case (original: Dependency.WithVariableVersion, updated) if !updated.isSameArtifact(original) =>
-              logger.info {
-                s" ↳ 🔗 $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-                  s"latest: `$YELLOW${updated.version.toVersionString}$RESET`, migration to" +
-                  s" ${updated.organization}:${updated.name} available)"
-              }
-              original
+              case (original: Dependency.WithVariableVersion, updated) if !updated.isSameArtifact(original) =>
+                logger.info {
+                  s" ↳ 🔗 $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
+                    s"latest: `$YELLOW${updated.version.toVersionString}$RESET`, migration to" +
+                    s" ${updated.organization}:${updated.name} available)"
+                }
+                original
 
-            case (original: Dependency.WithVariableVersion, updated)
-                if updated.version.isSameVersion(original.version.resolved) =>
-              logger.info(s" ↳ ✅ $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`)")
-              original
+              case (original: Dependency.WithVariableVersion, updated)
+                  if updated.version.isSameVersion(original.version.resolved) =>
+                logger.info(s" ↳ ✅ $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`)")
+                original
 
-            case (original: Dependency.WithVariableVersion, updated) =>
-              logger.info {
-                s" ↳ 🔗 $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-                  s"latest: `$YELLOW${updated.version.toVersionString}$RESET`)"
-              }
-              original
-          }
+              case (original: Dependency.WithVariableVersion, updated) =>
+                logger.info {
+                  s" ↳ 🔗 $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
+                    s"latest: `$YELLOW${updated.version.toVersionString}$RESET`)"
+                }
+                original
+            }
+          )
           .toList
 
       DependenciesFile.write(file, group, filtered ++ updated)
