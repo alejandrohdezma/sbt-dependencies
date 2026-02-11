@@ -193,7 +193,77 @@ class DependencyReferenceProvider implements vscode.ReferenceProvider {
   }
 }
 
-/** Registers the hover provider, document symbol provider, reference provider, and diagnostics. */
+/**
+ * Returns an existing terminal named `"sbt-dependencies"` or creates a new
+ * one with `cwd` set to the first workspace folder.
+ */
+function getSbtTerminal(): vscode.Terminal {
+  const existing = vscode.window.terminals.find(t => t.name === "sbt-dependencies");
+  if (existing) return existing;
+
+  const cwd = vscode.workspace.workspaceFolders?.[0]?.uri;
+  return vscode.window.createTerminal({ name: "sbt-dependencies", cwd });
+}
+
+function runUpdateAllDependencies(): void {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText("sbtn updateAllDependencies");
+}
+
+function runUpdateDependencies(): void {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText("sbtn updateDependencies");
+}
+
+function runUpdateSpecificDependency(org: string, artifact: string): void {
+  if (!vscode.workspace.workspaceFolders) {
+    vscode.window.showErrorMessage("No workspace folder open.");
+    return;
+  }
+  const terminal = getSbtTerminal();
+  terminal.show();
+  terminal.sendText(`sbtn updateDependencies ${org}:${artifact}`);
+}
+
+/**
+ * Provides code actions to update individual dependencies via the SBT plugin.
+ */
+class DependencyCodeActionProvider implements vscode.CodeActionProvider {
+  provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range | vscode.Selection
+  ): vscode.CodeAction[] | undefined {
+    const line = document.lineAt(range.start.line).text;
+    const dep = parseDependency(line);
+
+    if (!dep) return undefined;
+    if (range.start.character < dep.matchStart || range.start.character > dep.matchEnd) return undefined;
+
+    const action = new vscode.CodeAction(
+      `Update ${dep.org}:${dep.artifact}`,
+      vscode.CodeActionKind.RefactorRewrite
+    );
+    action.command = {
+      command: "sbt-dependencies.updateSpecificDependency",
+      title: `Update ${dep.org}:${dep.artifact}`,
+      arguments: [dep.org, dep.artifact],
+    };
+
+    return [action];
+  }
+}
+
+/** Registers providers, commands, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
@@ -207,6 +277,22 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerReferenceProvider(
       "sbt-dependencies",
       new DependencyReferenceProvider()
+    ),
+    vscode.languages.registerCodeActionsProvider(
+      "sbt-dependencies",
+      new DependencyCodeActionProvider()
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.updateAllDependencies",
+      runUpdateAllDependencies
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.updateDependencies",
+      runUpdateDependencies
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.updateSpecificDependency",
+      runUpdateSpecificDependency
     )
   );
 
