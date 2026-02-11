@@ -516,6 +516,37 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(depCount, 2) // Only 2 unique artifacts
   }
 
+  withDependenciesFile("").test("write keeps same artifact with different configurations") { file =>
+    val dependencies = List(
+      Dependency.WithNumericVersion(
+        "com.google.protobuf",
+        "protobuf-java",
+        Version.Numeric(List(3, 25, 1), None, Version.Numeric.Marker.NoMarker),
+        isCross = false
+      ),
+      Dependency.WithNumericVersion(
+        "com.google.protobuf",
+        "protobuf-java",
+        Version.Numeric(List(3, 25, 1), None, Version.Numeric.Marker.NoMarker),
+        isCross = false,
+        "protobuf"
+      )
+    )
+
+    DependenciesFile.write(file, "group", dependencies)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|group = [
+         |  "com.google.protobuf:protobuf-java:3.25.1"
+         |  "com.google.protobuf:protobuf-java:3.25.1:protobuf"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
   // --- Advanced format tests ---
 
   withDependenciesFile {

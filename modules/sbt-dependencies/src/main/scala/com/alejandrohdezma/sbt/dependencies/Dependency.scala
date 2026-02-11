@@ -74,7 +74,8 @@ sealed abstract class Dependency {
 
   /** Checks if the dependency is the same artifact as another dependency. */
   def isSameArtifact(other: Dependency): Boolean =
-    organization === other.organization && name === other.name && isCross === other.isCross
+    organization === other.organization && name === other.name && isCross === other.isCross &&
+      configuration === other.configuration
 
   /** Finds the latest version for this dependency.
     *
