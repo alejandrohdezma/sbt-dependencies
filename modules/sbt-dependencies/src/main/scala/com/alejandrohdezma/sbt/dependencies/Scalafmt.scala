@@ -77,11 +77,11 @@ object Scalafmt {
         val latest = Dependency.scalafmt(current).findLatestVersion.version
 
         if (latest === current) {
-          logger.info(s" ↳ ✅ $GREEN$relativePath: ${current.toVersionString}$RESET")
+          logger.info(s" ↳ $GREEN✓$RESET $GREEN$relativePath: ${current.toVersionString}$RESET")
           false
         } else {
           logger.info(
-            s" ↳ ⬆️ $YELLOW$relativePath: ${current.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET"
+            s" ↳ $YELLOW⬆$RESET $YELLOW$relativePath: ${current.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET"
           )
 
           val newContent =
@@ -115,7 +115,7 @@ object Scalafmt {
 
         skip.foreach { f =>
           val relativePath = baseDir.toPath.relativize(f.toPath)
-          logger.info(s" ↳ ⏭️ $relativePath (git-ignored)")
+          logger.info(s" ↳ $YELLOW»$RESET $relativePath (git-ignored)")
         }
 
         keep
