@@ -16,6 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
+import java.lang.Runtime
+
 import sbt.Keys._
 import sbt._
 
@@ -48,6 +50,7 @@ object DependenciesPlugin extends AutoPlugin {
     sbtDependenciesPluginName         := "sbt-dependencies",
     dependencyMigrations              := ArtifactMigration.default,
     dependencyResolverTimeout         := 60,
+    dependencyResolverParallelism     := Runtime.getRuntime.availableProcessors,
     dependenciesManagedScalaVersions  := Settings.buildScalaVersions.value.nonEmpty,
     scalaVersion := Def.settingDyn {
       val file = Settings.dependenciesFile.value

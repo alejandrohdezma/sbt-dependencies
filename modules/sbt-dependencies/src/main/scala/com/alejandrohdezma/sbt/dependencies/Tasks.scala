@@ -16,7 +16,10 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
+import java.util.concurrent.ForkJoinPool
+
 import scala.Console._
+import scala.collection.parallel.ForkJoinTaskSupport
 
 import sbt.Keys._
 import sbt.complete.DefaultParsers._
@@ -53,8 +56,14 @@ class Tasks {
 
       val filtered = dependencies.filterNot(filter.matches)
 
+      val parallelism = Keys.dependencyResolverParallelism.value
+
+      val parDependencies = dependencies.par
+
+      parDependencies.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(parallelism))
+
       val updated =
-        dependencies.par
+        parDependencies
           .filter(filter.matches)
           .map(dep =>
             (dep, dep.findLatestVersion) match {

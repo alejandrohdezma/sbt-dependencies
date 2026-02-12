@@ -123,6 +123,22 @@ class Keys {
     "Timeout in seconds for Coursier version resolution requests. Default: 60"
   }
 
+  /** Maximum number of dependencies resolved concurrently.
+    *
+    * Controls the parallelism of the `ForkJoinPool` used when checking dependency versions.
+    *
+    * Default: `Runtime.getRuntime.availableProcessors`
+    *
+    * @example
+    *   {{{
+    * // Limit to 4 concurrent resolutions
+    * ThisBuild / dependencyResolverParallelism := 4
+    *   }}}
+    */
+  val dependencyResolverParallelism = settingKey[Int] {
+    "Maximum number of dependencies resolved concurrently. Default: available processors"
+  }
+
 }
 
 object Keys extends Keys
