@@ -16,7 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import java.nio.file.Files
+import java.nio.file._
+import java.nio.file.attribute.BasicFileAttributes
 
 import sbt._
 import sbt.util.Level
@@ -207,6 +208,59 @@ class ScalafmtSuite extends munit.FunSuite {
     assertNoDiff(content, expected)
   }
 
+  // --- recursive discovery tests ---
+
+  withScalafmtConfFiles(
+    "subproject/.scalafmt.conf" -> """version = "3.7.0"
+                                     |runner.dialect = scala213""".stripMargin
+  ).test("updateVersion updates .scalafmt.conf in a subdirectory") { dir =>
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
+
+    val updated = Scalafmt.updateVersion(dir)
+
+    assert(updated, "Should return true when version was updated")
+
+    val content = IO.read(dir / "subproject" / ".scalafmt.conf")
+    val expected =
+      """version = "3.8.0"
+        |runner.dialect = scala213""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withScalafmtConfFiles(
+    ".scalafmt.conf" -> """version = "3.7.0"
+                          |runner.dialect = scala213""".stripMargin,
+    "subproject/.scalafmt.conf" -> """version = "3.6.0"
+                                     |maxColumn = 100""".stripMargin,
+    "subproject/nested/.scalafmt.conf" -> """version = "3.5.0"
+                                            |align.preset = more""".stripMargin
+  ).test("updateVersion updates multiple .scalafmt.conf files at different levels") { dir =>
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
+
+    val updated = Scalafmt.updateVersion(dir)
+
+    assert(updated, "Should return true when versions were updated")
+
+    assertNoDiff(
+      IO.read(dir / ".scalafmt.conf"),
+      """version = "3.8.0"
+        |runner.dialect = scala213""".stripMargin
+    )
+
+    assertNoDiff(
+      IO.read(dir / "subproject" / ".scalafmt.conf"),
+      """version = "3.8.0"
+        |maxColumn = 100""".stripMargin
+    )
+
+    assertNoDiff(
+      IO.read(dir / "subproject" / "nested" / ".scalafmt.conf"),
+      """version = "3.8.0"
+        |align.preset = more""".stripMargin
+    )
+  }
+
   //////////////
   // Fixtures //
   //////////////
@@ -224,10 +278,7 @@ class ScalafmtSuite extends munit.FunSuite {
       dir
     },
     teardown = { dir =>
-      val file = dir / ".scalafmt.conf"
-      Files.deleteIfExists(file.toPath)
-      Files.deleteIfExists(dir.toPath)
-      ()
+      deleteRecursively(dir)
     }
   )
 
@@ -237,9 +288,42 @@ class ScalafmtSuite extends munit.FunSuite {
       Files.createTempDirectory("scalafmt-test-empty").toFile
     },
     teardown = { dir =>
-      Files.deleteIfExists(dir.toPath)
-      ()
+      deleteRecursively(dir)
     }
   )
+
+  // Fixture that creates a temp directory with .scalafmt.conf files at arbitrary relative paths
+  def withScalafmtConfFiles(files: (String, String)*): FunFixture[File] = FunFixture[File](
+    setup = { _ =>
+      val dir = Files.createTempDirectory("scalafmt-test").toFile
+      files.foreach { case (relativePath, content) =>
+        val file = new File(dir, relativePath)
+        IO.createDirectory(file.getParentFile)
+        IO.write(file, content)
+      }
+      dir
+    },
+    teardown = { dir =>
+      deleteRecursively(dir)
+    }
+  )
+
+  // Recursively delete a directory and all its contents
+  def deleteRecursively(dir: File): Unit = {
+    Files.walkFileTree(
+      dir.toPath,
+      new SimpleFileVisitor[Path] {
+        override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
+          Files.delete(file)
+          FileVisitResult.CONTINUE
+        }
+        override def postVisitDirectory(dir: Path, exc: java.io.IOException): FileVisitResult = {
+          Files.delete(dir)
+          FileVisitResult.CONTINUE
+        }
+      }
+    )
+    ()
+  }
 
 }
