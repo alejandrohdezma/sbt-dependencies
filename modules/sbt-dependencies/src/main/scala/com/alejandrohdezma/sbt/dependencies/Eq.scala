@@ -16,6 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
+import java.nio.file.Path
+
 /** A type class used to determine equality between 2 instances of the same type. Any 2 instances `x` and `y` are equal
   * if `eqv(x, y)` is `true`. Moreover, `eqv` should form an equivalence relation.
   */
@@ -47,6 +49,8 @@ object Eq {
   implicit val IntEq: Eq[Int] = (a, b) => a == b
 
   implicit val BooleanEq: Eq[Boolean] = (a, b) => a == b
+
+  implicit val PathEq: Eq[Path] = (a, b) => a == b
 
   implicit def OptionEq[A: Eq]: Eq[Option[A]] = {
     case (Some(a), Some(b)) => a === b
