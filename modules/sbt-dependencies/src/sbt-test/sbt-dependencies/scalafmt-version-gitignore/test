@@ -1,0 +1,10 @@
+# Initialize a git repo so git check-ignore works
+$ exec git init
+$ exec git config user.email "test@test.com"
+$ exec git config user.name "Test"
+
+# Create .gitignore that ignores the root .scalafmt.conf
+$ copy-file gitignore-template .gitignore
+
+> updateScalafmtVersion
+> assertTest

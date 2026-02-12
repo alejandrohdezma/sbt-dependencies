@@ -16,7 +16,13 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
+import java.nio.file.Files
+
 import scala.Console._
+import scala.jdk.CollectionConverters._
+import scala.sys.process._
+import scala.util.Try
+import scala.util.Using
 
 import sbt._
 import sbt.util.Logger
@@ -27,55 +33,93 @@ import com.alejandrohdezma.sbt.dependencies.Eq._
 /** Utilities for managing Scalafmt version in `.scalafmt.conf`. */
 object Scalafmt {
 
-  /** Updates `.scalafmt.conf` to the latest version.
+  /** Updates all `.scalafmt.conf` files found recursively under `baseDir` to the latest version.
     *
     * @return
-    *   `true` if the version was updated, `false` otherwise.
+    *   `true` if any version was updated, `false` otherwise.
     */
   def updateVersion(baseDir: File)(implicit
       versionFinder: VersionFinder,
       migrationFinder: MigrationFinder,
       logger: Logger
-  ): Boolean = {
-    val file = baseDir / ".scalafmt.conf"
+  ): Boolean =
+    Using.resource(Files.walk(baseDir.toPath)) { stream =>
+      val files =
+        try stream.iterator().asScala.filter(_.getFileName.toString == ".scalafmt.conf").map(_.toFile).toList // scalafix:ok
+        finally stream.close()
 
-    if (!file.exists()) {
-      logger.warn(s"$file not found, skipping scalafmt version update")
-      false
-    } else {
-      val content = IO.read(file)
+      if (files.isEmpty) {
+        logger.warn(s"No .scalafmt.conf files found under $baseDir, skipping scalafmt version update")
+        false
+      } else {
+        val filtered = filterGitIgnored(files, baseDir)
 
-      // Regex to match: version = "3.8.0" or version = 3.8.0
-      // Captures: (prefix with quotes or not)(version)(suffix with quotes or not)
-      val versionRegex = """(?m)^(\s*version\s*=\s*"?)([^"\s\n]+)("?\s*)$""".r
-
-      versionRegex.findFirstMatchIn(content).map(_.group(2)) match {
-        case Some(Version.Numeric(current)) =>
-          val latest = Dependency.scalafmt(current).findLatestVersion.version
-
-          if (latest === current) {
-            logger.info(s" ↳ ✅ $GREEN${current.toVersionString}$RESET")
-            false
-          } else {
-            logger.info(s" ↳ ⬆️ $YELLOW${current.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET")
-
-            val newContent =
-              versionRegex.replaceAllIn(content, m => s"${m.group(1)}${latest.toVersionString}${m.group(3)}")
-
-            IO.write(file, newContent)
-
-            true
-          }
-
-        case Some(version) =>
-          logger.warn(s"Invalid version found in $file: $version")
-          false
-
-        case None =>
-          logger.warn(s"No version found in $file")
-          false
+        filtered.foldLeft(false) { (acc, file) =>
+          updateVersionInFile(file, baseDir) || acc
+        }
       }
     }
+
+  private def updateVersionInFile(file: File, baseDir: File)(implicit
+      versionFinder: VersionFinder,
+      migrationFinder: MigrationFinder,
+      logger: Logger
+  ): Boolean = {
+    val relativePath = baseDir.toPath.relativize(file.toPath)
+    val content      = IO.read(file)
+
+    // Regex to match: version = "3.8.0" or version = 3.8.0
+    // Captures: (prefix with quotes or not)(version)(suffix with quotes or not)
+    val versionRegex = """(?m)^(\s*version\s*=\s*"?)([^"\s\n]+)("?\s*)$""".r
+
+    versionRegex.findFirstMatchIn(content).map(_.group(2)) match {
+      case Some(Version.Numeric(current)) =>
+        val latest = Dependency.scalafmt(current).findLatestVersion.version
+
+        if (latest === current) {
+          logger.info(s" ↳ ✅ $GREEN$relativePath: ${current.toVersionString}$RESET")
+          false
+        } else {
+          logger.info(
+            s" ↳ ⬆️ $YELLOW$relativePath: ${current.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET"
+          )
+
+          val newContent =
+            versionRegex.replaceAllIn(content, m => s"${m.group(1)}${latest.toVersionString}${m.group(3)}")
+
+          IO.write(file, newContent)
+
+          true
+        }
+
+      case Some(version) =>
+        logger.warn(s"Invalid version found in $relativePath: $version")
+        false
+
+      case None =>
+        logger.warn(s"No version found in $relativePath")
+        false
+    }
   }
+
+  private def filterGitIgnored(files: List[File], baseDir: File)(implicit logger: Logger): List[File] =
+    Try {
+      val ignored  = scala.collection.mutable.Set.empty[String]
+      val pLogger  = ProcessLogger(line => ignored += line.trim, _ => ())
+      val paths    = files.map(_.getAbsolutePath)
+      val exitCode = Process("git" +: "check-ignore" +: paths, baseDir).!(pLogger)
+
+      if (exitCode === 128) files
+      else {
+        val (skip, keep) = files.partition(f => ignored.contains(f.getAbsolutePath))
+
+        skip.foreach { f =>
+          val relativePath = baseDir.toPath.relativize(f.toPath)
+          logger.info(s" ↳ ⏭️ $relativePath (git-ignored)")
+        }
+
+        keep
+      }
+    }.getOrElse(files)
 
 }
