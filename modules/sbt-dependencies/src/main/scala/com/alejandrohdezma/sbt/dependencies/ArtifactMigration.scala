@@ -91,7 +91,7 @@ object ArtifactMigration {
     */
   def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[ArtifactMigration] = urls.flatMap { url =>
     Option(cache.get(url)).getOrElse {
-      logger.info(s"🔄 Loading migrations from $CYAN$url$RESET")
+      logger.info(s"↻ Loading migrations from $CYAN$url$RESET")
 
       val config = Try(ConfigFactory.parseURL(url)).recover { case e =>
         Utils.fail(s"Failed to parse migration file $url: ${e.getMessage}")

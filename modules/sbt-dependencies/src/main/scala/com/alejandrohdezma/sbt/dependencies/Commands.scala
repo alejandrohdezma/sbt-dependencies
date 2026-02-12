@@ -104,8 +104,8 @@ class Commands {
       DependenciesFile.write(file, group, deps, scalaVersions)
     }
 
-    logger.info("📝 Created project/dependencies.conf file with your dependencies")
-    logger.info("💡 Remember to remove any `libraryDependencies +=` or `addSbtPlugin` settings from your build files")
+    logger.info("✎ Created project/dependencies.conf file with your dependencies")
+    logger.info("ℹ Remember to remove any `libraryDependencies +=` or `addSbtPlugin` settings from your build files")
 
     val flagsString = args.mkString(" ")
 
@@ -151,7 +151,7 @@ class Commands {
 
       if (!file.exists() || !lines.exists(pluginRegex.findFirstIn(_).isDefined)) None
       else {
-        logger.info(s"\n🔄 Checking for new versions of the `$pluginName` plugin\n")
+        logger.info(s"\n↻ Checking for new versions of the `$pluginName` plugin\n")
 
         val updatedLines = lines.map {
           case line @ pluginRegex(Numeric(current)) =>
@@ -161,10 +161,10 @@ class Commands {
               .version
 
             if (latest.isSameVersion(current)) {
-              logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
+              logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
               (line, false)
             } else {
-              logger.info(s" ↳ ⬆️ $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+              logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
               (s"""addSbtPlugin("$pluginOrg" % "$pluginName" % "${latest.show}")""", true)
             }
           case line => (line, false)
@@ -208,7 +208,7 @@ class Commands {
 
     val urls = Project.extract(state).get(ThisBuild / Keys.dependencyMigrations)
 
-    logger.info("\n🔄 Checking for new versions of Scalafmt\n")
+    logger.info("\n↻ Checking for new versions of Scalafmt\n")
 
     val timeout = Project.extract(state).get(ThisBuild / Keys.dependencyResolverTimeout)
 
@@ -244,7 +244,7 @@ class Commands {
         logger.warn("sbt.version not found in project/build.properties")
         state
       } else {
-        logger.info("\n🔄 Checking for new versions of SBT\n")
+        logger.info("\n↻ Checking for new versions of SBT\n")
 
         val timeout = Project.extract(state).get(ThisBuild / Keys.dependencyResolverTimeout)
 
@@ -255,10 +255,10 @@ class Commands {
             val latest = Dependency.sbt(current).findLatestVersion.version
 
             if (latest.isSameVersion(current)) {
-              logger.info(s" ↳ ✅ $GREEN${current.show}$RESET")
+              logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
               (line, false)
             } else {
-              logger.info(s" ↳ ⬆️ $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+              logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
               (s"sbt.version=${latest.toVersionString}", true)
             }
           case line => (line, false)
