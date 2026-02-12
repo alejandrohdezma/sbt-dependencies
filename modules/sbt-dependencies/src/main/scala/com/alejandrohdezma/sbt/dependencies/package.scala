@@ -1,6 +1,8 @@
 package com.alejandrohdezma.sbt
 
 import com.typesafe.config.Config
+import scala.util.Try
+import scala.util.Failure
 
 package object dependencies {
 
@@ -13,6 +15,13 @@ package object dependencies {
       */
     def get(path: String): Option[String] =
       if (config.hasPath(path)) Some(config.getString(path)) else None
+
+  }
+
+  implicit class TryOps[A](tryA: Try[A]) {
+
+    /** Runs a side effect When the value inside the `Try` is a failure. */
+    def onError(f: Throwable => Unit): Try[A] = tryA.recoverWith { case e => f(e); Failure(e) }
 
   }
 
