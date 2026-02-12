@@ -19,6 +19,8 @@ package com.alejandrohdezma.sbt.dependencies
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
 
+import scala.sys.process._
+
 import sbt._
 import sbt.util.Level
 import sbt.util.Logger
@@ -261,6 +263,60 @@ class ScalafmtSuite extends munit.FunSuite {
     )
   }
 
+  // --- gitignore filtering tests ---
+
+  withGitRepoScalafmtConf(
+    gitignoreContent = "generated/",
+    ".scalafmt.conf" -> """version = "3.7.0"
+                          |runner.dialect = scala213""".stripMargin,
+    "generated/.scalafmt.conf" -> """version = "3.6.0"
+                                    |maxColumn = 100""".stripMargin
+  ).test("updateVersion skips git-ignored .scalafmt.conf files") { dir =>
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
+
+    val updated = Scalafmt.updateVersion(dir)
+
+    assert(updated, "Should return true when non-ignored version was updated")
+
+    assertNoDiff(
+      IO.read(dir / ".scalafmt.conf"),
+      """version = "3.8.0"
+        |runner.dialect = scala213""".stripMargin
+    )
+
+    assertNoDiff(
+      IO.read(dir / "generated" / ".scalafmt.conf"),
+      """version = "3.6.0"
+        |maxColumn = 100""".stripMargin
+    )
+  }
+
+  withGitRepoScalafmtConf(
+    gitignoreContent = "*.log",
+    ".scalafmt.conf" -> """version = "3.7.0"
+                          |runner.dialect = scala213""".stripMargin,
+    "subproject/.scalafmt.conf" -> """version = "3.6.0"
+                                     |maxColumn = 100""".stripMargin
+  ).test("updateVersion updates all files when gitignore targets something unrelated") { dir =>
+    implicit val versionFinder: VersionFinder = mockVersionFinder("3.8.0")
+
+    val updated = Scalafmt.updateVersion(dir)
+
+    assert(updated, "Should return true when versions were updated")
+
+    assertNoDiff(
+      IO.read(dir / ".scalafmt.conf"),
+      """version = "3.8.0"
+        |runner.dialect = scala213""".stripMargin
+    )
+
+    assertNoDiff(
+      IO.read(dir / "subproject" / ".scalafmt.conf"),
+      """version = "3.8.0"
+        |maxColumn = 100""".stripMargin
+    )
+  }
+
   //////////////
   // Fixtures //
   //////////////
@@ -296,6 +352,24 @@ class ScalafmtSuite extends munit.FunSuite {
   def withScalafmtConfFiles(files: (String, String)*): FunFixture[File] = FunFixture[File](
     setup = { _ =>
       val dir = Files.createTempDirectory("scalafmt-test").toFile
+      files.foreach { case (relativePath, content) =>
+        val file = new File(dir, relativePath)
+        IO.createDirectory(file.getParentFile)
+        IO.write(file, content)
+      }
+      dir
+    },
+    teardown = { dir =>
+      deleteRecursively(dir)
+    }
+  )
+
+  // Fixture that creates a real git repo with a .gitignore and .scalafmt.conf files
+  def withGitRepoScalafmtConf(gitignoreContent: String, files: (String, String)*): FunFixture[File] = FunFixture[File](
+    setup = { _ =>
+      val dir = Files.createTempDirectory("scalafmt-git-test").toFile
+      Process("git init", dir).!!
+      IO.write(dir / ".gitignore", gitignoreContent)
       files.foreach { case (relativePath, content) =>
         val file = new File(dir, relativePath)
         IO.createDirectory(file.getParentFile)

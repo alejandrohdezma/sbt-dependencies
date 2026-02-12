@@ -20,6 +20,8 @@ import java.nio.file.Files
 
 import scala.Console._
 import scala.jdk.CollectionConverters._
+import scala.sys.process._
+import scala.util.Try
 import scala.util.Using
 
 import sbt._
@@ -50,7 +52,9 @@ object Scalafmt {
         logger.warn(s"No .scalafmt.conf files found under $baseDir, skipping scalafmt version update")
         false
       } else {
-        files.foldLeft(false) { (acc, file) =>
+        val filtered = filterGitIgnored(files, baseDir)
+
+        filtered.foldLeft(false) { (acc, file) =>
           updateVersionInFile(file, baseDir) || acc
         }
       }
@@ -97,5 +101,25 @@ object Scalafmt {
         false
     }
   }
+
+  private def filterGitIgnored(files: List[File], baseDir: File)(implicit logger: Logger): List[File] =
+    Try {
+      val ignored  = scala.collection.mutable.Set.empty[String]
+      val pLogger  = ProcessLogger(line => ignored += line.trim, _ => ())
+      val paths    = files.map(_.getAbsolutePath)
+      val exitCode = Process("git" +: "check-ignore" +: paths, baseDir).!(pLogger)
+
+      if (exitCode === 128) files
+      else {
+        val (skip, keep) = files.partition(f => ignored.contains(f.getAbsolutePath))
+
+        skip.foreach { f =>
+          val relativePath = baseDir.toPath.relativize(f.toPath)
+          logger.info(s" ↳ ⏭️ $relativePath (git-ignored)")
+        }
+
+        keep
+      }
+    }.getOrElse(files)
 
 }
