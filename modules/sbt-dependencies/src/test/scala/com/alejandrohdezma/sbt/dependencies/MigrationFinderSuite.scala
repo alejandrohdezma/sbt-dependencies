@@ -19,18 +19,13 @@ package com.alejandrohdezma.sbt.dependencies
 import java.nio.file.Files
 
 import sbt.IO
-import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
 
 class MigrationFinderSuite extends munit.FunSuite {
 
-  implicit val logger: Logger = new Logger {
-    override def trace(t: => Throwable): Unit                      = ()
-    override def success(message: => String): Unit                 = ()
-    override def log(level: Level.Value, message: => String): Unit = ()
-  }
+  implicit val logger: Logger = TestLogger()
 
   private def dep(org: String, name: String) = Dependency.WithNumericVersion(
     org,

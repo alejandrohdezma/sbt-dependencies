@@ -128,11 +128,17 @@ class Commands {
     implicit val logger: Logger = state.log
 
     val project = Project.extract(state)
-    val timeout = project.get(ThisBuild / Keys.dependencyResolverTimeout)
-    val urls    = project.get(ThisBuild / Keys.dependencyMigrations)
 
-    implicit val versionFinder: VersionFinder     = VersionFinder.fromCoursier("not-relevant", timeout).cached
-    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
+    val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
+
+    implicit val versionFinder: VersionFinder =
+      VersionFinder
+        .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
+        .cached
+        .ignoringVersions(ignoreFinder)
+
+    implicit val migrationFinder: MigrationFinder =
+      MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 
     val base       = project.get(ThisBuild / baseDirectory)
     val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
@@ -204,16 +210,22 @@ class Commands {
   lazy val updateScalafmtVersion = Command.command("updateScalafmtVersion") { state =>
     implicit val logger: Logger = state.log
 
-    val base = Project.extract(state).get(ThisBuild / baseDirectory)
+    val project = Project.extract(state)
 
-    val urls = Project.extract(state).get(ThisBuild / Keys.dependencyMigrations)
+    val base = project.get(ThisBuild / baseDirectory)
 
     logger.info("\n↻ Checking for new versions of Scalafmt\n")
 
-    val timeout = Project.extract(state).get(ThisBuild / Keys.dependencyResolverTimeout)
+    val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
 
-    implicit val versionFinder: VersionFinder     = VersionFinder.fromCoursier("2.13", timeout).cached
-    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
+    implicit val versionFinder: VersionFinder =
+      VersionFinder
+        .fromCoursier("2.13", project.get(ThisBuild / Keys.dependencyResolverTimeout))
+        .cached
+        .ignoringVersions(ignoreFinder)
+
+    implicit val migrationFinder: MigrationFinder =
+      MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 
     Scalafmt.updateVersion(base)
 
@@ -224,11 +236,12 @@ class Commands {
   lazy val updateSbt = Command.command("updateSbt") { state =>
     implicit val logger: Logger = state.log
 
-    val base = Project.extract(state).get(ThisBuild / baseDirectory)
+    val project = Project.extract(state)
 
-    val urls = Project.extract(state).get(ThisBuild / Keys.dependencyMigrations)
+    val base = project.get(ThisBuild / baseDirectory)
 
-    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(urls)
+    implicit val migrationFinder: MigrationFinder =
+      MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 
     val buildProperties = base / "project" / "build.properties"
 
@@ -246,9 +259,13 @@ class Commands {
       } else {
         logger.info("\n↻ Checking for new versions of SBT\n")
 
-        val timeout = Project.extract(state).get(ThisBuild / Keys.dependencyResolverTimeout)
+        val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
 
-        implicit val versionFinder: VersionFinder = VersionFinder.fromCoursier("not-relevant", timeout).cached
+        implicit val versionFinder: VersionFinder =
+          VersionFinder
+            .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
+            .cached
+            .ignoringVersions(ignoreFinder)
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>

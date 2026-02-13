@@ -27,7 +27,6 @@ import sbt.url
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Eq._
-import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 
 /** Represents an artifact migration from old coordinates to new coordinates.
@@ -121,17 +120,6 @@ object ArtifactMigration {
       cache.put(url, migrations)
       migrations
     }
-  }
-
-  ////////////
-  // Syntax //
-  ////////////
-
-  implicit class ConfigOps(config: Config) {
-
-    def get(path: String): Option[String] =
-      if (config.hasPath(path)) Some(config.getString(path)) else None
-
   }
 
 }

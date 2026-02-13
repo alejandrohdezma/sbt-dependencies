@@ -44,8 +44,10 @@ object Scalafmt {
       logger: Logger
   ): Boolean =
     Using.resource(Files.walk(baseDir.toPath)) { stream =>
+      val file = Path(".scalafmt.conf").asPath
+
       val files =
-        try stream.iterator().asScala.filter(_.getFileName.toString == ".scalafmt.conf").map(_.toFile).toList // scalafix:ok
+        try stream.iterator().asScala.filter(_.getFileName === file).map(_.toFile).toList
         finally stream.close()
 
       if (files.isEmpty) {

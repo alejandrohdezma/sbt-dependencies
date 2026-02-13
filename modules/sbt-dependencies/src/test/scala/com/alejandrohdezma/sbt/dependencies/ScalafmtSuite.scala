@@ -22,7 +22,6 @@ import java.nio.file.attribute.BasicFileAttributes
 import scala.sys.process._
 
 import sbt._
-import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
@@ -31,11 +30,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
   implicit val migrationFinder: MigrationFinder = _ => None
 
-  implicit val logger: Logger = new Logger {
-    override def trace(t: => Throwable): Unit                      = ()
-    override def success(message: => String): Unit                 = ()
-    override def log(level: Level.Value, message: => String): Unit = ()
-  }
+  implicit val logger: Logger = TestLogger()
 
   // --- updateVersion tests ---
 
