@@ -37,7 +37,9 @@ class Tasks {
   val updateDependencies = Def.inputTask {
     implicit val logger: Logger = streams.value.log
     implicit val versionFinder: VersionFinder =
-      VersionFinder.fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value).cached
+      VersionFinder
+        .fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value)
+        .cached
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
@@ -193,7 +195,9 @@ class Tasks {
   val updateScalaVersions = Def.inputTask {
     implicit val logger: Logger = streams.value.log
     implicit val versionFinder: VersionFinder =
-      VersionFinder.fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value).cached
+      VersionFinder
+        .fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value)
+        .cached
     implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
 
     val file        = Settings.dependenciesFile.value
