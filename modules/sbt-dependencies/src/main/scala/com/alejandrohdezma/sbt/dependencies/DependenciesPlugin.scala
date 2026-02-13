@@ -49,6 +49,7 @@ object DependenciesPlugin extends AutoPlugin {
     sbtDependenciesPluginOrganization := "com.alejandrohdezma",
     sbtDependenciesPluginName         := "sbt-dependencies",
     dependencyMigrations              := ArtifactMigration.default,
+    dependencyUpdateIgnores           := UpdateIgnore.default,
     dependencyResolverTimeout         := 60,
     dependencyResolverParallelism     := Runtime.getRuntime.availableProcessors,
     dependenciesManagedScalaVersions  := Settings.buildScalaVersions.value.nonEmpty,

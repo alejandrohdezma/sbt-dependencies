@@ -123,6 +123,29 @@ class Keys {
     "Timeout in seconds for Coursier version resolution requests. Default: 60"
   }
 
+  /** URLs pointing to update-ignore files in Scala Steward's HOCON format.
+    *
+    * When `updateDependencies` runs, it loads `updates.ignore` entries from these URLs and automatically excludes
+    * matching versions from update candidates.
+    *
+    * Default: Scala Steward's public default.scala-steward.conf
+    *
+    * @example
+    *   {{{
+    * // Disable all ignores
+    * ThisBuild / dependencyUpdateIgnores := Nil
+    *
+    * // Add custom ignore URL
+    * ThisBuild / dependencyUpdateIgnores += url("https://example.com/my-ignores.conf")
+    *
+    * // Use a local file
+    * ThisBuild / dependencyUpdateIgnores += file("ignores.conf").toURI.toURL
+    *   }}}
+    */
+  val dependencyUpdateIgnores = settingKey[List[java.net.URL]] {
+    "URLs pointing to update-ignore files (Scala Steward HOCON format). Default: Scala Steward's public config"
+  }
+
   /** Maximum number of dependencies resolved concurrently.
     *
     * Controls the parallelism of the `ForkJoinPool` used when checking dependency versions.
