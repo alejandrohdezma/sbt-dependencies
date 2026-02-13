@@ -1,0 +1,10 @@
+> [!WARNING]
+> `updateAllDependencies` failed at the `updateScalaVersions` step.
+>
+> Skipped steps: `updateDependencies`, `reload`, `updateSbt`.
+>
+> To fix this:
+> 1. Clone this branch locally.
+> 2. Fix the build so it compiles.
+> 3. Run `sbt updateAllDependencies` to complete the remaining updates.
+> 4. Push the changes to this branch.
