@@ -129,10 +129,13 @@ class Commands {
 
     val project = Project.extract(state)
 
+    val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
+
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
         .cached
+        .ignoringVersions(ignoreFinder)
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -213,11 +216,13 @@ class Commands {
 
     logger.info("\n↻ Checking for new versions of Scalafmt\n")
 
+    val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
 
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier("2.13", project.get(ThisBuild / Keys.dependencyResolverTimeout))
         .cached
+        .ignoringVersions(ignoreFinder)
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -254,11 +259,13 @@ class Commands {
       } else {
         logger.info("\n↻ Checking for new versions of SBT\n")
 
+        val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
 
         implicit val versionFinder: VersionFinder =
           VersionFinder
             .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
             .cached
+            .ignoringVersions(ignoreFinder)
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
