@@ -77,6 +77,7 @@ object UpdateIgnore {
     * @return
     *   Combined list of all ignore entries from all URLs.
     */
+  @SuppressWarnings(Array("scalafix:DisableSyntax.throw"))
   def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[UpdateIgnore] = urls.flatMap { url =>
     Option(cache.get(url)).getOrElse {
       logger.info(s"↻ Loading update ignores from $CYAN$url$RESET")

@@ -3,6 +3,8 @@ package com.alejandrohdezma.sbt.dependencies
 import sbt.util.Level
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.Eq._
+
 /** A `Logger` for tests that records all log messages, traces, and successes so they can be inspected via assertions.
   */
 trait TestLogger extends Logger {
@@ -38,10 +40,14 @@ object TestLogger {
 
     override def log(level: Level.Value, message: => String): Unit = logs.append((level, message))
 
-    override def cleanLogs(): Unit = { traces.clear(); successes.clear(); logs.clear() }
+    override def cleanLogs(): Unit = {
+      traces.clear()
+      successes.clear()
+      logs.clear()
+    }
 
     override def getLogs(level: Level.Value): List[String] =
-      logs.filter(_._1 == level).map(_._2).toList
+      logs.filter(_._1.id === level.id).map(_._2).toList
 
     override def getTraces(): List[Throwable] = traces.toList
 

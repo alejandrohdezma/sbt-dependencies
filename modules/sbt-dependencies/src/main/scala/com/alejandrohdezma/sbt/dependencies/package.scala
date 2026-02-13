@@ -1,8 +1,9 @@
 package com.alejandrohdezma.sbt
 
-import com.typesafe.config.Config
-import scala.util.Try
 import scala.util.Failure
+import scala.util.Try
+
+import com.typesafe.config.Config
 
 package object dependencies {
 
@@ -21,7 +22,10 @@ package object dependencies {
   implicit class TryOps[A](tryA: Try[A]) {
 
     /** Runs a side effect When the value inside the `Try` is a failure. */
-    def onError(f: Throwable => Unit): Try[A] = tryA.recoverWith { case e => f(e); Failure(e) }
+    def onError(f: Throwable => Unit): Try[A] = tryA.recoverWith { case e =>
+      f(e)
+      Failure(e)
+    }
 
   }
 
