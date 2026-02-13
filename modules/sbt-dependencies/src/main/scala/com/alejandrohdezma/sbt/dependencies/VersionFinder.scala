@@ -124,6 +124,13 @@ object VersionFinder {
       }
     }
 
+    /** Wraps this `VersionFinder` to filter out versions matched by the given `IgnoreFinder`. */
+    def ignoringVersions(ignoreFinder: IgnoreFinder): VersionFinder =
+      (organization, name, isCross, isSbtPlugin) =>
+        underlying
+          .findVersions(organization, name, isCross, isSbtPlugin)
+          .filterNot(v => ignoreFinder.isIgnored(organization, name, v.toVersionString))
+
   }
 
 }
