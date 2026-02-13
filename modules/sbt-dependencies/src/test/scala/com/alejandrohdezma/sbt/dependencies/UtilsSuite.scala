@@ -16,7 +16,6 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
@@ -26,15 +25,7 @@ class UtilsSuite extends munit.FunSuite {
 
   implicit val migrationFinder: MigrationFinder = _ => None
 
-  implicit val logger: Logger = new Logger {
-
-    override def trace(t: => Throwable): Unit = ()
-
-    override def success(message: => String): Unit = ()
-
-    override def log(level: Level.Value, message: => String): Unit = ()
-
-  }
+  implicit val logger: Logger = TestLogger()
 
   // Helper to parse a version string into Numeric with Minor marker (matching readScalaVersions behavior)
   def v(version: String): Numeric =

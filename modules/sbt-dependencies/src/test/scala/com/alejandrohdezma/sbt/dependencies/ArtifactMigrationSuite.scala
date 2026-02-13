@@ -21,18 +21,13 @@ import java.net.URL
 import java.nio.file.Files
 
 import sbt.IO
-import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
 
 class ArtifactMigrationSuite extends munit.FunSuite {
 
-  implicit val logger: Logger = new Logger {
-    override def trace(t: => Throwable): Unit                      = ()
-    override def success(message: => String): Unit                 = ()
-    override def log(level: Level.Value, message: => String): Unit = ()
-  }
+  implicit val logger: Logger = TestLogger()
 
   def withMigrationFile(contents: String*) = FunFixture[List[URL]](
     setup = { _ =>

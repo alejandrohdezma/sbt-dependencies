@@ -18,7 +18,6 @@ package com.alejandrohdezma.sbt.dependencies
 
 import sbt.librarymanagement.CrossVersion
 import sbt.librarymanagement.ModuleID
-import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
@@ -27,11 +26,7 @@ class DependencySuite extends munit.FunSuite {
 
   implicit val migrationFinder: MigrationFinder = _ => None
 
-  implicit val logger: Logger = new Logger {
-    override def trace(t: => Throwable): Unit                      = ()
-    override def success(message: => String): Unit                 = ()
-    override def log(level: Level.Value, message: => String): Unit = ()
-  }
+  implicit val logger: Logger = TestLogger()
 
   // --- withVersion tests ---
 

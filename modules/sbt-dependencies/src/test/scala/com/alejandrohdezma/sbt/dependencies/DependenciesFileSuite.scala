@@ -20,7 +20,6 @@ import java.nio.file.Files
 
 import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
-import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.Dependency.Version
@@ -29,15 +28,7 @@ import com.alejandrohdezma.sbt.dependencies.Eq._
 
 class DependenciesFileSuite extends munit.FunSuite {
 
-  implicit val logger: Logger = new Logger {
-
-    override def trace(t: => Throwable): Unit = ()
-
-    override def success(message: => String): Unit = ()
-
-    override def log(level: Level.Value, message: => String): Unit = ()
-
-  }
+  implicit val logger: Logger = TestLogger()
 
   // Helper to parse a version string into Numeric with Minor marker (matching readScalaVersions behavior)
   def v(version: String): Numeric =
