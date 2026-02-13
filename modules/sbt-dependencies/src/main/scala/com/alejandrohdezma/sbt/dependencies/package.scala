@@ -22,9 +22,10 @@ package object dependencies {
   implicit class TryOps[A](tryA: Try[A]) {
 
     /** Runs a side effect When the value inside the `Try` is a failure. */
-    def onError(f: Throwable => Unit): Try[A] = tryA.recoverWith { case e =>
-      f(e)
-      Failure(e)
+    def onError(f: PartialFunction[Throwable, Unit]): Try[A] = tryA.recoverWith {
+      case e if f.isDefinedAt(e) =>
+        f(e)
+        Failure(e)
     }
 
   }

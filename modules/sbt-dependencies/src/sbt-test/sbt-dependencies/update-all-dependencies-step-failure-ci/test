@@ -1,0 +1,9 @@
+# Verify updateAllDependencies succeeds even when a step fails
+> compile
+> updateAllDependencies
+
+# Verify that the step after the failure was skipped
+-$ exists step-after-failure-ran
+
+# Verify that .sbt-update-report matches expected content
+$ must-mirror expected-report .sbt-update-report

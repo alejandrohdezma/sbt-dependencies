@@ -112,10 +112,10 @@ object UpdateIgnore {
                   }
 
               List(UpdateIgnore(groupId, artifactId, version))
-            }.onError(e => logger.warn(s"⚠ Skipping malformed update-ignore entry from $CYAN$url$RESET: $e"))
+            }.onError { case e => logger.warn(s"⚠ Skipping malformed update-ignore entry from $CYAN$url$RESET: $e") }
               .getOrElse(Nil)
           }
-      }.onError(e => logger.warn(s"⚠ Failed to load update ignores from $CYAN$url$RESET: $e"))
+      }.onError { case e => logger.warn(s"⚠ Failed to load update ignores from $CYAN$url$RESET: $e") }
         .getOrElse(Nil)
 
       cache.put(url, ignores)

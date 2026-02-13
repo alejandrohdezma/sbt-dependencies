@@ -17,6 +17,8 @@
 package com.alejandrohdezma.sbt.dependencies
 
 import scala.Console._
+import scala.collection.mutable.ListBuffer
+import scala.util.Try
 
 import sbt.Keys._
 import sbt.internal.util.complete.Parser
@@ -115,10 +117,12 @@ class Commands {
 
   /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */
   lazy val updateAllDependencies = Command.command("updateAllDependencies") { state =>
-    runCommand(
-      "updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalafmtVersion",
-      "updateScalaVersions", "updateDependencies", "reload", "updateSbt"
-    )(state)
+    val project       = Project.extract(state)
+    val base          = project.get(ThisBuild / baseDirectory)
+    val reportEnabled = project.get(ThisBuild / Keys.dependencyUpdateReportEnabled)
+
+    runStepsSafely("updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalafmtVersion",
+      "updateScalaVersions", "updateDependencies", "reload", "updateSbt")(state, base, reportEnabled)
   }
 
   /** Updates the configured SBT plugin. Checks `project/project/plugins.sbt` first, falling back to
@@ -317,6 +321,48 @@ class Commands {
   private def runInMetaBuild(commands: String*)(state: State): State =
     if (isPluginInMetaBuild(state)) runCommand(("reload plugins" +: commands :+ "reload return"): _*)(state)
     else state
+
+  private def runStepsSafely(steps: String*)(state: State, base: File, reportEnabled: Boolean): State = {
+    implicit val logger: Logger = state.log
+
+    IO.delete(base / ".sbt-update-report")
+
+    val remaining = ListBuffer(steps: _*)
+
+    var currentState = state // scalafix:ok
+
+    while (remaining.nonEmpty) { // scalafix:ok
+      val step = remaining.head
+
+      remaining.remove(0)
+
+      currentState = Try(runCommand(step)(currentState))
+        .flatMap(newState => Try(Project.extract(newState)).map(_ => newState))
+        .onError { case e => logger.error(s"⚠ '$step' failed: ${e.getMessage}") }
+        .onError { case _ if remaining.nonEmpty => logger.error(s"⚠ Skipped: ${remaining.mkString(", ")}") }
+        .onError { case _ if reportEnabled => writeUpdateReport(step, remaining.toList, base) }
+        .onError { case _ => remaining.clear() }
+        .getOrElse(currentState)
+    }
+
+    currentState
+  }
+
+  private def writeUpdateReport(step: String, remaining: List[String], base: File) = {
+    val report =
+      s"""> [!WARNING]
+         |> `updateAllDependencies` failed at the `$step` step.
+         |>
+         |> Skipped steps: ${remaining.map(s => s"`$s`").mkString(", ")}.
+         |>
+         |> To fix this:
+         |> 1. Clone this branch locally.
+         |> 2. Fix the build so it compiles.
+         |> 3. Run `sbt updateAllDependencies` to complete the remaining updates.
+         |> 4. Push the changes to this branch.""".stripMargin
+
+    IO.write(base / ".sbt-update-report", report)
+  }
 
   private def runCommand(commands: String*)(state: State): State = {
     implicit val logger: Logger = state.log
