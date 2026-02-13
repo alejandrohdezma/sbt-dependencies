@@ -2,12 +2,21 @@ Manage SBT dependencies from a single YAML file with version markers, auto-updat
 
 <img src="vscode-extension/example.gif" alt="sbt-dependencies" width="600" loop="infinite" />
 
+- Manage all dependencies in a single [`project/dependencies.conf`](#user-content-define-dependencies) file (HOCON format).
+- [Update dependencies](#user-content-update-project-dependencies) to their latest versions with a single command.
+- Control updates with [version markers](#user-content-pin-a-dependency): pin, restrict to major, or restrict to minor.
+- Automatically [migrate renamed artifacts](#user-content-configure-artifact-migrations) using Scala Steward's migration list.
+- [Exclude known-bad versions](#user-content-configure-update-ignores) from updates using Scala Steward's ignore list.
+- Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
+- Share versions across dependencies with [version variables](#user-content-use-shared-version-variables), including [BOM support](https://github.com/heremaps/here-sbt-bom).
+- [VS Code / Cursor extension](#vs-code--cursor-extension) with syntax highlighting for `dependencies.conf`.
+
 ## Installation
 
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.13.1")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.14.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -55,6 +64,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Update the plugin itself](#user-content-update-the-plugin)
   + [Update everything at once](#user-content-update-everything)
   + [Configure artifact migrations](#user-content-configure-artifact-migrations)
+  + [Configure update ignores](#user-content-configure-update-ignores)
   + [Show library dependencies](#user-content-show-library-dependencies)
   + [Get all resolved dependencies](#user-content-get-all-resolved-dependencies)
   + [Validate resolved dependencies](#user-content-validate-resolved-dependencies)
@@ -455,6 +465,43 @@ changes = [
 ```
 
 Each entry supports `groupIdBefore`, `groupIdAfter`, `artifactIdBefore`, and `artifactIdAfter`. At least one of `groupIdBefore` or `artifactIdBefore` must be defined.
+
+---
+
+</details>
+
+<details><summary><b id="configure-update-ignores">Configure update ignores</b></summary><br/>
+
+When running update commands (`updateDependencies`, `updateScalaVersions`, `updateSbt`, `updateScalafmtVersion`, `updateSbtPlugin`), the plugin automatically excludes known-bad dependency versions from update candidates. This follows the same [updates.ignore format as Scala Steward](https://github.com/scala-steward-org/scala-steward/blob/main/docs/faq.md) and uses [Scala Steward's default configuration](https://github.com/scala-steward-org/scala-steward/blob/main/modules/core/src/main/resources/default.scala-steward.conf) by default.
+
+You can customize the ignore sources using the `dependencyUpdateIgnores` setting:
+
+```scala
+// Disable all ignores
+ThisBuild / dependencyUpdateIgnores := Nil
+
+// Add a custom ignore URL
+ThisBuild / dependencyUpdateIgnores += url("https://example.com/my-ignores.conf")
+
+// Use a local file
+ThisBuild / dependencyUpdateIgnores += file("ignores.conf").toURI.toURL
+```
+
+Custom ignore files use Scala Steward's HOCON format:
+
+```hocon
+updates.ignore = [
+  { groupId = "org.scala-lang", artifactId = "scala3-compiler", version = { exact = "3.8.2" } }
+  { groupId = "org.scala-lang", artifactId = "scala-compiler", version = "2.13." }
+  { groupId = "com.typesafe.akka" }
+]
+```
+
+Each entry requires a `groupId`. The `artifactId` and `version` fields are optional:
+
+- If `artifactId` is omitted, all artifacts in the group are matched.
+- If `version` is omitted, all versions are matched.
+- `version` can be a string (treated as a prefix) or an object with `exact`, `prefix`, `suffix`, or `contains` fields.
 
 ---
 
