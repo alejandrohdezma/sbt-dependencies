@@ -11,6 +11,7 @@ Syntax highlighting for [`sbt-dependencies`](https://github.com/alejandrohdezma/
 - Version marker highlighting (`=`, `^`, `~`)
 - Variable reference highlighting (`{{name}}`)
 - HOCON comment support (`//`, `#`, `/* */`)
+- CodeLens navigation between `build.sbt` and `dependencies.conf`: jump from a project definition to its dependency group and vice versa
 
 ## Development
 

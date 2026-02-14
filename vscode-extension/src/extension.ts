@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { parseCodeLenses } from "./codelens";
 import { parseDiagnostics } from "./diagnostics";
 import { parseDependency, buildHoverMarkdown } from "./hover";
 import { findReferences } from "./references";
@@ -356,6 +357,151 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
   }
 }
 
+/**
+ * Provides CodeLens annotations on `lazy val ... = project` lines in `.sbt`
+ * files, linking each project to its group in `dependencies.conf`.
+ */
+class SbtBuildCodeLensProvider implements vscode.CodeLensProvider {
+  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    const buildSbtLines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      buildSbtLines.push(document.lineAt(i).text);
+    }
+
+    const depsConfUri = vscode.Uri.joinPath(
+      document.uri,
+      "..",
+      "project",
+      "dependencies.conf"
+    );
+
+    let groupLineMap = new Map<string, number>();
+    try {
+      const content = require("fs").readFileSync(depsConfUri.fsPath, "utf-8");
+      const confLines: string[] = content.split(/\r?\n/);
+      for (const symbol of parseDocumentSymbols(confLines)) {
+        groupLineMap.set(symbol.name, symbol.range.startLine);
+      }
+    } catch {
+      // dependencies.conf doesn't exist or can't be read
+    }
+
+    const groupNames = Array.from(groupLineMap.keys());
+    const codeLensDataList = parseCodeLenses(buildSbtLines, groupNames);
+
+    return codeLensDataList.map((data) => {
+      const range = new vscode.Range(data.line, 0, data.line, 0);
+
+      if (data.groupExists) {
+        return new vscode.CodeLens(range, {
+          title: "View dependencies",
+          command: "sbt-dependencies.openDependenciesGroup",
+          arguments: [depsConfUri, groupLineMap.get(data.projectName)],
+        });
+      }
+
+      return new vscode.CodeLens(range, {
+        title: "Add to dependencies.conf",
+        command: "sbt-dependencies.openDependenciesGroup",
+        arguments: [depsConfUri, undefined],
+      });
+    });
+  }
+}
+
+/**
+ * Provides CodeLens annotations on group headers in `dependencies.conf`
+ * files, linking each group to its project definition in `build.sbt`.
+ */
+class DependencyGroupCodeLensProvider implements vscode.CodeLensProvider {
+  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    const confLines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      confLines.push(document.lineAt(i).text);
+    }
+
+    const buildSbtUri = vscode.Uri.joinPath(
+      document.uri,
+      "..",
+      "..",
+      "build.sbt"
+    );
+
+    let projectLineMap = new Map<string, number>();
+    try {
+      const content = require("fs").readFileSync(buildSbtUri.fsPath, "utf-8");
+      const buildLines: string[] = content.split(/\r?\n/);
+      for (const data of parseCodeLenses(buildLines, [])) {
+        projectLineMap.set(data.projectName, data.line);
+      }
+    } catch {
+      // build.sbt doesn't exist or can't be read
+    }
+
+    const groups = parseDocumentSymbols(confLines);
+
+    return groups
+      .filter((group) => projectLineMap.has(group.name))
+      .map((group) => {
+        const range = new vscode.Range(
+          group.range.startLine, 0,
+          group.range.startLine, 0
+        );
+
+        return new vscode.CodeLens(range, {
+          title: "View project",
+          command: "sbt-dependencies.openBuildProject",
+          arguments: [buildSbtUri, projectLineMap.get(group.name)],
+        });
+      });
+  }
+}
+
+async function openDependenciesGroup(
+  fileUri: vscode.Uri,
+  lineNumber: number | undefined
+): Promise<void> {
+  try {
+    const document = await vscode.workspace.openTextDocument(fileUri);
+    const line = lineNumber ?? Math.max(0, document.lineCount - 1);
+    const position = new vscode.Position(line, 0);
+    await vscode.window.showTextDocument(document, {
+      selection: new vscode.Range(position, position),
+      viewColumn: vscode.ViewColumn.Active,
+    });
+    vscode.commands.executeCommand("revealLine", {
+      lineNumber: line,
+      at: "center",
+    });
+  } catch {
+    vscode.window.showErrorMessage(
+      `Could not open ${fileUri.fsPath}`
+    );
+  }
+}
+
+async function openBuildProject(
+  fileUri: vscode.Uri,
+  lineNumber: number
+): Promise<void> {
+  try {
+    const document = await vscode.workspace.openTextDocument(fileUri);
+    const position = new vscode.Position(lineNumber, 0);
+    await vscode.window.showTextDocument(document, {
+      selection: new vscode.Range(position, position),
+      viewColumn: vscode.ViewColumn.Active,
+    });
+    vscode.commands.executeCommand("revealLine", {
+      lineNumber,
+      at: "center",
+    });
+  } catch {
+    vscode.window.showErrorMessage(
+      `Could not open ${fileUri.fsPath}`
+    );
+  }
+}
+
 /** Registers providers, commands, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -394,6 +540,22 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "sbt-dependencies.installDependencyInGroup",
       runInstallDependencyInGroup
+    ),
+    vscode.languages.registerCodeLensProvider(
+      { pattern: "**/*.sbt" },
+      new SbtBuildCodeLensProvider()
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.openDependenciesGroup",
+      openDependenciesGroup
+    ),
+    vscode.languages.registerCodeLensProvider(
+      "sbt-dependencies",
+      new DependencyGroupCodeLensProvider()
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.openBuildProject",
+      openBuildProject
     )
   );
 
