@@ -8,6 +8,7 @@
 - Automatically [migrate renamed artifacts](#user-content-configure-artifact-migrations) using Scala Steward's migration list.
 - [Exclude known-bad versions](#user-content-configure-update-ignores) from updates using Scala Steward's ignore list.
 - Automatically exclude [retracted versions](#user-content-configure-retracted-versions) from updates using Scala Steward's retraction list.
+- [Pin updates to allowed versions](#user-content-configure-update-pins) using Scala Steward's pin list.
 - Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
 - Share versions across dependencies with [version variables](#user-content-use-shared-version-variables), including [BOM support](https://github.com/heremaps/here-sbt-bom).
 - [VS Code / Cursor extension](#vs-code--cursor-extension) with syntax highlighting for `dependencies.conf`.
@@ -67,6 +68,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Configure artifact migrations](#user-content-configure-artifact-migrations)
   + [Configure update ignores](#user-content-configure-update-ignores)
   + [Configure retracted versions](#user-content-configure-retracted-versions)
+  + [Configure update pins](#user-content-configure-update-pins)
   + [Show library dependencies](#user-content-show-library-dependencies)
   + [Get all resolved dependencies](#user-content-get-all-resolved-dependencies)
   + [Validate resolved dependencies](#user-content-validate-resolved-dependencies)
@@ -543,6 +545,44 @@ updates.retracted = [
 ```
 
 Each entry requires a `reason` and a `doc` URL. The `artifacts` array uses the same pattern as update ignores: `groupId` (required), `artifactId` (optional), and `version` (optional, string or object with `exact`/`prefix`/`suffix`/`contains`).
+
+---
+
+</details>
+
+<details><summary><b id="configure-update-pins">Configure update pins</b></summary><br/>
+
+When running update commands (`updateDependencies`, `updateScalaVersions`, `updateSbt`, `updateScalafmtVersion`, `updateSbtPlugin`), the plugin can restrict updates to versions matching a pin's version pattern. This follows the same [updates.pin format as Scala Steward](https://github.com/scala-steward-org/scala-steward/blob/main/docs/faq.md) and uses [Scala Steward's default configuration](https://github.com/scala-steward-org/scala-steward/blob/main/modules/core/src/main/resources/default.scala-steward.conf) by default.
+
+Unlike ignores (which exclude specific versions), pins act as a whitelist: only versions matching the pin's pattern are allowed for matching artifacts. Artifacts without a matching pin are unaffected.
+
+You can customize the pin sources using the `dependencyUpdatePins` setting:
+
+```scala
+// Disable all pins
+ThisBuild / dependencyUpdatePins := Nil
+
+// Add a custom pin URL
+ThisBuild / dependencyUpdatePins += url("https://example.com/my-pins.conf")
+
+// Use a local file
+ThisBuild / dependencyUpdatePins += file("pins.conf").toURI.toURL
+```
+
+Custom pin files use Scala Steward's HOCON format:
+
+```hocon
+updates.pin = [
+  { groupId = "org.http4s", version = "0.23." }
+  { groupId = "org.typelevel", artifactId = "cats-core", version = { prefix = "2." } }
+]
+```
+
+Each entry requires a `groupId`. The `artifactId` and `version` fields are optional:
+
+- If `artifactId` is omitted, all artifacts in the group are matched.
+- If `version` is omitted, all versions are allowed (the pin has no effect).
+- `version` can be a string (treated as a prefix) or an object with `exact`, `prefix`, `suffix`, or `contains` fields.
 
 ---
 
