@@ -2,7 +2,7 @@
 
 Syntax highlighting for [`sbt-dependencies`](https://github.com/alejandrohdezma/sbt-dependencies/blob/main/README.md) configuration files (`dependencies.conf`). Works with both VS Code and Cursor.
 
-<img src="https://github.com/alejandrohdezma/sbt-dependencies/blob/main/vscode-extension/example.gif?raw=true" alt="sbt-dependencies" width="600" loop="infinite" />
+<img src="https://github.com/alejandrohdezma/sbt-dependencies/blob/main/vscode-extension/images/demo.svg?raw=true" alt="sbt-dependencies" width="600" />
 
 ## Features
 

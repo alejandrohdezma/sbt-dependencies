@@ -1,6 +1,6 @@
 Manage SBT dependencies from a single YAML file with version markers, auto-updates, and cross-project support
 
-<img src="vscode-extension/example.gif" alt="sbt-dependencies" width="600" loop="infinite" />
+<img src="vscode-extension/images/demo.svg" alt="sbt-dependencies" width="600" />
 
 - Manage all dependencies in a single [`project/dependencies.conf`](#user-content-define-dependencies) file (HOCON format).
 - [Update dependencies](#user-content-update-project-dependencies) to their latest versions with a single command.
