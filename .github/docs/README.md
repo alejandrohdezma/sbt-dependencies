@@ -7,6 +7,7 @@
 - Control updates with [version markers](#user-content-pin-a-dependency): pin, restrict to major, or restrict to minor.
 - Automatically [migrate renamed artifacts](#user-content-configure-artifact-migrations) using Scala Steward's migration list.
 - [Exclude known-bad versions](#user-content-configure-update-ignores) from updates using Scala Steward's ignore list.
+- Automatically exclude [retracted versions](#user-content-configure-retracted-versions) from updates using Scala Steward's retraction list.
 - Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
 - Share versions across dependencies with [version variables](#user-content-use-shared-version-variables), including [BOM support](https://github.com/heremaps/here-sbt-bom).
 - [VS Code / Cursor extension](#vs-code--cursor-extension) with syntax highlighting for `dependencies.conf`.
@@ -65,6 +66,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Update everything at once](#user-content-update-everything)
   + [Configure artifact migrations](#user-content-configure-artifact-migrations)
   + [Configure update ignores](#user-content-configure-update-ignores)
+  + [Configure retracted versions](#user-content-configure-retracted-versions)
   + [Show library dependencies](#user-content-show-library-dependencies)
   + [Get all resolved dependencies](#user-content-get-all-resolved-dependencies)
   + [Validate resolved dependencies](#user-content-validate-resolved-dependencies)
@@ -502,6 +504,45 @@ Each entry requires a `groupId`. The `artifactId` and `version` fields are optio
 - If `artifactId` is omitted, all artifacts in the group are matched.
 - If `version` is omitted, all versions are matched.
 - `version` can be a string (treated as a prefix) or an object with `exact`, `prefix`, `suffix`, or `contains` fields.
+
+---
+
+</details>
+
+<details><summary><b id="configure-retracted-versions">Configure retracted versions</b></summary><br/>
+
+When running update commands, the plugin automatically excludes retracted (broken) dependency versions from update candidates. This follows the same [updates.retracted format as Scala Steward](https://github.com/scala-steward-org/scala-steward/blob/main/docs/repo-specific-configuration.md) and uses [Scala Steward's default configuration](https://github.com/scala-steward-org/scala-steward/blob/main/modules/core/src/main/resources/default.scala-steward.conf) by default.
+
+When a dependency's current version is retracted, a warning is logged with the reason and a link to documentation.
+
+You can customize the retraction sources using the `dependencyUpdateRetractions` setting:
+
+```scala
+// Disable all retractions
+ThisBuild / dependencyUpdateRetractions := Nil
+
+// Add a custom retraction URL
+ThisBuild / dependencyUpdateRetractions += url("https://example.com/my-retractions.conf")
+
+// Use a local file
+ThisBuild / dependencyUpdateRetractions += file("retractions.conf").toURI.toURL
+```
+
+Custom retraction files use Scala Steward's HOCON format:
+
+```hocon
+updates.retracted = [
+  {
+    reason = "Broken binary compatibility"
+    doc = "https://example.com/issue/123"
+    artifacts = [
+      { groupId = "org.example", artifactId = "my-lib", version = { exact = "1.2.0" } }
+    ]
+  }
+]
+```
+
+Each entry requires a `reason` and a `doc` URL. The `artifacts` array uses the same pattern as update ignores: `groupId` (required), `artifactId` (optional), and `version` (optional, string or object with `exact`/`prefix`/`suffix`/`contains`).
 
 ---
 

@@ -32,6 +32,8 @@ class ScalafmtSuite extends munit.FunSuite {
 
   implicit val logger: Logger = TestLogger()
 
+  implicit val retractionFinder: RetractionFinder = RetractionFinder.fromUrls(Nil)
+
   // --- updateVersion tests ---
 
   withScalafmtConf {

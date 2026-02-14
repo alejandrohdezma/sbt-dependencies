@@ -1,0 +1,9 @@
+# Verify dependencyUpdateRetractions excludes retracted versions
+# Test case: http4s-core 0.21.34 is retracted via a local HOCON file.
+#   Starting at ~0.21.32, should update to ~0.21.33 (skipping 0.21.34).
+
+> compile
+
+> myproject/updateDependencies
+
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

@@ -123,6 +123,30 @@ class Keys {
     "Timeout in seconds for Coursier version resolution requests. Default: 60"
   }
 
+  /** URLs pointing to retracted-version files in Scala Steward's HOCON format.
+    *
+    * When `updateDependencies` runs, it loads `updates.retracted` entries from these URLs and automatically excludes
+    * retracted versions from update candidates. When a dependency's current version is retracted, a warning is logged
+    * with the reason and documentation URL.
+    *
+    * Default: Scala Steward's public default.scala-steward.conf
+    *
+    * @example
+    *   {{{
+    * // Disable all retractions
+    * ThisBuild / dependencyUpdateRetractions := Nil
+    *
+    * // Add custom retraction URL
+    * ThisBuild / dependencyUpdateRetractions += url("https://example.com/my-retractions.conf")
+    *
+    * // Use a local file
+    * ThisBuild / dependencyUpdateRetractions += file("retractions.conf").toURI.toURL
+    *   }}}
+    */
+  val dependencyUpdateRetractions = settingKey[List[java.net.URL]] {
+    "URLs pointing to retracted-version files (Scala Steward HOCON format). Default: Scala Steward's public config"
+  }
+
   /** URLs pointing to update-ignore files in Scala Steward's HOCON format.
     *
     * When `updateDependencies` runs, it loads `updates.ignore` entries from these URLs and automatically excludes

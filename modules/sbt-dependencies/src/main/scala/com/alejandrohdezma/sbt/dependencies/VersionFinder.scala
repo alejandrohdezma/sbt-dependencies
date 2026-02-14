@@ -131,6 +131,13 @@ object VersionFinder {
           .findVersions(organization, name, isCross, isSbtPlugin)
           .filterNot(v => ignoreFinder.isIgnored(organization, name, v.toVersionString))
 
+    /** Wraps this `VersionFinder` to filter out versions matched by the given `RetractionFinder`. */
+    def excludingRetracted(retractionFinder: RetractionFinder): VersionFinder =
+      (organization, name, isCross, isSbtPlugin) =>
+        underlying
+          .findVersions(organization, name, isCross, isSbtPlugin)
+          .filterNot(v => retractionFinder.isRetracted(organization, name, v.toVersionString))
+
   }
 
 }
