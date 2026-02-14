@@ -8,3 +8,4 @@ tsconfig.json
 esbuild.js
 vitest.config.ts
 .gitignore
+images/demo.svg
