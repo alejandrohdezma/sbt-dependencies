@@ -135,11 +135,14 @@ class Commands {
 
     val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
 
+    val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
+
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
         .cached
         .ignoringVersions(ignoreFinder)
+        .excludingRetracted(retractionFinder)
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -165,12 +168,13 @@ class Commands {
 
         val updatedLines = lines.map {
           case line @ pluginRegex(Numeric(current)) =>
-            val latest = Dependency
-              .WithNumericVersion(pluginOrg, pluginName, current, isCross = false, "sbt-plugin")
-              .findLatestVersion
-              .version
+            val dependency =
+              Dependency.WithNumericVersion(pluginOrg, pluginName, current, isCross = false, "sbt-plugin")
+
+            val latest = dependency.findLatestVersion.version
 
             if (latest.isSameVersion(current)) {
+              retractionFinder.warnIfRetracted(dependency)
               logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
               (line, false)
             } else {
@@ -222,11 +226,14 @@ class Commands {
 
     val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
 
+    implicit val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
+
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier("2.13", project.get(ThisBuild / Keys.dependencyResolverTimeout))
         .cached
         .ignoringVersions(ignoreFinder)
+        .excludingRetracted(retractionFinder)
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -265,17 +272,23 @@ class Commands {
 
         val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
 
+        val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
+
         implicit val versionFinder: VersionFinder =
           VersionFinder
             .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
             .cached
             .ignoringVersions(ignoreFinder)
+            .excludingRetracted(retractionFinder)
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
-            val latest = Dependency.sbt(current).findLatestVersion.version
+            val dependency = Dependency.sbt(current)
+
+            val latest = dependency.findLatestVersion.version
 
             if (latest.isSameVersion(current)) {
+              retractionFinder.warnIfRetracted(dependency)
               logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
               (line, false)
             } else {

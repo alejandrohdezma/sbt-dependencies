@@ -36,12 +36,17 @@ class Tasks {
   /** Updates dependencies to their latest versions based on the filter and version constraints. */
   val updateDependencies = Def.inputTask {
     implicit val logger: Logger = streams.value.log
-    val ignoreFinder            = IgnoreFinder.fromUrls(Keys.dependencyUpdateIgnores.value)
+
+    val ignoreFinder = IgnoreFinder.fromUrls(Keys.dependencyUpdateIgnores.value)
+
+    val retractionFinder = RetractionFinder.fromUrls(Keys.dependencyUpdateRetractions.value)
+
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value)
         .cached
         .ignoringVersions(ignoreFinder)
+        .excludingRetracted(retractionFinder)
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
@@ -121,6 +126,8 @@ class Tasks {
           )
           .toList
 
+      updated.foreach(retractionFinder.warnIfRetracted(_))
+
       DependenciesFile.write(file, group, filtered ++ updated)
     }
   }
@@ -196,12 +203,18 @@ class Tasks {
   /** Updates Scala versions to their latest versions within the same minor line. */
   val updateScalaVersions = Def.inputTask {
     implicit val logger: Logger = streams.value.log
-    val ignoreFinder            = IgnoreFinder.fromUrls(Keys.dependencyUpdateIgnores.value)
+
+    val ignoreFinder = IgnoreFinder.fromUrls(Keys.dependencyUpdateIgnores.value)
+
+    val retractionFinder = RetractionFinder.fromUrls(Keys.dependencyUpdateRetractions.value)
+
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value)
         .cached
         .ignoringVersions(ignoreFinder)
+        .excludingRetracted(retractionFinder)
+
     implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
 
     val file        = Settings.dependenciesFile.value

@@ -41,6 +41,7 @@ object Scalafmt {
   def updateVersion(baseDir: File)(implicit
       versionFinder: VersionFinder,
       migrationFinder: MigrationFinder,
+      retractionFinder: RetractionFinder,
       logger: Logger
   ): Boolean =
     Using.resource(Files.walk(baseDir.toPath)) { stream =>
@@ -65,6 +66,7 @@ object Scalafmt {
   private def updateVersionInFile(file: File, baseDir: File)(implicit
       versionFinder: VersionFinder,
       migrationFinder: MigrationFinder,
+      retractionFinder: RetractionFinder,
       logger: Logger
   ): Boolean = {
     val relativePath = baseDir.toPath.relativize(file.toPath)
@@ -76,9 +78,12 @@ object Scalafmt {
 
     versionRegex.findFirstMatchIn(content).map(_.group(2)) match {
       case Some(Version.Numeric(current)) =>
-        val latest = Dependency.scalafmt(current).findLatestVersion.version
+        val dependency = Dependency.scalafmt(current)
+
+        val latest = dependency.findLatestVersion.version
 
         if (latest === current) {
+          retractionFinder.warnIfRetracted(dependency)
           logger.info(s" ↳ $GREEN✓$RESET $GREEN$relativePath: ${current.toVersionString}$RESET")
           false
         } else {
