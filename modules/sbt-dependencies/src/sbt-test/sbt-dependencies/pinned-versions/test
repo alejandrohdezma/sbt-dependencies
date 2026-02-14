@@ -1,0 +1,10 @@
+# Verify dependencyUpdatePins restricts updates to pinned version ranges
+# Test case: org.http4s is pinned to 0.21.x via a local HOCON file.
+#   Starting at 0.21.32, should update within 0.21.x but not jump to 1.x.
+#   circe-yaml (unpinned) should update freely.
+
+> compile
+
+> myproject/updateDependencies
+
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected
