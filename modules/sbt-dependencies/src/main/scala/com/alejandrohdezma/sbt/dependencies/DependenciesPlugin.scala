@@ -51,6 +51,7 @@ object DependenciesPlugin extends AutoPlugin {
     dependencyMigrations              := ArtifactMigration.default,
     dependencyUpdateRetractions       := RetractedArtifact.default,
     dependencyUpdateIgnores           := UpdateIgnore.default,
+    dependencyUpdatePins              := UpdatePin.default,
     dependencyResolverTimeout         := 60,
     dependencyResolverParallelism     := Runtime.getRuntime.availableProcessors,
     dependencyUpdateReportEnabled     := sys.env.contains("CI"),
