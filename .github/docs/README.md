@@ -1,6 +1,6 @@
 @DESCRIPTION@
 
-<img src="vscode-extension/example.gif" alt="sbt-dependencies" width="600" loop="infinite" />
+<img src="vscode-extension/images/demo.svg" alt="sbt-dependencies" width="600" />
 
 - Manage all dependencies in a single [`project/dependencies.conf`](#user-content-define-dependencies) file (HOCON format).
 - [Update dependencies](#user-content-update-project-dependencies) to their latest versions with a single command.

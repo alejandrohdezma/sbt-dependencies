@@ -1,0 +1,249 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 688" width="1100" height="688">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#c8c8d2"/>
+      <stop offset="100%" stop-color="#b0b4be"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="15" result="blur"/>
+      <feOffset in="blur" dx="0" dy="8" result="offsetBlur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.3" result="color"/>
+      <feComposite in="color" in2="offsetBlur" operator="in" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="cursor-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
+      <feOffset in="blur" dx="1" dy="1" result="offsetBlur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.5" result="color"/>
+      <feComposite in="color" in2="offsetBlur" operator="in" result="cshadow"/>
+      <feMerge>
+        <feMergeNode in="cshadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="tooltip-shadow" x="-5%" y="-10%" width="110%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10" result="blur"/>
+      <feOffset in="blur" dx="0" dy="4" result="offsetBlur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.4" result="color"/>
+      <feComposite in="color" in2="offsetBlur" operator="in" result="tshadow"/>
+      <feMerge>
+        <feMergeNode in="tshadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="clip">
+      <rect width="1100" height="688" rx="16"/>
+    </clipPath>
+    <symbol id="hand-cursor" viewBox="0 0 32 32">
+      <path fill="#FFFFFF" d="M11.3,20.4c-0.3-0.4-0.6-1.1-1.2-2c-0.3-0.5-1.2-1.5-1.5-1.9c-0.2-0.4-0.2-0.6-0.1-1c0.1-0.6,0.7-1.1,1.4-1.1c0.5,0,1,0.4,1.4,0.7c0.2,0.2,0.5,0.6,0.7,0.8c0.2,0.2,0.2,0.3,0.4,0.5c0.2,0.3,0.3,0.5,0.2,0.1c-0.1-0.5-0.2-1.3-0.4-2.1c-0.1-0.6-0.2-0.7-0.3-1.1c-0.1-0.5-0.2-0.8-0.3-1.3c-0.1-0.3-0.2-1.1-0.3-1.5c-0.1-0.5-0.1-1.4,0.3-1.8c0.3-0.3,0.9-0.4,1.3-0.2c0.5,0.3,0.8,1,0.9,1.3c0.2,0.5,0.4,1.2,0.5,2c0.2,1,0.5,2.5,0.5,2.8c0-0.4-0.1-1.1,0-1.5c0.1-0.3,0.3-0.7,0.7-0.8c0.3-0.1,0.6-0.1,0.9-0.1c0.3,0.1,0.6,0.3,0.8,0.5c0.4,0.6,0.4,1.9,0.4,1.8c0.1-0.4,0.1-1.2,0.3-1.6c0.1-0.2,0.5-0.4,0.7-0.5c0.3-0.1,0.7-0.1,1,0c0.2,0,0.6,0.3,0.7,0.5c0.2,0.3,0.3,1.3,0.4,1.7c0,0.1,0.1-0.4,0.3-0.7c0.4-0.6,1.8-0.8,1.9,0.6c0,0.7,0,0.6,0,1.1c0,0.5,0,0.8,0,1.2c0,0.4-0.1,1.3-0.2,1.7c-0.1,0.3-0.4,1-0.7,1.4c0,0-1.1,1.2-1.2,1.8c-0.1,0.6-0.1,0.6-0.1,1c0,0.4,0.1,0.9,0.1,0.9s-0.8,0.1-1.2,0c-0.4-0.1-0.9-0.8-1-1.1c-0.2-0.3-0.5-0.3-0.7,0c-0.2,0.4-0.7,1.1-1.1,1.1c-0.7,0.1-2.1,0-3.1,0c0,0,0.2-1-0.2-1.4c-0.3-0.3-0.8-0.8-1.1-1.1L11.3,20.4z"/>
+      <path fill="none" stroke="#000000" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round" d="M11.3,20.4c-0.3-0.4-0.6-1.1-1.2-2c-0.3-0.5-1.2-1.5-1.5-1.9c-0.2-0.4-0.2-0.6-0.1-1c0.1-0.6,0.7-1.1,1.4-1.1c0.5,0,1,0.4,1.4,0.7c0.2,0.2,0.5,0.6,0.7,0.8c0.2,0.2,0.2,0.3,0.4,0.5c0.2,0.3,0.3,0.5,0.2,0.1c-0.1-0.5-0.2-1.3-0.4-2.1c-0.1-0.6-0.2-0.7-0.3-1.1c-0.1-0.5-0.2-0.8-0.3-1.3c-0.1-0.3-0.2-1.1-0.3-1.5c-0.1-0.5-0.1-1.4,0.3-1.8c0.3-0.3,0.9-0.4,1.3-0.2c0.5,0.3,0.8,1,0.9,1.3c0.2,0.5,0.4,1.2,0.5,2c0.2,1,0.5,2.5,0.5,2.8c0-0.4-0.1-1.1,0-1.5c0.1-0.3,0.3-0.7,0.7-0.8c0.3-0.1,0.6-0.1,0.9-0.1c0.3,0.1,0.6,0.3,0.8,0.5c0.4,0.6,0.4,1.9,0.4,1.8c0.1-0.4,0.1-1.2,0.3-1.6c0.1-0.2,0.5-0.4,0.7-0.5c0.3-0.1,0.7-0.1,1,0c0.2,0,0.6,0.3,0.7,0.5c0.2,0.3,0.3,1.3,0.4,1.7c0,0.1,0.1-0.4,0.3-0.7c0.4-0.6,1.8-0.8,1.9,0.6c0,0.7,0,0.6,0,1.1c0,0.5,0,0.8,0,1.2c0,0.4-0.1,1.3-0.2,1.7c-0.1,0.3-0.4,1-0.7,1.4c0,0-1.1,1.2-1.2,1.8c-0.1,0.6-0.1,0.6-0.1,1c0,0.4,0.1,0.9,0.1,0.9s-0.8,0.1-1.2,0c-0.4-0.1-0.9-0.8-1-1.1c-0.2-0.3-0.5-0.3-0.7,0c-0.2,0.4-0.7,1.1-1.1,1.1c-0.7,0.1-2.1,0-3.1,0c0,0,0.2-1-0.2-1.4c-0.3-0.3-0.8-0.8-1.1-1.1L11.3,20.4z"/>
+      <line fill="none" stroke="#000000" stroke-width="0.75" stroke-linecap="round" x1="19.6" y1="20.7" x2="19.6" y2="17.3"/>
+      <line fill="none" stroke="#000000" stroke-width="0.75" stroke-linecap="round" x1="17.6" y1="20.7" x2="17.5" y2="17.3"/>
+      <line fill="none" stroke="#000000" stroke-width="0.75" stroke-linecap="round" x1="15.6" y1="17.3" x2="15.6" y2="20.7"/>
+    </symbol>
+  </defs>
+
+  <!-- Frame 1: dependencies.conf base view (688px) -->
+  <g opacity="1">
+    <animate attributeName="opacity" values="1;0;0;0;0;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <g clip-path="url(#clip)">
+      <rect width="1100" height="688" fill="url(#bg)"/>
+      <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
+      <circle cx="92" cy="56" r="8" fill="#ff5f57"/>
+      <circle cx="118" cy="56" r="8" fill="#febc2e"/>
+      <circle cx="144" cy="56" r="8" fill="#28c840"/>
+      <rect x="50" y="90" width="1000" height="60" fill="#181825"/>
+      <text x="85" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#6c7086">build.sbt</text>
+      <line x1="190" y1="94" x2="190" y2="146" stroke="#313244" stroke-width="1"/>
+      <rect x="191" y="90" width="260" height="60" fill="#1e1e2e"/>
+      <line x1="191" y1="90" x2="451" y2="90" stroke="#89b4fa" stroke-width="2"/>
+      <text x="206" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#cdd6f4">project/dependencies.conf</text>
+      <g font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace">
+        <text x="86" y="192" font-size="16" fill="#6c7086" xml:space="preserve">View project</text>
+        <text x="86" y="216" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">my-project</tspan><tspan fill="#cdd6f4"> {</tspan></text>
+        <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
+        <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
+        <text x="86" y="330" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">2.10.0"</tspan></text>
+        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan></text>
+        <text x="86" y="444" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="482" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="520" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="558" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">    ]</tspan></text>
+        <text x="86" y="596" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">}</tspan></text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Frame 2: dependencies.conf hover on "View project" (688px) -->
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;1;0;0;0;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <g clip-path="url(#clip)">
+      <rect width="1100" height="688" fill="url(#bg)"/>
+      <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
+      <circle cx="92" cy="56" r="8" fill="#ff5f57"/>
+      <circle cx="118" cy="56" r="8" fill="#febc2e"/>
+      <circle cx="144" cy="56" r="8" fill="#28c840"/>
+      <rect x="50" y="90" width="1000" height="60" fill="#181825"/>
+      <text x="85" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#6c7086">build.sbt</text>
+      <line x1="190" y1="94" x2="190" y2="146" stroke="#313244" stroke-width="1"/>
+      <rect x="191" y="90" width="260" height="60" fill="#1e1e2e"/>
+      <line x1="191" y1="90" x2="451" y2="90" stroke="#89b4fa" stroke-width="2"/>
+      <text x="206" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#cdd6f4">project/dependencies.conf</text>
+      <g font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace">
+        <text x="86" y="192" font-size="16" fill="#9399b2" xml:space="preserve">View project</text>
+        <line x1="86" y1="195" x2="200" y2="195" stroke="#9399b2" stroke-width="1"/>
+        <text x="86" y="216" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">my-project</tspan><tspan fill="#cdd6f4"> {</tspan></text>
+        <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
+        <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
+        <text x="86" y="330" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">2.10.0"</tspan></text>
+        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan></text>
+        <text x="86" y="444" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="482" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="520" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="558" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">    ]</tspan></text>
+        <text x="86" y="596" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">}</tspan></text>
+      </g>
+      <g opacity="0.95" filter="url(#cursor-shadow)">
+        <use href="#hand-cursor" x="119" y="173" width="48" height="48"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Frame 3: build.sbt base view (688px) -->
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;1;0;0;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <g clip-path="url(#clip)">
+      <rect width="1100" height="688" fill="url(#bg)"/>
+      <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
+        <circle cx="92" cy="56" r="8" fill="#ff5f57"/>
+        <circle cx="118" cy="56" r="8" fill="#febc2e"/>
+        <circle cx="144" cy="56" r="8" fill="#28c840"/>
+        <rect x="50" y="90" width="1000" height="60" fill="#181825"/>
+        <rect x="50" y="90" width="140" height="60" fill="#1e1e2e"/>
+        <line x1="50" y1="90" x2="190" y2="90" stroke="#89b4fa" stroke-width="2"/>
+        <text x="85" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#cdd6f4">build.sbt</text>
+        <line x1="190" y1="94" x2="190" y2="146" stroke="#313244" stroke-width="1"/>
+        <text x="206" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#6c7086">project/dependencies.conf</text>
+        <g font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace">
+          <text x="86" y="192" font-size="16" fill="#6c7086" xml:space="preserve">View dependencies</text>
+          <text x="86" y="216" font-size="21" xml:space="preserve"><tspan fill="#cba6f7">lazy val</tspan><tspan fill="#cdd6f4"> `my-project` = </tspan><tspan fill="#89b4fa">project</tspan></text>
+          <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">  </tspan><tspan fill="#89b4fa">.enablePlugins</tspan><tspan fill="#cdd6f4">(</tspan><tspan fill="#f9e2af">JavaAppPackaging</tspan><tspan fill="#cdd6f4">)</tspan></text>
+          <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">  </tspan><tspan fill="#89b4fa">.dependsOn</tspan><tspan fill="#cdd6f4">(`my-project-shared`)</tspan></text>
+          <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cba6f7">lazy val</tspan><tspan fill="#cdd6f4"> `my-project-shared` = </tspan><tspan fill="#89b4fa">project</tspan></text>
+        </g>
+    </g>
+  </g>
+
+  <!-- Frame 4: build.sbt hover on "View dependencies" (688px) -->
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;1;0;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <g clip-path="url(#clip)">
+      <rect width="1100" height="688" fill="url(#bg)"/>
+      <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
+        <circle cx="92" cy="56" r="8" fill="#ff5f57"/>
+        <circle cx="118" cy="56" r="8" fill="#febc2e"/>
+        <circle cx="144" cy="56" r="8" fill="#28c840"/>
+        <rect x="50" y="90" width="1000" height="60" fill="#181825"/>
+        <rect x="50" y="90" width="140" height="60" fill="#1e1e2e"/>
+        <line x1="50" y1="90" x2="190" y2="90" stroke="#89b4fa" stroke-width="2"/>
+        <text x="85" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#cdd6f4">build.sbt</text>
+        <line x1="190" y1="94" x2="190" y2="146" stroke="#313244" stroke-width="1"/>
+        <text x="206" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#6c7086">project/dependencies.conf</text>
+        <g font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace">
+          <text x="86" y="192" font-size="16" fill="#9399b2" xml:space="preserve">View dependencies</text>
+          <line x1="86" y1="195" x2="248" y2="195" stroke="#9399b2" stroke-width="1"/>
+          <text x="86" y="216" font-size="21" xml:space="preserve"><tspan fill="#cba6f7">lazy val</tspan><tspan fill="#cdd6f4"> `my-project` = </tspan><tspan fill="#89b4fa">project</tspan></text>
+          <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">  </tspan><tspan fill="#89b4fa">.enablePlugins</tspan><tspan fill="#cdd6f4">(</tspan><tspan fill="#f9e2af">JavaAppPackaging</tspan><tspan fill="#cdd6f4">)</tspan></text>
+          <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">  </tspan><tspan fill="#89b4fa">.dependsOn</tspan><tspan fill="#cdd6f4">(`my-project-shared`)</tspan></text>
+          <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cba6f7">lazy val</tspan><tspan fill="#cdd6f4"> `my-project-shared` = </tspan><tspan fill="#89b4fa">project</tspan></text>
+        </g>
+        <g opacity="0.95" filter="url(#cursor-shadow)">
+          <use href="#hand-cursor" x="139" y="173" width="48" height="48"/>
+        </g>
+    </g>
+  </g>
+
+  <!-- Frame 5: dependencies.conf base view return (688px) -->
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;1;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <g clip-path="url(#clip)">
+      <rect width="1100" height="688" fill="url(#bg)"/>
+      <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
+      <circle cx="92" cy="56" r="8" fill="#ff5f57"/>
+      <circle cx="118" cy="56" r="8" fill="#febc2e"/>
+      <circle cx="144" cy="56" r="8" fill="#28c840"/>
+      <rect x="50" y="90" width="1000" height="60" fill="#181825"/>
+      <text x="85" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#6c7086">build.sbt</text>
+      <line x1="190" y1="94" x2="190" y2="146" stroke="#313244" stroke-width="1"/>
+      <rect x="191" y="90" width="260" height="60" fill="#1e1e2e"/>
+      <line x1="191" y1="90" x2="451" y2="90" stroke="#89b4fa" stroke-width="2"/>
+      <text x="206" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#cdd6f4">project/dependencies.conf</text>
+      <g font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace">
+        <text x="86" y="192" font-size="16" fill="#6c7086" xml:space="preserve">View project</text>
+        <text x="86" y="216" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">my-project</tspan><tspan fill="#cdd6f4"> {</tspan></text>
+        <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
+        <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
+        <text x="86" y="330" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">2.10.0"</tspan></text>
+        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan></text>
+        <text x="86" y="444" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="482" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="520" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="558" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">    ]</tspan></text>
+        <text x="86" y="596" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">}</tspan></text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Frame 6: dependencies.conf tooltip (688px) -->
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;0;1" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <g clip-path="url(#clip)">
+      <rect width="1100" height="688" fill="url(#bg)"/>
+      <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
+      <circle cx="92" cy="56" r="8" fill="#ff5f57"/>
+      <circle cx="118" cy="56" r="8" fill="#febc2e"/>
+      <circle cx="144" cy="56" r="8" fill="#28c840"/>
+      <rect x="50" y="90" width="1000" height="60" fill="#181825"/>
+      <text x="85" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#6c7086">build.sbt</text>
+      <line x1="190" y1="94" x2="190" y2="146" stroke="#313244" stroke-width="1"/>
+      <rect x="191" y="90" width="260" height="60" fill="#1e1e2e"/>
+      <line x1="191" y1="90" x2="451" y2="90" stroke="#89b4fa" stroke-width="2"/>
+      <text x="206" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#cdd6f4">project/dependencies.conf</text>
+      <g font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace">
+        <text x="86" y="192" font-size="16" fill="#6c7086" xml:space="preserve">View project</text>
+        <text x="86" y="216" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">my-project</tspan><tspan fill="#cdd6f4"> {</tspan></text>
+        <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
+        <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
+        <text x="86" y="330" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">2.10.0"</tspan></text>
+        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan></text>
+        <text x="86" y="444" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="482" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="520" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="558" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">    ]</tspan></text>
+        <text x="86" y="596" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">}</tspan></text>
+      </g>
+      <line x1="187" y1="410" x2="615" y2="410" stroke="#a6e3a1" stroke-width="1.5"/>
+      <g filter="url(#tooltip-shadow)">
+        <rect x="150" y="173" width="810" height="210" rx="10" fill="#2d3043" stroke="#454760" stroke-width="1"/>
+        <text x="175" y="228" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="28" xml:space="preserve"><tspan fill="#cdd6f4" font-weight="bold">org.http4s</tspan><tspan fill="#6c7086">  ::  </tspan><tspan fill="#cdd6f4" font-weight="bold">http4s-core</tspan></text>
+        <text x="175" y="293" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="21" fill="#cdd6f4">Version:</text>
+        <rect x="290" y="274" width="112" height="28" rx="5" fill="#3a3e52"/>
+        <text x="298" y="293" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="21" fill="#cdd6f4">~0.23.25</text>
+        <text x="414" y="293" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="21" font-style="italic" fill="#7f849c">(update within minor)</text>
+        <line x1="175" y1="316" x2="935" y2="316" stroke="#454760" stroke-width="1"/>
+        <text x="175" y="348" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="18" fill="#94e2d5">Open on mvnrepository</text>
+      </g>
+      <g opacity="0.95" filter="url(#tooltip-shadow)">
+        <use href="#hand-cursor" x="337" y="384" width="48" height="48"/>
+      </g>
+    </g>
+  </g>
+
+</svg>
