@@ -13,7 +13,10 @@
     "vscode": "^1.75.0"
   },
   "main": "./dist/extension.js",
-  "activationEvents": ["onLanguage:sbt-dependencies"],
+  "activationEvents": [
+    "onLanguage:sbt-dependencies",
+    "workspaceContains:**/*.sbt"
+  ],
   "icon": "icon.png",
   "categories": ["Programming Languages"],
   "contributes": {
@@ -49,6 +52,16 @@
         "title": "Install Dependency",
         "category": "SBT Dependencies",
         "enablement": "resourceLangId == sbt-dependencies"
+      },
+      {
+        "command": "sbt-dependencies.openDependenciesGroup",
+        "title": "View Dependencies Group",
+        "category": "SBT Dependencies"
+      },
+      {
+        "command": "sbt-dependencies.openBuildProject",
+        "title": "View Project Definition",
+        "category": "SBT Dependencies"
       }
     ],
     "configurationDefaults": {
