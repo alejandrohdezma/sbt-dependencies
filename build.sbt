@@ -1,7 +1,7 @@
 ThisBuild / scalaVersion                  := _root_.scalafix.sbt.BuildInfo.scala212
 ThisBuild / organization                  := "com.alejandrohdezma"
 ThisBuild / pluginCrossBuild / sbtVersion := "1.4.0"
-ThisBuild / versionPolicyIntention        := Compatibility.BinaryAndSourceCompatible
+ThisBuild / versionPolicyIntention        := Compatibility.None
 
 // Simplify testing the plugin in its own build
 addCommandAlias("reloadSelf", "reload; clean; publishLocal; updateSbtPlugin; reload")
