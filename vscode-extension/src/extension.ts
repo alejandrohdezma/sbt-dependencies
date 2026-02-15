@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as vscode from "vscode";
 import { parseCodeLenses } from "./codelens";
 import { parseDiagnostics } from "./diagnostics";
@@ -377,7 +378,7 @@ class SbtBuildCodeLensProvider implements vscode.CodeLensProvider {
 
     let groupLineMap = new Map<string, number>();
     try {
-      const content = require("fs").readFileSync(depsConfUri.fsPath, "utf-8");
+      const content = fs.readFileSync(depsConfUri.fsPath, "utf-8");
       const confLines: string[] = content.split(/\r?\n/);
       for (const symbol of parseDocumentSymbols(confLines)) {
         groupLineMap.set(symbol.name, symbol.range.startLine);
@@ -389,23 +390,17 @@ class SbtBuildCodeLensProvider implements vscode.CodeLensProvider {
     const groupNames = Array.from(groupLineMap.keys());
     const codeLensDataList = parseCodeLenses(buildSbtLines, groupNames);
 
-    return codeLensDataList.map((data) => {
-      const range = new vscode.Range(data.line, 0, data.line, 0);
+    return codeLensDataList
+      .filter((data) => data.groupExists)
+      .map((data) => {
+        const range = new vscode.Range(data.line, 0, data.line, 0);
 
-      if (data.groupExists) {
         return new vscode.CodeLens(range, {
           title: "View dependencies",
           command: "sbt-dependencies.openDependenciesGroup",
           arguments: [depsConfUri, groupLineMap.get(data.projectName)],
         });
-      }
-
-      return new vscode.CodeLens(range, {
-        title: "Add to dependencies.conf",
-        command: "sbt-dependencies.openDependenciesGroup",
-        arguments: [depsConfUri, undefined],
       });
-    });
   }
 }
 
@@ -429,7 +424,7 @@ class DependencyGroupCodeLensProvider implements vscode.CodeLensProvider {
 
     let projectLineMap = new Map<string, number>();
     try {
-      const content = require("fs").readFileSync(buildSbtUri.fsPath, "utf-8");
+      const content = fs.readFileSync(buildSbtUri.fsPath, "utf-8");
       const buildLines: string[] = content.split(/\r?\n/);
       for (const data of parseCodeLenses(buildLines, [])) {
         projectLineMap.set(data.projectName, data.line);

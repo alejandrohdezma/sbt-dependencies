@@ -32,6 +32,20 @@ describe("parseCodeLenses", () => {
       expect(result[0].projectName).toBe("core");
     });
 
+    it("detects `lazy val name = module`", () => {
+      const lines = ["lazy val core = module"];
+      const result = parseCodeLenses(lines, []);
+      expect(result).toHaveLength(1);
+      expect(result[0].projectName).toBe("core");
+    });
+
+    it("detects `lazy val name = module.settings(...)`", () => {
+      const lines = ["lazy val core = module.settings(commonSettings)"];
+      const result = parseCodeLenses(lines, []);
+      expect(result).toHaveLength(1);
+      expect(result[0].projectName).toBe("core");
+    });
+
     it("detects indented definitions", () => {
       const lines = ["  lazy val core = project"];
       const result = parseCodeLenses(lines, []);
@@ -103,12 +117,6 @@ describe("parseCodeLenses", () => {
       expect(result).toHaveLength(0);
     });
 
-    it("ignores non-project assignments", () => {
-      const lines = ['lazy val settings = Seq(name := "test")'];
-      const result = parseCodeLenses(lines, []);
-      expect(result).toHaveLength(0);
-    });
-
     it("returns empty for empty input", () => {
       const result = parseCodeLenses([], []);
       expect(result).toHaveLength(0);
@@ -121,7 +129,7 @@ describe("parseCodeLenses", () => {
         'import sbt._',
         '',
         'lazy val root = (project in file("."))',
-        '  .aggregate(core, api, `my-plugin`)',
+        '  .aggregate(core, api, `my-plugin`, `sbt-dependencies`)',
         '',
         'lazy val core = project',
         '  .settings(commonSettings)',
@@ -129,10 +137,12 @@ describe("parseCodeLenses", () => {
         'lazy val api = project.in(file("api"))',
         '',
         'lazy val `my-plugin` = project.settings(pluginSettings)',
+        '',
+        'lazy val `sbt-dependencies` = module',
       ];
-      const groups = ["core", "my-plugin"];
+      const groups = ["core", "my-plugin", "sbt-dependencies"];
       const result = parseCodeLenses(lines, groups);
-      expect(result).toHaveLength(4);
+      expect(result).toHaveLength(5);
 
       expect(result[0].projectName).toBe("root");
       expect(result[0].groupExists).toBe(false);
@@ -149,6 +159,10 @@ describe("parseCodeLenses", () => {
       expect(result[3].projectName).toBe("my-plugin");
       expect(result[3].groupExists).toBe(true);
       expect(result[3].line).toBe(10);
+
+      expect(result[4].projectName).toBe("sbt-dependencies");
+      expect(result[4].groupExists).toBe(true);
+      expect(result[4].line).toBe(12);
     });
   });
 });
