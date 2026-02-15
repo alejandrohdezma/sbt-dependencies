@@ -41,12 +41,15 @@ class Tasks {
 
     val retractionFinder = RetractionFinder.fromUrls(Keys.dependencyUpdateRetractions.value)
 
+    val pinFinder = PinFinder.fromUrls(Keys.dependencyUpdatePins.value)
+
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value)
         .cached
         .ignoringVersions(ignoreFinder)
         .excludingRetracted(retractionFinder)
+        .pinningVersions(pinFinder)
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
@@ -208,12 +211,15 @@ class Tasks {
 
     val retractionFinder = RetractionFinder.fromUrls(Keys.dependencyUpdateRetractions.value)
 
+    val pinFinder = PinFinder.fromUrls(Keys.dependencyUpdatePins.value)
+
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value)
         .cached
         .ignoringVersions(ignoreFinder)
         .excludingRetracted(retractionFinder)
+        .pinningVersions(pinFinder)
 
     implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
 

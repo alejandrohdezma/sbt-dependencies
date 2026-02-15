@@ -170,6 +170,30 @@ class Keys {
     "URLs pointing to update-ignore files (Scala Steward HOCON format). Default: Scala Steward's public config"
   }
 
+  /** URLs pointing to update-pin files in Scala Steward's HOCON format.
+    *
+    * When `updateDependencies` runs, it loads `updates.pin` entries from these URLs and restricts updates to versions
+    * that match the pin's version pattern. Only artifacts matching a pin's groupId/artifactId are affected; unpinned
+    * artifacts pass through freely.
+    *
+    * Default: Scala Steward's public default.scala-steward.conf
+    *
+    * @example
+    *   {{{
+    * // Disable all pins
+    * ThisBuild / dependencyUpdatePins := Nil
+    *
+    * // Add custom pin URL
+    * ThisBuild / dependencyUpdatePins += url("https://example.com/my-pins.conf")
+    *
+    * // Use a local file
+    * ThisBuild / dependencyUpdatePins += file("pins.conf").toURI.toURL
+    *   }}}
+    */
+  val dependencyUpdatePins = settingKey[List[java.net.URL]] {
+    "URLs pointing to update-pin files (Scala Steward HOCON format). Default: Scala Steward's public config"
+  }
+
   /** Maximum number of dependencies resolved concurrently.
     *
     * Controls the parallelism of the `ForkJoinPool` used when checking dependency versions.

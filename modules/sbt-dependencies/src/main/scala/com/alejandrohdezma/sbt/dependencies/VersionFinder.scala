@@ -138,6 +138,13 @@ object VersionFinder {
           .findVersions(organization, name, isCross, isSbtPlugin)
           .filterNot(v => retractionFinder.isRetracted(organization, name, v.toVersionString))
 
+    /** Wraps this `VersionFinder` to keep only versions allowed by the given `PinFinder`. */
+    def pinningVersions(pinFinder: PinFinder): VersionFinder =
+      (organization, name, isCross, isSbtPlugin) =>
+        underlying
+          .findVersions(organization, name, isCross, isSbtPlugin)
+          .filter(v => pinFinder.isAllowed(organization, name, v.toVersionString))
+
   }
 
 }

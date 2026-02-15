@@ -1,0 +1,4 @@
+myproject = [
+  "io.circe::circe-yaml:0.15.2"
+  "org.http4s::http4s-core:0.21.34"
+]

@@ -137,12 +137,15 @@ class Commands {
 
     val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
+    val pinFinder = PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins))
+
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
         .cached
         .ignoringVersions(ignoreFinder)
         .excludingRetracted(retractionFinder)
+        .pinningVersions(pinFinder)
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -228,12 +231,15 @@ class Commands {
 
     implicit val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
+    val pinFinder = PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins))
+
     implicit val versionFinder: VersionFinder =
       VersionFinder
         .fromCoursier("2.13", project.get(ThisBuild / Keys.dependencyResolverTimeout))
         .cached
         .ignoringVersions(ignoreFinder)
         .excludingRetracted(retractionFinder)
+        .pinningVersions(pinFinder)
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -274,12 +280,15 @@ class Commands {
 
         val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
+        val pinFinder = PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins))
+
         implicit val versionFinder: VersionFinder =
           VersionFinder
             .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
             .cached
             .ignoringVersions(ignoreFinder)
             .excludingRetracted(retractionFinder)
+            .pinningVersions(pinFinder)
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
