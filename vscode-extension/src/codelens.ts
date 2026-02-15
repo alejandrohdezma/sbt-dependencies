@@ -4,7 +4,7 @@ export interface CodeLensData {
   groupExists: boolean;
 }
 
-const projectPattern = /^\s*lazy\s+val\s+(?:`([^`]+)`|(\w+))\s*=\s*\(?project/;
+const projectPattern = /^\s*lazy\s+val\s+(?:`([^`]+)`|(\w+))\s*=/;
 
 export function parseCodeLenses(
   buildSbtLines: string[],
