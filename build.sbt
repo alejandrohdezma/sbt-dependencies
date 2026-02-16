@@ -3,6 +3,14 @@ ThisBuild / organization                  := "com.alejandrohdezma"
 ThisBuild / pluginCrossBuild / sbtVersion := "1.4.0"
 ThisBuild / versionPolicyIntention        := Compatibility.None
 
+ThisBuild / fileTransformers += ".gitignore" -> { (content: String) =>
+  content + """
+              |### sbt-dependencies scripted tests ###
+              |# Prevent updateScalafmtVersion from modifying .scalafmt.conf inside scripted test directories
+              |
+              |**/src/sbt-test/**/.scalafmt.conf""".stripMargin
+}
+
 // Simplify testing the plugin in its own build
 addCommandAlias("reloadSelf", "reload; clean; publishLocal; updateSbtPlugin; reload")
 

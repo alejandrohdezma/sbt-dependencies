@@ -16,6 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
+import sbt.KeyRanks
 import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 
@@ -222,7 +223,7 @@ class Keys {
     */
   val dependencyUpdateReportEnabled = settingKey[Boolean] {
     "Whether to write .sbt-update-report on step failure in updateAllDependencies. Default: true on CI"
-  }
+  }.withRank(KeyRanks.Invisible)
 
 }
 
