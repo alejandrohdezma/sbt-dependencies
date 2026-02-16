@@ -96,3 +96,8 @@ website/build
 # https://github.com/alejandrohdezma/sbt-scalafmt-defaults
 
 .scalafmt.conf
+
+### sbt-dependencies scripted tests ###
+# Prevent updateScalafmtVersion from modifying .scalafmt.conf inside scripted test directories
+
+**/src/sbt-test/**/.scalafmt.conf
