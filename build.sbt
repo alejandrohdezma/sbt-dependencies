@@ -25,6 +25,8 @@ lazy val `sbt-dependencies` = module
   .enablePlugins(SbtPlugin)
   .settings(scriptedLaunchOpts += s"-Dplugin.version=${version.value}")
   .settings(scriptedBufferLog := !sys.env.contains("CI"))
+  .settings(scriptedBatchExecution := true)
+  .settings(scriptedParallelInstances := 5)
   .enablePlugins(BuildInfoPlugin)
   .settings(buildInfoKeys := Seq[BuildInfoKey](version))
   .settings(buildInfoPackage := "com.alejandrohdezma.sbt.dependencies")
