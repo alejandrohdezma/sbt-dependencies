@@ -33,7 +33,7 @@ class Commands {
   /** All commands provided by this plugin. */
   val all = Seq(initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies,
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
-    enableEvictionWarnings)
+    enableEvictionWarnings, snapshotDependencies, computeDependencyDiff)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -121,8 +121,16 @@ class Commands {
     val base          = project.get(ThisBuild / baseDirectory)
     val reportEnabled = project.get(ThisBuild / Keys.dependencyUpdateReportEnabled)
 
-    runStepsSafely("updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalafmtVersion",
-      "updateScalaVersions", "updateDependencies", "reload", "updateSbt")(state, base, reportEnabled)
+    val steps =
+      if (reportEnabled)
+        List("snapshotDependencies", "updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies",
+          "updateScalafmtVersion", "updateScalaVersions", "updateDependencies", "reload", "updateSbt",
+          "disableEvictionWarnings", "computeDependencyDiff", "enableEvictionWarnings")
+      else
+        List("updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalafmtVersion",
+          "updateScalaVersions", "updateDependencies", "reload", "updateSbt")
+
+    runStepsSafely(steps: _*)(state, base, reportEnabled)
   }
 
   /** Updates the configured SBT plugin. Checks `project/project/plugins.sbt` first, falling back to
@@ -325,6 +333,48 @@ class Commands {
     runCommand("set ThisBuild / evictionErrorLevel := Level.Error")(state)
   }
 
+  /** Snapshots all resolved dependencies (including transitives) for every project to `.sbt-dependency-snapshot`. */
+  lazy val snapshotDependencies = Command.command("snapshotDependencies") { state =>
+    Try {
+      val snapshot = generateSnapshot(state)
+
+      val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+      DependencyDiff.writeSnapshot(base / ".sbt-dependency-snapshot", snapshot)
+    }.onError { case e =>
+      state.log.trace(e)
+      state.log.error("Unable to generate dependency snapshot")
+    }
+
+    state
+  }
+
+  /** Computes dependency diff from snapshot, writes `.sbt-dependency-diff`, and cleans up the snapshot file. */
+  lazy val computeDependencyDiff = Command.command("computeDependencyDiff") { state =>
+    Try {
+      val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+      val snapshotFile = base / ".sbt-dependency-snapshot"
+
+      if (!snapshotFile.exists()) {
+        state.log.warn("Snapshot file not found, skipping diff computation")
+      } else {
+        val before = DependencyDiff.readSnapshot(snapshotFile)
+
+        val after = generateSnapshot(state)
+
+        val diffs = DependencyDiff.compute(before, after)
+
+        if (diffs.nonEmpty)
+          IO.write(base / ".sbt-dependency-diff", DependencyDiff.toHocon(diffs))
+
+        IO.delete(snapshotFile)
+      }
+    }.onError { case e => state.log.warn(s"computeDependencyDiff: ${e.getMessage}") }
+
+    state
+  }
+
   private def isPluginInMetaBuild(state: State): Boolean = {
     val project    = Project.extract(state)
     val base       = project.get(ThisBuild / baseDirectory)
@@ -340,6 +390,24 @@ class Commands {
     metaBuild.exists() && IO.readLines(metaBuild).exists(pluginRegex.findFirstIn(_).isDefined)
   }
 
+  private def generateSnapshot(state: State): Map[String, Set[DependencyDiff.ResolvedDep]] = {
+    val project = Project.extract(state)
+
+    val snapshot = project.structure.allProjectRefs.flatMap { ref =>
+      val projectId = ref.project
+
+      Try(project.runTask(ref / Keys.allProjectDependencies, state)).toOption.toList.map { case (_, deps) =>
+        projectId -> deps.map(DependencyDiff.ResolvedDep.fromModuleID).toSet
+      }
+    }.toMap
+
+    snapshot.foreach { case (proj, deps) =>
+      state.log.info(s"Generated snapshot for `$proj` with ${deps.size} dependencies")
+    }
+
+    snapshot
+  }
+
   private def runInMetaBuild(commands: String*)(state: State): State =
     if (isPluginInMetaBuild(state)) runCommand(("reload plugins" +: commands :+ "reload return"): _*)(state)
     else state
@@ -348,6 +416,8 @@ class Commands {
     implicit val logger: Logger = state.log
 
     IO.delete(base / ".sbt-update-report")
+    IO.delete(base / ".sbt-dependency-snapshot")
+    IO.delete(base / ".sbt-dependency-diff")
 
     val remaining = ListBuffer(steps: _*)
 
