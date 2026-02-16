@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** Pattern for matching dependency versions.
   *

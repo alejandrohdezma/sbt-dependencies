@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.model
 
 import sbt.librarymanagement.CrossVersion
 import sbt.librarymanagement.ModuleID
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.MigrationFinder
+import com.alejandrohdezma.sbt.dependencies.TestLogger
+import com.alejandrohdezma.sbt.dependencies.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 
 class DependencySuite extends munit.FunSuite {
 

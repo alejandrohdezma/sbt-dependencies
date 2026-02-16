@@ -26,7 +26,8 @@ import scala.util.Try
 import sbt.url
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigFactory
 
 /** Represents an artifact migration from old coordinates to new coordinates.

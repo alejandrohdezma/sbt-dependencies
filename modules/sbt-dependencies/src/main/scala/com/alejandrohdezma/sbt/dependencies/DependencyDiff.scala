@@ -23,7 +23,7 @@ import scala.collection.JavaConverters._
 import sbt.IO
 import sbt.librarymanagement.ModuleID
 
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigRenderOptions
 import com.typesafe.config.ConfigValueFactory

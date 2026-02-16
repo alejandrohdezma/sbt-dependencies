@@ -16,7 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 
 class UpdateFilterSuite extends munit.FunSuite {
 

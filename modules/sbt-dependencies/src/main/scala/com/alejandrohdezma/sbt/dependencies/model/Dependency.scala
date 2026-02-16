@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.model
 
 import sbt.Defaults.sbtPluginExtra
 import sbt.librarymanagement.CrossVersion
@@ -23,7 +23,10 @@ import sbt.librarymanagement.ModuleID
 import sbt.librarymanagement.syntax._
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.MigrationFinder
+import com.alejandrohdezma.sbt.dependencies.Utils
+import com.alejandrohdezma.sbt.dependencies.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** Represents a dependency line from the dependencies file.
   *

@@ -18,8 +18,8 @@ package com.alejandrohdezma.sbt.dependencies
 
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 
 class UtilsSuite extends munit.FunSuite {
 

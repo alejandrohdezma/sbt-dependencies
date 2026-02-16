@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.model
 
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric.Marker
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric.Marker
 
 class VersionSuite extends munit.FunSuite {
 

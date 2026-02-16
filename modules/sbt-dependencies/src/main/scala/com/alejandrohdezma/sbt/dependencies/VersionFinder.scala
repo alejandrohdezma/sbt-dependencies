@@ -26,6 +26,7 @@ import scala.util.chaining._
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import coursier.cache.FileCache
 import coursier.{Dependency => _, _}
 

@@ -16,7 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** Represents a filter for updating dependencies. */
 sealed trait UpdateFilter {

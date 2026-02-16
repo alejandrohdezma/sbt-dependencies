@@ -22,9 +22,10 @@ import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 class DependenciesFileSuite extends munit.FunSuite {
 

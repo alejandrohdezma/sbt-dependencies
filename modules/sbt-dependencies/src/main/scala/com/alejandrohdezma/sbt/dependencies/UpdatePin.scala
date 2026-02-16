@@ -26,7 +26,7 @@ import scala.util.Try
 import sbt.url
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType

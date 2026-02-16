@@ -22,6 +22,7 @@ import scala.Console._
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.string.box._
 
 /** Abstraction for checking if a dependency version is retracted. */

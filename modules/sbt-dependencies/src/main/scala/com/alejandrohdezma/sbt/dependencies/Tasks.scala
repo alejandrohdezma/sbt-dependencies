@@ -26,7 +26,8 @@ import sbt.complete.DefaultParsers._
 import sbt.internal.util.complete.Parser
 import sbt.{Keys => _, _}
 
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.string.box._
 
 /** SBT input tasks for managing dependencies. */
