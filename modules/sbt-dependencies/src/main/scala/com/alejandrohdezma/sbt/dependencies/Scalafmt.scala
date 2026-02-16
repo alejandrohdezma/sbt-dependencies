@@ -114,7 +114,7 @@ object Scalafmt {
       val ignored  = scala.collection.mutable.Set.empty[String]
       val pLogger  = ProcessLogger(line => ignored += line.trim, _ => ())
       val paths    = files.map(_.getAbsolutePath)
-      val exitCode = Process("git" +: "check-ignore" +: paths, baseDir).!(pLogger)
+      val exitCode = Process("git" +: "check-ignore" +: "--no-index" +: paths, baseDir).!(pLogger)
 
       if (exitCode === 128) files
       else {
