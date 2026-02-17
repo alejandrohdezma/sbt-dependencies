@@ -5,6 +5,7 @@ import { parseDiagnostics } from "./diagnostics";
 import { parseDependency, buildHoverMarkdown } from "./hover";
 import { parseDocumentLinks } from "./links";
 import { findReferences } from "./references";
+import { prepareVariableRename, computeVariableRenameEdits } from "./rename";
 import { parseDocumentSymbols } from "./symbols";
 
 /**
@@ -230,6 +231,51 @@ class DependencyDocumentLinkProvider implements vscode.DocumentLinkProvider {
     }
 
     return results;
+  }
+}
+
+/**
+ * Provides rename support for `{{varName}}` tokens in `dependencies.conf`
+ * files.  F2 on a variable renames all occurrences in the document.
+ */
+class DependencyRenameProvider implements vscode.RenameProvider {
+  prepareRename(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): vscode.Range | undefined {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const range = prepareVariableRename(lines, position.line, position.character);
+    if (!range) return undefined;
+
+    return new vscode.Range(range.startLine, range.startCol, range.endLine, range.endCol);
+  }
+
+  provideRenameEdits(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    newName: string
+  ): vscode.WorkspaceEdit | undefined {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const result = computeVariableRenameEdits(lines, position.line, position.character, newName);
+    if (!result) return undefined;
+
+    const edit = new vscode.WorkspaceEdit();
+    for (const e of result.edits) {
+      edit.replace(
+        document.uri,
+        new vscode.Range(e.line, e.startCol, e.line, e.endCol),
+        e.newText
+      );
+    }
+    return edit;
   }
 }
 
@@ -553,6 +599,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerDocumentLinkProvider(
       "sbt-dependencies",
       new DependencyDocumentLinkProvider()
+    ),
+    vscode.languages.registerRenameProvider(
+      "sbt-dependencies",
+      new DependencyRenameProvider()
     ),
     vscode.languages.registerCodeActionsProvider(
       "sbt-dependencies",
