@@ -7,6 +7,7 @@ import { parseDependency, buildHoverMarkdown } from "./hover";
 import { parseDocumentLinks } from "./links";
 import { resolveRepositoryUrl } from "./pom";
 import { findReferences } from "./references";
+import { getQuickFixes } from "./quickfix";
 import { prepareVariableRename, computeVariableRenameEdits } from "./rename";
 import { parseDocumentSymbols } from "./symbols";
 
@@ -468,8 +469,11 @@ async function runInstallDependencyInGroup(groupName: string): Promise<void> {
 class DependencyCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(
     document: vscode.TextDocument,
-    range: vscode.Range | vscode.Selection
+    range: vscode.Range | vscode.Selection,
+    context: vscode.CodeActionContext
   ): vscode.CodeAction[] | undefined {
+    const actions: vscode.CodeAction[] = [];
+
     const line = document.lineAt(range.start.line).text;
     const dep = parseDependency(line);
 
@@ -483,7 +487,7 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
         title: `Update ${dep.org}:${dep.artifact}`,
         arguments: [dep.org, dep.artifact],
       };
-      return [action];
+      actions.push(action);
     }
 
     // Check if cursor is on a group header line
@@ -501,10 +505,23 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
         title: `Install dependency in '${groupName}'`,
         arguments: [groupName],
       };
-      return [action];
+      actions.push(action);
     }
 
-    return undefined;
+    for (const diagnostic of context.diagnostics) {
+      const fixes = getQuickFixes(diagnostic.message, diagnostic.range.start.line);
+      for (const fix of fixes) {
+        const action = new vscode.CodeAction(fix.title, vscode.CodeActionKind.QuickFix);
+        action.isPreferred = true;
+        action.diagnostics = [diagnostic];
+        const edit = new vscode.WorkspaceEdit();
+        edit.delete(document.uri, document.lineAt(fix.deleteLineIndex).rangeIncludingLineBreak);
+        action.edit = edit;
+        actions.push(action);
+      }
+    }
+
+    return actions.length > 0 ? actions : undefined;
   }
 }
 
@@ -678,7 +695,8 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.languages.registerCodeActionsProvider(
       selector,
-      new DependencyCodeActionProvider()
+      new DependencyCodeActionProvider(),
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix, vscode.CodeActionKind.RefactorRewrite] }
     ),
     vscode.commands.registerCommand(
       "sbt-dependencies.updateAllDependencies",
