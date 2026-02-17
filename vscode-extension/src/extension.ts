@@ -649,33 +649,35 @@ async function openBuildProject(
 
 /** Registers providers, commands, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
+  const selector: vscode.DocumentSelector = { language: "sbt-dependencies", scheme: "file" };
+
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyHoverProvider()
     ),
     vscode.languages.registerDocumentSymbolProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyDocumentSymbolProvider()
     ),
     vscode.languages.registerReferenceProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyReferenceProvider()
     ),
     vscode.languages.registerDocumentLinkProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyDocumentLinkProvider()
     ),
     vscode.languages.registerRenameProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyRenameProvider()
     ),
     vscode.languages.registerDocumentFormattingEditProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyDocumentFormattingProvider()
     ),
     vscode.languages.registerCodeActionsProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyCodeActionProvider()
     ),
     vscode.commands.registerCommand(
@@ -699,7 +701,7 @@ export function activate(context: vscode.ExtensionContext): void {
       runInstallDependencyInGroup
     ),
     vscode.languages.registerCodeLensProvider(
-      { pattern: "**/*.sbt" },
+      { pattern: "**/*.sbt", scheme: "file" },
       new SbtBuildCodeLensProvider()
     ),
     vscode.commands.registerCommand(
@@ -707,7 +709,7 @@ export function activate(context: vscode.ExtensionContext): void {
       openDependenciesGroup
     ),
     vscode.languages.registerCodeLensProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyGroupCodeLensProvider()
     ),
     vscode.commands.registerCommand(
