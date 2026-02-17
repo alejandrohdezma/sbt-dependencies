@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import { parseCodeLenses } from "./codelens";
 import { parseDiagnostics } from "./diagnostics";
 import { parseDependency, buildHoverMarkdown } from "./hover";
+import { parseDocumentLinks } from "./links";
 import { findReferences } from "./references";
 import { parseDocumentSymbols } from "./symbols";
 
@@ -193,6 +194,42 @@ class DependencyReferenceProvider implements vscode.ReferenceProvider {
           new vscode.Range(r.line, r.startCol, r.line, r.endCol)
         )
     );
+  }
+}
+
+/**
+ * Provides Cmd+Clickable links for dependencies in `dependencies.conf`
+ * files, opening the corresponding mvnrepository.com page.
+ */
+class DependencyDocumentLinkProvider implements vscode.DocumentLinkProvider {
+  async provideDocumentLinks(
+    document: vscode.TextDocument
+  ): Promise<vscode.DocumentLink[]> {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const parsed = parseDocumentLinks(lines);
+    const results: vscode.DocumentLink[] = [];
+
+    for (const link of parsed) {
+      const dep = parseDependency(document.lineAt(link.range.startLine).text);
+      if (!dep) continue;
+
+      const isScala = dep.separator === "::";
+      const isSbtPlugin = dep.config === "sbt-plugin";
+      const available = await checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
+      if (!available) continue;
+
+      const range = new vscode.Range(
+        link.range.startLine, link.range.startCol,
+        link.range.endLine, link.range.endCol
+      );
+      results.push(new vscode.DocumentLink(range, vscode.Uri.parse(link.url)));
+    }
+
+    return results;
   }
 }
 
@@ -512,6 +549,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerReferenceProvider(
       "sbt-dependencies",
       new DependencyReferenceProvider()
+    ),
+    vscode.languages.registerDocumentLinkProvider(
+      "sbt-dependencies",
+      new DependencyDocumentLinkProvider()
     ),
     vscode.languages.registerCodeActionsProvider(
       "sbt-dependencies",
