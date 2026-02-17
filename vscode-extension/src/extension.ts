@@ -26,7 +26,8 @@ function updateDiagnostics(
   const results = parseDiagnostics(lines);
   const diagnostics = results.map((r) => {
     const range = new vscode.Range(r.range.startLine, r.range.startCol, r.range.endLine, r.range.endCol);
-    const d = new vscode.Diagnostic(range, r.message, vscode.DiagnosticSeverity.Error);
+    const severity = r.severity === "warning" ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
+    const d = new vscode.Diagnostic(range, r.message, severity);
     d.source = r.source;
     return d;
   });
