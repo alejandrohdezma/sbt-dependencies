@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.finders
 
 import java.nio.file.Files
 
 import sbt.IO
 import sbt.util.Logger
+
+import com.alejandrohdezma.sbt.dependencies.TestLogger
 
 class PinFinderSuite extends munit.FunSuite {
 

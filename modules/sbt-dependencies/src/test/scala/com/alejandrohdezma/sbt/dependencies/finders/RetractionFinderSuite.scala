@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.finders
 
 import java.nio.file.Files
 
 import sbt.IO
 import sbt.util.Level
 
+import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 
 class RetractionFinderSuite extends munit.FunSuite {

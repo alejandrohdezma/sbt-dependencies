@@ -27,7 +27,7 @@ import sbt.url
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.ConfigOps
-import com.alejandrohdezma.sbt.dependencies.Utils
+import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigFactory

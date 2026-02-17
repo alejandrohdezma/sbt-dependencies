@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.finders
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException

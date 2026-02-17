@@ -21,7 +21,7 @@ import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
-import com.alejandrohdezma.sbt.dependencies.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 
 class DependencyParseSuite extends munit.FunSuite {

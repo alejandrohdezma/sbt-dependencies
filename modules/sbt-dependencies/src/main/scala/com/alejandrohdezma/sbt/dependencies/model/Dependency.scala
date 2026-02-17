@@ -23,9 +23,9 @@ import sbt.librarymanagement.ModuleID
 import sbt.librarymanagement.syntax._
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.MigrationFinder
-import com.alejandrohdezma.sbt.dependencies.Utils
-import com.alejandrohdezma.sbt.dependencies.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
+import com.alejandrohdezma.sbt.dependencies.finders.Utils
+import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** Represents a dependency line from the dependencies file.

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.finders
 
 import sbt.util.Logger
 
@@ -37,7 +37,8 @@ object Utils {
     * @param dependency
     *   The dependency to find the latest version for.
     * @return
-    *   A [[Dependency.WithNumericVersion]] with the latest resolved version, preserving the original marker.
+    *   A [[com.alejandrohdezma.sbt.dependencies.model.Dependency.WithNumericVersion]] with the latest resolved version,
+    *   preserving the original marker.
     */
   def findLatestVersion(
       dependency: Dependency

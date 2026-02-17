@@ -24,6 +24,9 @@ import scala.sys.process._
 import sbt._
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
+import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
+import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 
 class ScalafmtSuite extends munit.FunSuite {

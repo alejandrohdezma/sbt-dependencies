@@ -20,9 +20,9 @@ import sbt.librarymanagement.CrossVersion
 import sbt.librarymanagement.ModuleID
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.TestLogger
-import com.alejandrohdezma.sbt.dependencies.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
+import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 
 class DependencySuite extends munit.FunSuite {
