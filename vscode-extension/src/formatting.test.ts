@@ -175,8 +175,8 @@ describe("formatDocument", () => {
       '    "co.fs2::fs2-core:^3.9.4"',
       '    "com.disneystreaming.smithy4s::smithy4s-core:{{smithy4sVersion}}"',
       '    "org.http4s::http4s-core:~0.23.25"',
-      '    "org.scalameta::munit:1.0.0:test"',
       '    "org.typelevel::cats-core:^2.10.0"',
+      '    "org.scalameta::munit:1.0.0:test"',
       '    "org.typelevel::munit-cats-effect:2.0.0:test"',
       '  ]',
       '}',
@@ -264,6 +264,26 @@ describe("formatDocument", () => {
     expect(result).toBe([
       'group-a = [',
       '  "org.typelevel::cats-core:2.10.0"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("sorts by config first (empty before named) then by org:artifact", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.scalameta::munit:1.0.0:test"',
+      '  "org.typelevel::cats-core:^2.10.0"',
+      '  "co.fs2::fs2-core:^3.9.4"',
+      '  "org.typelevel::munit-cats-effect:2.0.0:test"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "co.fs2::fs2-core:^3.9.4"',
+      '  "org.typelevel::cats-core:^2.10.0"',
+      '  "org.scalameta::munit:1.0.0:test"',
+      '  "org.typelevel::munit-cats-effect:2.0.0:test"',
       ']',
     ].join("\n"));
   });
