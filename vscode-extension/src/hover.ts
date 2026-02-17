@@ -42,6 +42,15 @@ export function parseDependency(line: string): DependencyMatch | undefined {
 }
 
 /**
+ * Builds a mvnrepository.com URL for the given dependency.
+ */
+export function buildMvnRepositoryUrl(dep: DependencyMatch): string {
+  const isSbtPlugin = dep.config === "sbt-plugin";
+  const artifactForUrl = isSbtPlugin ? `${dep.artifact}_2.12_1.0` : dep.artifact;
+  return `https://mvnrepository.com/artifact/${dep.org}/${artifactForUrl}`;
+}
+
+/**
  * Builds the full markdown hover string for a dependency.
  *
  * Includes organization, artifact, version marker explanation,
@@ -73,10 +82,7 @@ export function buildHoverMarkdown(dep: DependencyMatch, available: boolean): st
   }
 
   if (available) {
-    const isSbtPlugin = dep.config === "sbt-plugin";
-    const artifactForUrl = isSbtPlugin ? `${dep.artifact}_2.12_1.0` : dep.artifact;
-    const url = `https://mvnrepository.com/artifact/${dep.org}/${artifactForUrl}`;
-    md += `\n\n[Open on mvnrepository](${url})`;
+    md += `\n\n[Open on mvnrepository](${buildMvnRepositoryUrl(dep)})`;
   }
 
   return md;

@@ -2,8 +2,12 @@ import * as fs from "node:fs";
 import * as vscode from "vscode";
 import { parseCodeLenses } from "./codelens";
 import { parseDiagnostics } from "./diagnostics";
+import { formatDocument } from "./formatting";
 import { parseDependency, buildHoverMarkdown } from "./hover";
+import { parseDocumentLinks } from "./links";
+import { resolveRepositoryUrl } from "./pom";
 import { findReferences } from "./references";
+import { prepareVariableRename, computeVariableRenameEdits } from "./rename";
 import { parseDocumentSymbols } from "./symbols";
 
 /**
@@ -26,7 +30,8 @@ function updateDiagnostics(
   const results = parseDiagnostics(lines);
   const diagnostics = results.map((r) => {
     const range = new vscode.Range(r.range.startLine, r.range.startCol, r.range.endLine, r.range.endCol);
-    const d = new vscode.Diagnostic(range, r.message, vscode.DiagnosticSeverity.Error);
+    const severity = r.severity === "warning" ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
+    const d = new vscode.Diagnostic(range, r.message, severity);
     d.source = r.source;
     return d;
   });
@@ -91,6 +96,39 @@ function warmAvailabilityCache(document: vscode.TextDocument): void {
       const isScala = dep.separator === "::";
       const isSbtPlugin = dep.config === "sbt-plugin";
       checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
+    }
+  }
+}
+
+/** Cache of repository URL lookups from Coursier POM files. */
+const repoUrlCache = new Map<string, string | undefined>();
+
+/**
+ * Resolves and caches the project repository URL for a dependency by
+ * reading POM files in the Coursier cache.
+ */
+function resolveAndCacheRepoUrl(dep: import("./hover").DependencyMatch): string | undefined {
+  const cacheKey = `${dep.org}:${dep.artifact}:${dep.separator}:${dep.config ?? ""}`;
+  if (repoUrlCache.has(cacheKey)) return repoUrlCache.get(cacheKey);
+
+  const url = resolveRepositoryUrl(dep);
+  repoUrlCache.set(cacheKey, url);
+  return url;
+}
+
+/**
+ * Scans a document for dependencies and pre-resolves their repository URLs
+ * from the Coursier cache, populating the repoUrlCache.
+ */
+function warmRepoUrlCache(document: vscode.TextDocument): void {
+  if (document.languageId !== "sbt-dependencies") return;
+
+  for (let i = 0; i < document.lineCount; i++) {
+    const text = document.lineAt(i).text;
+    const dep = parseDependency(text);
+
+    if (dep) {
+      resolveAndCacheRepoUrl(dep);
     }
   }
 }
@@ -192,6 +230,118 @@ class DependencyReferenceProvider implements vscode.ReferenceProvider {
           new vscode.Range(r.line, r.startCol, r.line, r.endCol)
         )
     );
+  }
+}
+
+/**
+ * Provides Cmd+Clickable links for dependencies in `dependencies.conf`
+ * files.  When a project repository URL is found in the Coursier cache
+ * it links there; otherwise it falls back to mvnrepository.com.
+ */
+class DependencyDocumentLinkProvider implements vscode.DocumentLinkProvider {
+  async provideDocumentLinks(
+    document: vscode.TextDocument
+  ): Promise<vscode.DocumentLink[]> {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const parsed = parseDocumentLinks(lines, resolveAndCacheRepoUrl);
+    const results: vscode.DocumentLink[] = [];
+
+    for (const link of parsed) {
+      const isMvnRepository = link.url.includes("mvnrepository.com");
+
+      // When the link points to a repo URL (not mvnrepository), skip the
+      // availability check — its presence in the cache proves the artifact
+      // exists.
+      if (isMvnRepository) {
+        const dep = parseDependency(document.lineAt(link.range.startLine).text);
+        if (!dep) continue;
+
+        const isScala = dep.separator === "::";
+        const isSbtPlugin = dep.config === "sbt-plugin";
+        const available = await checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
+        if (!available) continue;
+      }
+
+      const range = new vscode.Range(
+        link.range.startLine, link.range.startCol,
+        link.range.endLine, link.range.endCol
+      );
+      results.push(new vscode.DocumentLink(range, vscode.Uri.parse(link.url)));
+    }
+
+    return results;
+  }
+}
+
+/**
+ * Provides rename support for `{{varName}}` tokens in `dependencies.conf`
+ * files.  F2 on a variable renames all occurrences in the document.
+ */
+class DependencyRenameProvider implements vscode.RenameProvider {
+  prepareRename(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): vscode.Range | undefined {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const range = prepareVariableRename(lines, position.line, position.character);
+    if (!range) return undefined;
+
+    return new vscode.Range(range.startLine, range.startCol, range.endLine, range.endCol);
+  }
+
+  provideRenameEdits(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    newName: string
+  ): vscode.WorkspaceEdit | undefined {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const result = computeVariableRenameEdits(lines, position.line, position.character, newName);
+    if (!result) return undefined;
+
+    const edit = new vscode.WorkspaceEdit();
+    for (const e of result.edits) {
+      edit.replace(
+        document.uri,
+        new vscode.Range(e.line, e.startCol, e.line, e.endCol),
+        e.newText
+      );
+    }
+    return edit;
+  }
+}
+
+/**
+ * Provides document formatting for `dependencies.conf` files, sorting
+ * dependencies alphabetically within groups and normalizing indentation.
+ */
+class DependencyDocumentFormattingProvider implements vscode.DocumentFormattingEditProvider {
+  provideDocumentFormattingEdits(
+    document: vscode.TextDocument
+  ): vscode.TextEdit[] {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const formatted = formatDocument(lines);
+    const fullRange = new vscode.Range(
+      0, 0,
+      document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length
+    );
+
+    return [vscode.TextEdit.replace(fullRange, formatted)];
   }
 }
 
@@ -499,21 +649,35 @@ async function openBuildProject(
 
 /** Registers providers, commands, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
+  const selector: vscode.DocumentSelector = { language: "sbt-dependencies", scheme: "file" };
+
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyHoverProvider()
     ),
     vscode.languages.registerDocumentSymbolProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyDocumentSymbolProvider()
     ),
     vscode.languages.registerReferenceProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyReferenceProvider()
     ),
+    vscode.languages.registerDocumentLinkProvider(
+      selector,
+      new DependencyDocumentLinkProvider()
+    ),
+    vscode.languages.registerRenameProvider(
+      selector,
+      new DependencyRenameProvider()
+    ),
+    vscode.languages.registerDocumentFormattingEditProvider(
+      selector,
+      new DependencyDocumentFormattingProvider()
+    ),
     vscode.languages.registerCodeActionsProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyCodeActionProvider()
     ),
     vscode.commands.registerCommand(
@@ -537,7 +701,7 @@ export function activate(context: vscode.ExtensionContext): void {
       runInstallDependencyInGroup
     ),
     vscode.languages.registerCodeLensProvider(
-      { pattern: "**/*.sbt" },
+      { pattern: "**/*.sbt", scheme: "file" },
       new SbtBuildCodeLensProvider()
     ),
     vscode.commands.registerCommand(
@@ -545,7 +709,7 @@ export function activate(context: vscode.ExtensionContext): void {
       openDependenciesGroup
     ),
     vscode.languages.registerCodeLensProvider(
-      "sbt-dependencies",
+      selector,
       new DependencyGroupCodeLensProvider()
     ),
     vscode.commands.registerCommand(
@@ -561,10 +725,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidOpenTextDocument(doc => {
       updateDiagnostics(doc, diagnostics);
       warmAvailabilityCache(doc);
+      warmRepoUrlCache(doc);
     }),
     vscode.workspace.onDidChangeTextDocument(e => {
       updateDiagnostics(e.document, diagnostics);
       warmAvailabilityCache(e.document);
+      warmRepoUrlCache(e.document);
     }),
     vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri))
   );
@@ -572,6 +738,7 @@ export function activate(context: vscode.ExtensionContext): void {
   vscode.workspace.textDocuments.forEach(doc => {
     updateDiagnostics(doc, diagnostics);
     warmAvailabilityCache(doc);
+    warmRepoUrlCache(doc);
   });
 }
 

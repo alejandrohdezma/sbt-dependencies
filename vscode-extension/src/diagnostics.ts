@@ -1,6 +1,6 @@
 export interface DiagnosticResult {
   message: string;
-  severity: "error";
+  severity: "error" | "warning";
   source: "sbt-dependencies";
   range: { startLine: number; startCol: number; endLine: number; endCol: number };
 }
@@ -15,6 +15,16 @@ const dependencyValidationPattern =
   /^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$/;
 
 type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array";
+
+/**
+ * Extracts a dependency key (`org + separator + artifact`) from a dependency
+ * string, or `undefined` if the string doesn't match the pattern.
+ */
+function extractDepKey(content: string): string | undefined {
+  const m = dependencyValidationPattern.exec(content);
+  if (!m) return undefined;
+  return m[1] + m[2] + m[3];
+}
 
 /**
  * Validates a dependency string extracted from a dependency array.
@@ -67,6 +77,7 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
   const diagnostics: DiagnosticResult[] = [];
   let state: ParserState = "outside";
   let inBlockComment = false;
+  let seenInGroup = new Map<string, number>();
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -111,8 +122,10 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
 
     if (state === "outside") {
       if (simpleGroupStart.test(effectiveLine)) {
+        seenInGroup = new Map();
         state = effectiveLine.includes("]") ? "outside" : "simple_array";
       } else if (advancedGroupStart.test(effectiveLine)) {
+        seenInGroup = new Map();
         state = "advanced_block";
       }
     } else if (state === "advanced_block") {
@@ -142,6 +155,20 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
         const diag = validateDependencyString(content, i, startCol);
         if (diag) {
           diagnostics.push(diag);
+        } else {
+          const key = extractDepKey(content);
+          if (key) {
+            if (seenInGroup.has(key)) {
+              diagnostics.push({
+                message: "Duplicate dependency in group",
+                severity: "warning",
+                source: "sbt-dependencies",
+                range: { startLine: i, startCol, endLine: i, endCol: startCol + content.length },
+              });
+            } else {
+              seenInGroup.set(key, i);
+            }
+          }
         }
       }
     }

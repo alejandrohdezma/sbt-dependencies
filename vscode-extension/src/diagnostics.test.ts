@@ -173,6 +173,73 @@ describe("parseDiagnostics", () => {
     });
   });
 
+  describe("duplicate detection", () => {
+    it("warns on second occurrence of same org::artifact in same group", () => {
+      const lines = [
+        'my-group = [',
+        '  "org.typelevel::cats-core:2.10.0"',
+        '  "org.typelevel::cats-core:^2.11.0"',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].severity).toBe("warning");
+      expect(result[0].message).toBe("Duplicate dependency in group");
+      expect(result[0].range.startLine).toBe(2);
+    });
+
+    it("does not warn for same org::artifact in different groups", () => {
+      const lines = [
+        'group-a = [',
+        '  "org.typelevel::cats-core:2.10.0"',
+        ']',
+        'group-b = [',
+        '  "org.typelevel::cats-core:2.10.0"',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("treats different separators as distinct (: vs ::)", () => {
+      const lines = [
+        'my-group = [',
+        '  "com.typesafe:config:1.4.3"',
+        '  "com.typesafe::config:1.0.0"',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("warns on same org::artifact with different versions", () => {
+      const lines = [
+        'my-group = [',
+        '  "org.typelevel::cats-core:=2.10.0"',
+        '  "org.typelevel::cats-core:^2.11.0"',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].severity).toBe("warning");
+      expect(result[0].range.startLine).toBe(2);
+    });
+
+    it("warns on 2nd and 3rd occurrence when three duplicates exist", () => {
+      const lines = [
+        'my-group = [',
+        '  "org.typelevel::cats-core:2.10.0"',
+        '  "org.typelevel::cats-core:^2.11.0"',
+        '  "org.typelevel::cats-core:~2.12.0"',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(2);
+      expect(result[0].severity).toBe("warning");
+      expect(result[0].range.startLine).toBe(2);
+      expect(result[1].severity).toBe("warning");
+      expect(result[1].range.startLine).toBe(3);
+    });
+  });
+
   describe("edge cases", () => {
     it("validates dep on same line as closing bracket", () => {
       const lines = [
@@ -191,7 +258,7 @@ describe("parseDiagnostics", () => {
         '  dependencies = []',
         '}',
         '',
-        'sbt-permutive {',
+        'sbt-me {',
         '  scala-version = "~2.12.21"',
         '  dependencies = [',
         '    "org.typelevel::cats-core:2.10.0"',
