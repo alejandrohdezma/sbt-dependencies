@@ -19,7 +19,7 @@ package com.alejandrohdezma.sbt.dependencies
 import sbt.util.Level
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** A `Logger` for tests that records all log messages, traces, and successes so they can be inspected via assertions.
   */

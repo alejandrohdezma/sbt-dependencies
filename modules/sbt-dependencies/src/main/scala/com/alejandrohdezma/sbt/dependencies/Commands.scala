@@ -24,8 +24,18 @@ import sbt.Keys._
 import sbt.internal.util.complete.Parser
 import sbt.{Keys => _, _}
 
-import com.alejandrohdezma.sbt.dependencies.Dependency.Version.Numeric
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
+import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
+import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
+import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
+import com.alejandrohdezma.sbt.dependencies.finders.Utils
+import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
+import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff
+import com.alejandrohdezma.sbt.dependencies.io.Scalafmt
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** SBT commands for managing dependencies. */
 class Commands {

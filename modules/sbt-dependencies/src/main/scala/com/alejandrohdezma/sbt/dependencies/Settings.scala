@@ -21,7 +21,10 @@ import sbt.Keys._
 import sbt.util.Logger
 import sbt.{Keys => _, _}
 
-import com.alejandrohdezma.sbt.dependencies.Eq._
+import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 class Settings {
 

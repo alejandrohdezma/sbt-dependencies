@@ -20,6 +20,8 @@ import sbt.KeyRanks
 import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+
 class Keys {
 
   val dependenciesFromFile = settingKey[List[Dependency]]("Dependencies read from the file `project/dependencies`")

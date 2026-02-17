@@ -21,6 +21,11 @@ import java.lang.Runtime
 import sbt.Keys._
 import sbt._
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
+import com.alejandrohdezma.sbt.dependencies.constraints.RetractedArtifact
+import com.alejandrohdezma.sbt.dependencies.constraints.UpdateIgnore
+import com.alejandrohdezma.sbt.dependencies.constraints.UpdatePin
+
 /** SBT plugin for managing dependencies through a `project/dependencies` file.
   *
   * This plugin automatically populates `libraryDependencies` based on the dependencies file and provides commands/tasks
