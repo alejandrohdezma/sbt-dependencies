@@ -1,4 +1,4 @@
-import { parseDependency, buildMvnRepositoryUrl } from "./hover";
+import { parseDependency, buildMvnRepositoryUrl, type DependencyMatch } from "./hover";
 
 export interface ParsedLink {
   range: { startLine: number; startCol: number; endLine: number; endCol: number };
@@ -7,12 +7,19 @@ export interface ParsedLink {
 
 /**
  * Scans lines from a `dependencies.conf` file and returns one link per
- * dependency found, pointing to its mvnrepository.com page.
+ * dependency found.
+ *
+ * When a `resolveUrl` callback is provided, it is called first; if it
+ * returns a URL that value is used.  Otherwise the link falls back to
+ * mvnrepository.com.
  *
  * Availability filtering is NOT performed here — that belongs in the
  * VS Code provider layer.
  */
-export function parseDocumentLinks(lines: string[]): ParsedLink[] {
+export function parseDocumentLinks(
+  lines: string[],
+  resolveUrl?: (dep: DependencyMatch) => string | undefined
+): ParsedLink[] {
   const links: ParsedLink[] = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -26,7 +33,7 @@ export function parseDocumentLinks(lines: string[]): ParsedLink[] {
         endLine: i,
         endCol: dep.matchEnd,
       },
-      url: buildMvnRepositoryUrl(dep),
+      url: resolveUrl?.(dep) ?? buildMvnRepositoryUrl(dep),
     });
   }
 

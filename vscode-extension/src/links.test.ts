@@ -66,4 +66,27 @@ describe("parseDocumentLinks", () => {
     expect(links[0].url).toContain("cats-core");
     expect(links[1].url).toContain("fs2-core");
   });
+
+  it("uses resolver URL when resolver returns a value", () => {
+    const lines = ['  "org.typelevel::cats-core:2.10.0"'];
+    const resolver = () => "https://github.com/typelevel/cats";
+    const links = parseDocumentLinks(lines, resolver);
+    expect(links).toHaveLength(1);
+    expect(links[0].url).toBe("https://github.com/typelevel/cats");
+  });
+
+  it("falls back to mvnrepository when resolver returns undefined", () => {
+    const lines = ['  "org.typelevel::cats-core:2.10.0"'];
+    const resolver = () => undefined;
+    const links = parseDocumentLinks(lines, resolver);
+    expect(links).toHaveLength(1);
+    expect(links[0].url).toBe("https://mvnrepository.com/artifact/org.typelevel/cats-core");
+  });
+
+  it("uses mvnrepository when no resolver is provided", () => {
+    const lines = ['  "org.typelevel::cats-core:2.10.0"'];
+    const links = parseDocumentLinks(lines);
+    expect(links).toHaveLength(1);
+    expect(links[0].url).toBe("https://mvnrepository.com/artifact/org.typelevel/cats-core");
+  });
 });

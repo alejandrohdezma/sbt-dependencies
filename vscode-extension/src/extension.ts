@@ -5,6 +5,7 @@ import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
 import { parseDependency, buildHoverMarkdown } from "./hover";
 import { parseDocumentLinks } from "./links";
+import { resolveRepositoryUrl } from "./pom";
 import { findReferences } from "./references";
 import { prepareVariableRename, computeVariableRenameEdits } from "./rename";
 import { parseDocumentSymbols } from "./symbols";
@@ -95,6 +96,39 @@ function warmAvailabilityCache(document: vscode.TextDocument): void {
       const isScala = dep.separator === "::";
       const isSbtPlugin = dep.config === "sbt-plugin";
       checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
+    }
+  }
+}
+
+/** Cache of repository URL lookups from Coursier POM files. */
+const repoUrlCache = new Map<string, string | undefined>();
+
+/**
+ * Resolves and caches the project repository URL for a dependency by
+ * reading POM files in the Coursier cache.
+ */
+function resolveAndCacheRepoUrl(dep: import("./hover").DependencyMatch): string | undefined {
+  const cacheKey = `${dep.org}:${dep.artifact}:${dep.separator}:${dep.config ?? ""}`;
+  if (repoUrlCache.has(cacheKey)) return repoUrlCache.get(cacheKey);
+
+  const url = resolveRepositoryUrl(dep);
+  repoUrlCache.set(cacheKey, url);
+  return url;
+}
+
+/**
+ * Scans a document for dependencies and pre-resolves their repository URLs
+ * from the Coursier cache, populating the repoUrlCache.
+ */
+function warmRepoUrlCache(document: vscode.TextDocument): void {
+  if (document.languageId !== "sbt-dependencies") return;
+
+  for (let i = 0; i < document.lineCount; i++) {
+    const text = document.lineAt(i).text;
+    const dep = parseDependency(text);
+
+    if (dep) {
+      resolveAndCacheRepoUrl(dep);
     }
   }
 }
@@ -201,7 +235,8 @@ class DependencyReferenceProvider implements vscode.ReferenceProvider {
 
 /**
  * Provides Cmd+Clickable links for dependencies in `dependencies.conf`
- * files, opening the corresponding mvnrepository.com page.
+ * files.  When a project repository URL is found in the Coursier cache
+ * it links there; otherwise it falls back to mvnrepository.com.
  */
 class DependencyDocumentLinkProvider implements vscode.DocumentLinkProvider {
   async provideDocumentLinks(
@@ -212,17 +247,24 @@ class DependencyDocumentLinkProvider implements vscode.DocumentLinkProvider {
       lines.push(document.lineAt(i).text);
     }
 
-    const parsed = parseDocumentLinks(lines);
+    const parsed = parseDocumentLinks(lines, resolveAndCacheRepoUrl);
     const results: vscode.DocumentLink[] = [];
 
     for (const link of parsed) {
-      const dep = parseDependency(document.lineAt(link.range.startLine).text);
-      if (!dep) continue;
+      const isMvnRepository = link.url.includes("mvnrepository.com");
 
-      const isScala = dep.separator === "::";
-      const isSbtPlugin = dep.config === "sbt-plugin";
-      const available = await checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
-      if (!available) continue;
+      // When the link points to a repo URL (not mvnrepository), skip the
+      // availability check — its presence in the cache proves the artifact
+      // exists.
+      if (isMvnRepository) {
+        const dep = parseDependency(document.lineAt(link.range.startLine).text);
+        if (!dep) continue;
+
+        const isScala = dep.separator === "::";
+        const isSbtPlugin = dep.config === "sbt-plugin";
+        const available = await checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
+        if (!available) continue;
+      }
 
       const range = new vscode.Range(
         link.range.startLine, link.range.startCol,
@@ -681,10 +723,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidOpenTextDocument(doc => {
       updateDiagnostics(doc, diagnostics);
       warmAvailabilityCache(doc);
+      warmRepoUrlCache(doc);
     }),
     vscode.workspace.onDidChangeTextDocument(e => {
       updateDiagnostics(e.document, diagnostics);
       warmAvailabilityCache(e.document);
+      warmRepoUrlCache(e.document);
     }),
     vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri))
   );
@@ -692,6 +736,7 @@ export function activate(context: vscode.ExtensionContext): void {
   vscode.workspace.textDocuments.forEach(doc => {
     updateDiagnostics(doc, diagnostics);
     warmAvailabilityCache(doc);
+    warmRepoUrlCache(doc);
   });
 }
 

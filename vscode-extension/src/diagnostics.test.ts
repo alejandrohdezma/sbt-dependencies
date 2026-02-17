@@ -258,7 +258,7 @@ describe("parseDiagnostics", () => {
         '  dependencies = []',
         '}',
         '',
-        'sbt-permutive {',
+        'sbt-me {',
         '  scala-version = "~2.12.21"',
         '  dependencies = [',
         '    "org.typelevel::cats-core:2.10.0"',
