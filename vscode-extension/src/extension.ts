@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as vscode from "vscode";
 import { parseCodeLenses } from "./codelens";
 import { parseDiagnostics } from "./diagnostics";
+import { formatDocument } from "./formatting";
 import { parseDependency, buildHoverMarkdown } from "./hover";
 import { parseDocumentLinks } from "./links";
 import { findReferences } from "./references";
@@ -276,6 +277,29 @@ class DependencyRenameProvider implements vscode.RenameProvider {
       );
     }
     return edit;
+  }
+}
+
+/**
+ * Provides document formatting for `dependencies.conf` files, sorting
+ * dependencies alphabetically within groups and normalizing indentation.
+ */
+class DependencyDocumentFormattingProvider implements vscode.DocumentFormattingEditProvider {
+  provideDocumentFormattingEdits(
+    document: vscode.TextDocument
+  ): vscode.TextEdit[] {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    const formatted = formatDocument(lines);
+    const fullRange = new vscode.Range(
+      0, 0,
+      document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length
+    );
+
+    return [vscode.TextEdit.replace(fullRange, formatted)];
   }
 }
 
@@ -603,6 +627,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerRenameProvider(
       "sbt-dependencies",
       new DependencyRenameProvider()
+    ),
+    vscode.languages.registerDocumentFormattingEditProvider(
+      "sbt-dependencies",
+      new DependencyDocumentFormattingProvider()
     ),
     vscode.languages.registerCodeActionsProvider(
       "sbt-dependencies",
