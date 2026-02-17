@@ -16,7 +16,6 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import sbt.KeyRanks
 import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 
@@ -212,20 +211,6 @@ class Keys {
   val dependencyResolverParallelism = settingKey[Int] {
     "Maximum number of dependencies resolved concurrently. Default: available processors"
   }
-
-  /** Whether to write `.sbt-update-report` on step failure in `updateAllDependencies`.
-    *
-    * Default: `true` when the `CI` environment variable is set, `false` otherwise.
-    *
-    * @example
-    *   {{{
-    * // Force report generation even outside CI
-    * ThisBuild / dependencyUpdateReportEnabled := true
-    *   }}}
-    */
-  val dependencyUpdateReportEnabled = settingKey[Boolean] {
-    "Whether to write .sbt-update-report on step failure in updateAllDependencies. Default: true on CI"
-  }.withRank(KeyRanks.Invisible)
 
 }
 

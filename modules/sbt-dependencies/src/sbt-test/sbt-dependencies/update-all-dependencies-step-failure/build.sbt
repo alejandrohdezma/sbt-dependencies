@@ -1,7 +1,5 @@
 import sbt.internal.util.MessageOnlyException
 
-ThisBuild / dependencyUpdateReportEnabled := false
-
 lazy val myproject = project
 
 // Shadow the `updateScalaVersions` task (step 5) with a command that always fails.
