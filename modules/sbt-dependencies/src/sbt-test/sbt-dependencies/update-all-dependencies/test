@@ -2,7 +2,7 @@
 > updateAllDependencies
 
 # Verify snapshot was cleaned up
--$ exists .sbt-dependency-snapshot
+-$ exists target/sbt-dependencies/.sbt-dependency-snapshot
 
 # Validate the diff file matches expected output
-$ must-mirror .sbt-dependency-diff expected-diff
+$ must-mirror target/sbt-dependencies/.sbt-dependency-diff expected-diff

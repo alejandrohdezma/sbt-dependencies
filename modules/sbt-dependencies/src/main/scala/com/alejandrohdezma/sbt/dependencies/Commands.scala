@@ -127,20 +127,13 @@ class Commands {
 
   /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */
   lazy val updateAllDependencies = Command.command("updateAllDependencies") { state =>
-    val project       = Project.extract(state)
-    val base          = project.get(ThisBuild / baseDirectory)
-    val reportEnabled = project.get(ThisBuild / Keys.dependencyUpdateReportEnabled)
+    val base = Project.extract(state).get(ThisBuild / baseDirectory)
 
-    val steps =
-      if (reportEnabled)
-        List("snapshotDependencies", "updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies",
-          "updateScalafmtVersion", "updateScalaVersions", "updateDependencies", "reload", "updateSbt",
-          "disableEvictionWarnings", "computeDependencyDiff", "enableEvictionWarnings")
-      else
-        List("updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies", "updateScalafmtVersion",
-          "updateScalaVersions", "updateDependencies", "reload", "updateSbt")
+    val steps = List("snapshotDependencies", "updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies",
+      "updateScalafmtVersion", "updateScalaVersions", "updateDependencies", "reload", "updateSbt",
+      "disableEvictionWarnings", "computeDependencyDiff", "enableEvictionWarnings")
 
-    runStepsSafely(steps: _*)(state, base, reportEnabled)
+    runStepsSafely(steps: _*)(state, base / "target" / "sbt-dependencies")
   }
 
   /** Updates the configured SBT plugin. Checks `project/project/plugins.sbt` first, falling back to
@@ -343,14 +336,17 @@ class Commands {
     runCommand("set ThisBuild / evictionErrorLevel := Level.Error")(state)
   }
 
-  /** Snapshots all resolved dependencies (including transitives) for every project to `.sbt-dependency-snapshot`. */
+  /** Snapshots all resolved dependencies (including transitives) for every project to
+    * `target/sbt-dependencies/.sbt-dependency-snapshot`.
+    */
   lazy val snapshotDependencies = Command.command("snapshotDependencies") { state =>
     Try {
       val snapshot = generateSnapshot(state)
 
-      val base = Project.extract(state).get(ThisBuild / baseDirectory)
+      val outputDir =
+        Project.extract(state).get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies"
 
-      DependencyDiff.writeSnapshot(base / ".sbt-dependency-snapshot", snapshot)
+      DependencyDiff.writeSnapshot(outputDir / ".sbt-dependency-snapshot", snapshot)
     }.onError { case e =>
       state.log.trace(e)
       state.log.error("Unable to generate dependency snapshot")
@@ -359,12 +355,15 @@ class Commands {
     state
   }
 
-  /** Computes dependency diff from snapshot, writes `.sbt-dependency-diff`, and cleans up the snapshot file. */
+  /** Computes dependency diff from snapshot, writes `target/sbt-dependencies/.sbt-dependency-diff`, and cleans up the
+    * snapshot file.
+    */
   lazy val computeDependencyDiff = Command.command("computeDependencyDiff") { state =>
     Try {
-      val base = Project.extract(state).get(ThisBuild / baseDirectory)
+      val outputDir =
+        Project.extract(state).get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies"
 
-      val snapshotFile = base / ".sbt-dependency-snapshot"
+      val snapshotFile = outputDir / ".sbt-dependency-snapshot"
 
       if (!snapshotFile.exists()) {
         state.log.warn("Snapshot file not found, skipping diff computation")
@@ -376,7 +375,7 @@ class Commands {
         val diffs = DependencyDiff.compute(before, after)
 
         if (diffs.nonEmpty)
-          IO.write(base / ".sbt-dependency-diff", DependencyDiff.toHocon(diffs))
+          IO.write(outputDir / ".sbt-dependency-diff", DependencyDiff.toHocon(diffs))
 
         IO.delete(snapshotFile)
       }
@@ -422,12 +421,12 @@ class Commands {
     if (isPluginInMetaBuild(state)) runCommand(("reload plugins" +: commands :+ "reload return"): _*)(state)
     else state
 
-  private def runStepsSafely(steps: String*)(state: State, base: File, reportEnabled: Boolean): State = {
+  private def runStepsSafely(steps: String*)(state: State, outputDir: File): State = {
     implicit val logger: Logger = state.log
 
-    IO.delete(base / ".sbt-update-report")
-    IO.delete(base / ".sbt-dependency-snapshot")
-    IO.delete(base / ".sbt-dependency-diff")
+    IO.delete(outputDir / ".sbt-update-report")
+    IO.delete(outputDir / ".sbt-dependency-snapshot")
+    IO.delete(outputDir / ".sbt-dependency-diff")
 
     val remaining = ListBuffer(steps: _*)
 
@@ -442,7 +441,7 @@ class Commands {
         .flatMap(newState => Try(Project.extract(newState)).map(_ => newState))
         .onError { case e => logger.error(s"⚠ '$step' failed: ${e.getMessage}") }
         .onError { case _ if remaining.nonEmpty => logger.error(s"⚠ Skipped: ${remaining.mkString(", ")}") }
-        .onError { case _ if reportEnabled => writeUpdateReport(step, remaining.toList, base) }
+        .onError { case _ => writeUpdateReport(step, remaining.toList, outputDir) }
         .onError { case _ => remaining.clear() }
         .getOrElse(currentState)
     }
@@ -450,7 +449,7 @@ class Commands {
     currentState
   }
 
-  private def writeUpdateReport(step: String, remaining: List[String], base: File) = {
+  private def writeUpdateReport(step: String, remaining: List[String], outputDir: File) = {
     val report =
       s"""> [!WARNING]
          |> `updateAllDependencies` failed at the `$step` step.
@@ -463,7 +462,7 @@ class Commands {
          |> 3. Run `sbt updateAllDependencies` to complete the remaining updates.
          |> 4. Push the changes to this branch.""".stripMargin
 
-    IO.write(base / ".sbt-update-report", report)
+    IO.write(outputDir / ".sbt-update-report", report)
   }
 
   private def runCommand(commands: String*)(state: State): State = {

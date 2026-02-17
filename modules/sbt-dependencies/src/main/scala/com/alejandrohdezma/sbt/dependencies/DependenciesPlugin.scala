@@ -59,7 +59,6 @@ object DependenciesPlugin extends AutoPlugin {
     dependencyUpdatePins              := UpdatePin.default,
     dependencyResolverTimeout         := 60,
     dependencyResolverParallelism     := Runtime.getRuntime.availableProcessors,
-    dependencyUpdateReportEnabled     := sys.env.contains("CI"),
     dependenciesManagedScalaVersions  := Settings.buildScalaVersions.value.nonEmpty,
     scalaVersion := Def.settingDyn {
       val file = Settings.dependenciesFile.value
