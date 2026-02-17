@@ -5,11 +5,15 @@ const dependenciesArrayStart = /^\s*dependencies\s*=\s*\[/;
 
 type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array";
 
+/** Regex mirroring Scala-side `Dependency.dependencyRegex`. */
+const dependencyPattern =
+  /^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$/;
+
 /** A dependency entry with any preceding comment lines. */
 interface DependencyEntry {
   commentLines: string[];
   depLine: string;
-  /** The quoted string value used as sort key. */
+  /** Composite sort key: config + \0 + org:artifact (lowercased). */
   sortKey: string;
 }
 
@@ -136,7 +140,7 @@ export function formatDocument(lines: string[]): string {
         // Closing bracket line — may contain a last dep on same line
         const depOnCloseLine = extractQuotedString(line);
         if (depOnCloseLine) {
-          entries.push({ commentLines: pendingComments, depLine: `${depIndent}"${depOnCloseLine}"`, sortKey: depOnCloseLine.toLowerCase() });
+          entries.push({ commentLines: pendingComments, depLine: `${depIndent}"${depOnCloseLine}"`, sortKey: buildSortKey(depOnCloseLine) });
           pendingComments = [];
         }
         flushEntries(output, entries, pendingComments);
@@ -150,7 +154,7 @@ export function formatDocument(lines: string[]): string {
 
       const quoted = extractQuotedString(line);
       if (quoted) {
-        entries.push({ commentLines: pendingComments, depLine: `${depIndent}"${quoted}"`, sortKey: quoted.toLowerCase() });
+        entries.push({ commentLines: pendingComments, depLine: `${depIndent}"${quoted}"`, sortKey: buildSortKey(quoted) });
         pendingComments = [];
       } else {
         // Comment or blank line inside the array
@@ -189,7 +193,7 @@ export function formatDocument(lines: string[]): string {
       if (effectiveLine.includes("]")) {
         const depOnCloseLine = extractQuotedString(line);
         if (depOnCloseLine) {
-          entries.push({ commentLines: pendingComments, depLine: `${depIndent}"${depOnCloseLine}"`, sortKey: depOnCloseLine.toLowerCase() });
+          entries.push({ commentLines: pendingComments, depLine: `${depIndent}"${depOnCloseLine}"`, sortKey: buildSortKey(depOnCloseLine) });
           pendingComments = [];
         }
         flushEntries(output, entries, pendingComments);
@@ -203,7 +207,7 @@ export function formatDocument(lines: string[]): string {
 
       const quoted = extractQuotedString(line);
       if (quoted) {
-        entries.push({ commentLines: pendingComments, depLine: `${depIndent}"${quoted}"`, sortKey: quoted.toLowerCase() });
+        entries.push({ commentLines: pendingComments, depLine: `${depIndent}"${quoted}"`, sortKey: buildSortKey(quoted) });
         pendingComments = [];
       } else {
         pendingComments.push(normalizeCommentLine(line, depIndent));
@@ -229,6 +233,24 @@ function normalizeCommentLine(line: string, indent: string): string {
   const trimmed = line.trim();
   if (trimmed.length === 0) return "";
   return `${indent}${trimmed}`;
+}
+
+/**
+ * Builds a composite sort key: config + \0 + org + separator + artifact.
+ *
+ * Empty config sorts before any named config (e.g. `test`, `sbt-plugin`),
+ * so runtime deps appear before test deps.
+ */
+function buildSortKey(depString: string): string {
+  const m = dependencyPattern.exec(depString);
+  if (!m) return depString.toLowerCase();
+
+  const org = m[1].toLowerCase();
+  const separator = m[2];
+  const artifact = m[3].toLowerCase();
+  const config = (m[5] ?? "").toLowerCase();
+
+  return `${config}\0${org}${separator}${artifact}`;
 }
 
 /** Sorts entries and flushes them (plus trailing comments) to output. */
@@ -262,7 +284,7 @@ function formatSingleLineGroup(line: string, indent: string): string {
   }
   if (deps.length === 0) return line;
 
-  deps.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  deps.sort((a, b) => buildSortKey(a).localeCompare(buildSortKey(b)));
   // Reconstruct — but for single-line we keep it as-is
   return line;
 }
