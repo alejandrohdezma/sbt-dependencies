@@ -20,6 +20,8 @@ import java.net.URL
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.constraints.UpdatePin
+
 /** Abstraction for checking if a dependency version is allowed by pin constraints.
   *
   * A version is allowed if no pin matches the artifact, or if the version matches all matching pins' version patterns.

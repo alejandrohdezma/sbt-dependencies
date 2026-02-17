@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.constraints
 
 import java.io.File
 import java.net.URL
@@ -23,7 +23,9 @@ import java.nio.file.Files
 import sbt.IO
 import sbt.util.Level
 
-class UpdatePinSuite extends munit.FunSuite {
+import com.alejandrohdezma.sbt.dependencies.TestLogger
+
+class UpdateIgnoreSuite extends munit.FunSuite {
 
   implicit val logger: TestLogger = TestLogger()
 
@@ -31,201 +33,193 @@ class UpdatePinSuite extends munit.FunSuite {
 
   // --- HOCON parsing tests ---
 
-  withPinFile {
-    """updates.pin = [
+  withIgnoreFile {
+    """updates.ignore = [
       |  { groupId = "org.scala-lang", artifactId = "scala3-compiler", version = { exact = "3.8.2" } }
       |]
       |""".stripMargin
   }.test("loadFromUrls parses entry with exact version pattern") { urls =>
-    val pins = UpdatePin.loadFromUrls(urls)
+    val ignores = UpdateIgnore.loadFromUrls(urls)
 
-    val expected = UpdatePin(
+    val expected = UpdateIgnore(
       groupId = "org.scala-lang",
       artifactId = Some("scala3-compiler"),
       version = Some(VersionPattern(exact = Some("3.8.2")))
     )
 
-    assertEquals(pins, List(expected))
+    assertEquals(ignores, List(expected))
   }
 
-  withPinFile {
-    """updates.pin = [
+  withIgnoreFile {
+    """updates.ignore = [
       |  { groupId = "org.scala-lang", artifactId = "scala-compiler", version = "2.13." }
       |]
       |""".stripMargin
   }.test("loadFromUrls parses version string as prefix shorthand") { urls =>
-    val pins = UpdatePin.loadFromUrls(urls)
+    val ignores = UpdateIgnore.loadFromUrls(urls)
 
-    val expected = UpdatePin(
+    val expected = UpdateIgnore(
       groupId = "org.scala-lang",
       artifactId = Some("scala-compiler"),
       version = Some(VersionPattern(prefix = Some("2.13.")))
     )
 
-    assertEquals(pins, List(expected))
+    assertEquals(ignores, List(expected))
   }
 
-  withPinFile {
-    """updates.pin = [
+  withIgnoreFile {
+    """updates.ignore = [
       |  { groupId = "org.example", version = { suffix = "-M1" } }
       |]
       |""".stripMargin
   }.test("loadFromUrls parses entry with suffix version pattern") { urls =>
-    val pins = UpdatePin.loadFromUrls(urls)
+    val ignores = UpdateIgnore.loadFromUrls(urls)
 
-    val expected = UpdatePin(
+    val expected = UpdateIgnore(
       groupId = "org.example",
       version = Some(VersionPattern(suffix = Some("-M1")))
     )
 
-    assertEquals(pins, List(expected))
+    assertEquals(ignores, List(expected))
   }
 
-  withPinFile {
-    """updates.pin = [
+  withIgnoreFile {
+    """updates.ignore = [
       |  { groupId = "org.example", version = { contains = "rc" } }
       |]
       |""".stripMargin
   }.test("loadFromUrls parses entry with contains version pattern") { urls =>
-    val pins = UpdatePin.loadFromUrls(urls)
+    val ignores = UpdateIgnore.loadFromUrls(urls)
 
-    val expected = UpdatePin(
+    val expected = UpdateIgnore(
       groupId = "org.example",
       version = Some(VersionPattern(contains = Some("rc")))
     )
 
-    assertEquals(pins, List(expected))
+    assertEquals(ignores, List(expected))
   }
 
-  withPinFile {
-    """updates.pin = [
+  withIgnoreFile {
+    """updates.ignore = [
       |  { groupId = "com.typesafe.akka" }
       |]
       |""".stripMargin
   }.test("loadFromUrls parses entry with only groupId") { urls =>
-    val pins = UpdatePin.loadFromUrls(urls)
+    val ignores = UpdateIgnore.loadFromUrls(urls)
 
-    val expected = UpdatePin(groupId = "com.typesafe.akka")
+    val expected = UpdateIgnore(groupId = "com.typesafe.akka")
 
-    assertEquals(pins, List(expected))
+    assertEquals(ignores, List(expected))
   }
 
-  withPinFile {
-    """updates.pin = [
+  withIgnoreFile {
+    """updates.ignore = [
       |  { groupId = "org.scala-lang", artifactId = "scala3-compiler" }
       |]
       |""".stripMargin
   }.test("loadFromUrls parses entry with groupId and artifactId") { urls =>
-    val pins = UpdatePin.loadFromUrls(urls)
+    val ignores = UpdateIgnore.loadFromUrls(urls)
 
-    val expected = UpdatePin(
+    val expected = UpdateIgnore(
       groupId = "org.scala-lang",
       artifactId = Some("scala3-compiler")
     )
 
-    assertEquals(pins, List(expected))
+    assertEquals(ignores, List(expected))
   }
 
-  withPinFile {
-    """updates.pin = [
+  withIgnoreFile {
+    """updates.ignore = [
       |  { groupId = "org.scala-lang", artifactId = "scala3-compiler", version = { exact = "3.8.2" } },
       |  { groupId = "com.typesafe.akka" },
       |  { groupId = "org.example", version = "1.0." }
       |]
       |""".stripMargin
   }.test("loadFromUrls parses multiple entries") { urls =>
-    val pins = UpdatePin.loadFromUrls(urls)
+    val ignores = UpdateIgnore.loadFromUrls(urls)
 
     val expected = List(
-      UpdatePin("org.scala-lang", Some("scala3-compiler"), Some(VersionPattern(exact = Some("3.8.2")))),
-      UpdatePin("com.typesafe.akka"),
-      UpdatePin("org.example", version = Some(VersionPattern(prefix = Some("1.0."))))
+      UpdateIgnore("org.scala-lang", Some("scala3-compiler"), Some(VersionPattern(exact = Some("3.8.2")))),
+      UpdateIgnore("com.typesafe.akka"),
+      UpdateIgnore("org.example", version = Some(VersionPattern(prefix = Some("1.0."))))
     )
 
-    assertEquals(pins, expected)
+    assertEquals(ignores, expected)
   }
 
-  withPinFile {
+  withIgnoreFile {
     """something = [
       |  { foo = bar }
       |]
       |""".stripMargin
-  }.test("loadFromUrls returns empty for files without updates.pin key") { urls =>
-    val pins = UpdatePin.loadFromUrls(urls)
+  }.test("loadFromUrls returns empty for files without updates.ignore key") { urls =>
+    val ignores = UpdateIgnore.loadFromUrls(urls)
 
-    assertEquals(pins, Nil)
+    assertEquals(ignores, Nil)
   }
 
-  withPinFile {
-    """updates.pin = [
+  withIgnoreFile {
+    """updates.ignore = [
       |  { artifactId = "some-artifact" }
       |]
       |""".stripMargin
   }.test("loadFromUrls warns and skips entry with missing groupId") { urls =>
-    val pins = UpdatePin.loadFromUrls(urls)
+    val ignores = UpdateIgnore.loadFromUrls(urls)
 
-    assertEquals(pins, Nil)
+    assertEquals(ignores, Nil)
     assert(logger.getLogs(Level.Warn).exists(_.contains("entry at index 0 must have a 'groupId'")))
   }
 
   test("loadFromUrls returns empty list for empty URL list") {
-    val result = UpdatePin.loadFromUrls(Nil)
+    val result = UpdateIgnore.loadFromUrls(Nil)
 
     assertEquals(result, Nil)
   }
 
-  test("loadFromUrls can load Scala Steward's default config without crash") {
-    val pins = UpdatePin.loadFromUrls(UpdatePin.default)
+  test("loadFromUrls can load Scala Steward's default config") {
+    val ignores = UpdateIgnore.loadFromUrls(UpdateIgnore.default)
 
-    assert(pins.size >= 0)
+    assert(ignores.nonEmpty)
   }
 
-  // --- matchesArtifact tests ---
+  // --- Matching tests ---
 
-  test("matchesArtifact returns true for matching groupId and artifactId") {
-    val pin = UpdatePin("org.http4s", Some("http4s-core"))
+  test("matches returns true when all fields match") {
+    val ignore = UpdateIgnore("org.scala-lang", Some("scala3-compiler"), Some(VersionPattern(exact = Some("3.8.2"))))
 
-    assert(pin.matchesArtifact("org.http4s", "http4s-core"))
+    assert(ignore.matches("org.scala-lang", "scala3-compiler", "3.8.2"))
   }
 
-  test("matchesArtifact returns false for non-matching groupId") {
-    val pin = UpdatePin("org.http4s", Some("http4s-core"))
+  test("matches returns false for non-matching groupId") {
+    val ignore = UpdateIgnore("org.scala-lang")
 
-    assert(!pin.matchesArtifact("org.typelevel", "http4s-core"))
+    assert(!ignore.matches("org.typelevel", "cats-core", "2.0.0"))
   }
 
-  test("matchesArtifact returns true for any artifact when artifactId is None") {
-    val pin = UpdatePin("org.http4s")
+  test("matches returns true for any artifact when artifactId is None") {
+    val ignore = UpdateIgnore("com.typesafe.akka")
 
-    assert(pin.matchesArtifact("org.http4s", "http4s-core"))
-    assert(pin.matchesArtifact("org.http4s", "http4s-dsl"))
+    assert(ignore.matches("com.typesafe.akka", "akka-actor", "2.6.0"))
+    assert(ignore.matches("com.typesafe.akka", "akka-stream", "2.6.0"))
   }
 
-  test("matchesArtifact returns false for non-matching artifactId") {
-    val pin = UpdatePin("org.http4s", Some("http4s-core"))
+  test("matches returns false for non-matching artifactId") {
+    val ignore = UpdateIgnore("org.scala-lang", Some("scala3-compiler"))
 
-    assert(!pin.matchesArtifact("org.http4s", "http4s-dsl"))
+    assert(!ignore.matches("org.scala-lang", "scala-library", "2.13.0"))
   }
 
-  // --- matchesVersion tests ---
+  test("matches returns true for any version when version is None") {
+    val ignore = UpdateIgnore("org.scala-lang", Some("scala3-compiler"))
 
-  test("matchesVersion returns true for matching version") {
-    val pin = UpdatePin("org.http4s", version = Some(VersionPattern(prefix = Some("0.23."))))
-
-    assert(pin.matchesVersion("0.23.10"))
+    assert(ignore.matches("org.scala-lang", "scala3-compiler", "3.0.0"))
+    assert(ignore.matches("org.scala-lang", "scala3-compiler", "3.8.2"))
   }
 
-  test("matchesVersion returns false for non-matching version") {
-    val pin = UpdatePin("org.http4s", version = Some(VersionPattern(prefix = Some("0.23."))))
+  test("matches returns false for non-matching version") {
+    val ignore = UpdateIgnore("org.scala-lang", Some("scala3-compiler"), Some(VersionPattern(exact = Some("3.8.2"))))
 
-    assert(!pin.matchesVersion("1.0.0"))
-  }
-
-  test("matchesVersion returns true when version pattern is None") {
-    val pin = UpdatePin("org.http4s")
-
-    assert(pin.matchesVersion("1.0.0"))
-    assert(pin.matchesVersion("0.23.10"))
+    assert(!ignore.matches("org.scala-lang", "scala3-compiler", "3.8.1"))
   }
 
   //////////////
@@ -235,10 +229,10 @@ class UpdatePinSuite extends munit.FunSuite {
   /** Creates a `FunFixture` that writes each content string to a temporary HOCON file and provides the URLs to the
     * test. Files are deleted after the test completes.
     */
-  def withPinFile(contents: String*) = FunFixture[List[URL]](
+  def withIgnoreFile(contents: String*) = FunFixture[List[URL]](
     setup = { _ =>
       contents.toList.map { content =>
-        val file = Files.createTempFile("pins", ".conf")
+        val file = Files.createTempFile("ignores", ".conf")
         IO.write(file.toFile(), content)
         file.toUri().toURL()
       }

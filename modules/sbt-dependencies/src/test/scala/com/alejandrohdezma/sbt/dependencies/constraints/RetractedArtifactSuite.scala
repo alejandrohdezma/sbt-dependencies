@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.constraints
 
 import java.io.File
 import java.net.URL
@@ -24,6 +24,8 @@ import scala.Console._
 
 import sbt.IO
 import sbt.util.Level
+
+import com.alejandrohdezma.sbt.dependencies.TestLogger
 
 class RetractedArtifactSuite extends munit.FunSuite {
 

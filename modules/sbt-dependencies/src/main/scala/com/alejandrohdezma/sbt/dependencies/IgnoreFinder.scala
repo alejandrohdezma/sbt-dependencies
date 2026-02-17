@@ -20,6 +20,8 @@ import java.net.URL
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.constraints.UpdateIgnore
+
 /** Abstraction for checking if a dependency version should be ignored. */
 trait IgnoreFinder {
 

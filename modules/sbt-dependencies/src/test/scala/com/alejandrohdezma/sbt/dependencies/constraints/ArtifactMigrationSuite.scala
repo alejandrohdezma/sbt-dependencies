@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.constraints
 
 import java.io.File
 import java.net.URL
@@ -23,6 +23,7 @@ import java.nio.file.Files
 import sbt.IO
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 

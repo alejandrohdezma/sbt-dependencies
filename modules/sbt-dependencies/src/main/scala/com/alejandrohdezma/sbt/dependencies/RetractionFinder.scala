@@ -22,6 +22,7 @@ import scala.Console._
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.constraints.RetractedArtifact
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.string.box._
 

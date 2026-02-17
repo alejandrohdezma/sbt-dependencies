@@ -21,6 +21,7 @@ import java.nio.file.Files
 import sbt.IO
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 

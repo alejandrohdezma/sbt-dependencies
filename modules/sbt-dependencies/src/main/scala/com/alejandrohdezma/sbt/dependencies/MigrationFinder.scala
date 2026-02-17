@@ -20,6 +20,7 @@ import java.net.URL
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 
 /** Abstraction for finding artifact migrations for a dependency. */

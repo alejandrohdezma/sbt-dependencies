@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.constraints
 
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
@@ -26,6 +26,8 @@ import scala.util.Try
 import sbt.url
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.ConfigOps
+import com.alejandrohdezma.sbt.dependencies.TryOps
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigObject
