@@ -30,6 +30,9 @@ import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
+import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff
+import com.alejandrohdezma.sbt.dependencies.io.Scalafmt
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._

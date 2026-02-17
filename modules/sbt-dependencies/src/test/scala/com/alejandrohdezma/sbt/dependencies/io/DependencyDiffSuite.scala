@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.io
 
 import java.io.File
 import java.nio.file.Files
 
 import sbt.librarymanagement.ModuleID
 
-import com.alejandrohdezma.sbt.dependencies.DependencyDiff._
+import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff._
 
 class DependencyDiffSuite extends munit.FunSuite {
 

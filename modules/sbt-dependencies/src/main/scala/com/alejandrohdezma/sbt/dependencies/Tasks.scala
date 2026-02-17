@@ -33,6 +33,7 @@ import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.string.box._

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.alejandrohdezma.sbt.dependencies
+package com.alejandrohdezma.sbt.dependencies.io
 
 import scala.jdk.CollectionConverters._
 
