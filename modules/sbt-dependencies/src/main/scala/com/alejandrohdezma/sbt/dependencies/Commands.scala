@@ -360,8 +360,9 @@ class Commands {
     */
   lazy val computeDependencyDiff = Command.command("computeDependencyDiff") { state =>
     Try {
-      val outputDir =
-        Project.extract(state).get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies"
+      val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+      val outputDir = base / "target" / "sbt-dependencies"
 
       val snapshotFile = outputDir / ".sbt-dependency-snapshot"
 
@@ -427,6 +428,11 @@ class Commands {
     IO.delete(outputDir / ".sbt-update-report")
     IO.delete(outputDir / ".sbt-dependency-snapshot")
     IO.delete(outputDir / ".sbt-dependency-diff")
+
+    val buildOutputDir = outputDir.getParentFile.getParentFile / "project" / "target" / "sbt-dependencies"
+
+    IO.delete(buildOutputDir / ".sbt-dependency-snapshot")
+    IO.delete(buildOutputDir / ".sbt-dependency-diff")
 
     val remaining = ListBuffer(steps: _*)
 
