@@ -140,6 +140,51 @@ object DependencyDiff {
       .toMap
   }
 
+  /** Reads a dependency diff from a HOCON file previously written by `toHocon`. */
+  def readDiff(file: File): Map[String, ProjectDiff] = {
+    val config = ConfigFactory.parseFile(file)
+
+    config
+      .root()
+      .keySet()
+      .asScala
+      .map { project =>
+        val projectConfig = config.getConfig(project)
+
+        val updated = projectConfig
+          .getConfigList("updated")
+          .asScala
+          .map { entry =>
+            UpdatedDep(
+              entry.getString("organization"),
+              entry.getString("name"),
+              entry.getString("from"),
+              entry.getString("to")
+            )
+          }
+          .toList
+
+        val added = projectConfig
+          .getConfigList("added")
+          .asScala
+          .map { entry =>
+            ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("version"))
+          }
+          .toList
+
+        val removed = projectConfig
+          .getConfigList("removed")
+          .asScala
+          .map { entry =>
+            ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("version"))
+          }
+          .toList
+
+        project -> ProjectDiff(updated, added, removed)
+      }
+      .toMap
+  }
+
   /** Renders a diff map as HOCON, parseable by `ConfigFactory.parseString`. */
   def toHocon(diffs: Map[String, ProjectDiff]): String = {
     val rootMap = diffs.toList
