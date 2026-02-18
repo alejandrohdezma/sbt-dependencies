@@ -29,7 +29,6 @@ import sbt.util.Logger
 import com.alejandrohdezma.sbt.dependencies.ConfigOps
 import com.alejandrohdezma.sbt.dependencies.TryOps
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType
 
@@ -87,10 +86,10 @@ object UpdatePin {
   @SuppressWarnings(Array("scalafix:DisableSyntax.throw"))
   def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[UpdatePin] = urls.flatMap { url =>
     Option(cache.get(url)).getOrElse {
-      logger.info(s"↻ Loading update pins from $CYAN$url$RESET")
+      logger.debug(s"↻ Loading update pins from $CYAN$url$RESET")
 
       val pins = Try {
-        val config = ConfigFactory.parseURL(url)
+        val config = ConfigCache.get(url)
 
         if (!config.hasPath("updates.pin")) Nil
         else
