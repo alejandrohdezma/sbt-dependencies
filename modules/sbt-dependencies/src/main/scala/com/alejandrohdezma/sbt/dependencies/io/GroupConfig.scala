@@ -36,7 +36,7 @@ sealed trait GroupConfig {
   /** Formats a group with its configuration for HOCON output. */
   def format(group: String): String = this match {
     case GroupConfig.Simple(deps) =>
-      s"""$group = [\n${deps.map(_.format.indent(2).stripTrailing()).mkString("\n")}\n]"""
+      s"""$group = [\n${deps.map(d => indent(d.format, 2)).mkString("\n")}\n]"""
 
     case GroupConfig.Advanced(deps, versions) =>
       val scalaVersionsSection = versions match {
@@ -48,11 +48,13 @@ sealed trait GroupConfig {
 
       val depsSection =
         if (deps.nonEmpty)
-          s"""  dependencies = [\n${deps.map(_.format.indent(4).stripTrailing()).mkString("\n")}\n  ]"""
+          s"""  dependencies = [\n${deps.map(d => indent(d.format, 4)).mkString("\n")}\n  ]"""
         else "  dependencies = []"
 
       s"$group {\n$scalaVersionsSection$depsSection\n}"
   }
+
+  private def indent(s: String, n: Int): String = s.linesIterator.map((" " * n) + _).mkString("\n")
 
 }
 
