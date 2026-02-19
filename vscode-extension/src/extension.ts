@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as vscode from "vscode";
 import { parseCodeLenses } from "./codelens";
+import { parsePinnedWithoutNote } from "./dep-codelens";
 import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
 import { parseDependency, buildHoverMarkdown } from "./hover";
@@ -664,6 +665,55 @@ async function openBuildProject(
   }
 }
 
+/**
+ * Converts a plain pinned dependency string into object form with an empty
+ * note, then places the cursor inside the note quotes.
+ */
+async function addDependencyNote(line: number): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+
+  const lineText = editor.document.lineAt(line).text;
+  const match = /^(\s*)"(.*)"(\s*)$/.exec(lineText);
+  if (!match) return;
+
+  const indent = match[1];
+  const depString = match[2];
+  const replacement = `${indent}{ dependency = "${depString}", note = "" }`;
+
+  const fullLineRange = editor.document.lineAt(line).range;
+  await editor.edit((editBuilder) => {
+    editBuilder.replace(fullLineRange, replacement);
+  });
+
+  // Place cursor between the empty note quotes
+  const cursorCol = replacement.indexOf('note = "') + 'note = "'.length;
+  const cursorPos = new vscode.Position(line, cursorCol);
+  editor.selection = new vscode.Selection(cursorPos, cursorPos);
+}
+
+/**
+ * Provides CodeLens annotations on pinned dependencies (`=`, `^`, `~`) that
+ * lack an explanatory note, prompting the user to add one.
+ */
+class PinnedDepCodeLensProvider implements vscode.CodeLensProvider {
+  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    return parsePinnedWithoutNote(lines).map((data) => {
+      const range = new vscode.Range(data.line, 0, data.line, 0);
+      return new vscode.CodeLens(range, {
+        title: "$(info) Pinned without note — consider adding { dependency = \"...\", note = \"...\" }",
+        command: "sbt-dependencies.addDependencyNote",
+        arguments: [data.line],
+      });
+    });
+  }
+}
+
 /** Registers providers, commands, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: "sbt-dependencies", scheme: "file" };
@@ -733,6 +783,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "sbt-dependencies.openBuildProject",
       openBuildProject
+    ),
+    vscode.languages.registerCodeLensProvider(
+      selector,
+      new PinnedDepCodeLensProvider()
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.addDependencyNote",
+      addDependencyNote
     )
   );
 
