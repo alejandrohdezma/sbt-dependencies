@@ -334,8 +334,7 @@ class Commands {
 
         IO.writeLines(buildProperties, updatedLines.map(_._1))
 
-        if (updatedLines.exists(_._2)) runCommand("reboot")(state)
-        else state
+        state
       }
     }
   }
