@@ -177,6 +177,24 @@ describe("findReferences", () => {
     });
   });
 
+  describe("object format entries", () => {
+    it("finds references across string and object entries", () => {
+      const lines = [
+        'core = [',
+        '  "org.typelevel::cats-core:2.10.0"',
+        ']',
+        'extras = [',
+        '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "pinned" }',
+        ']',
+      ];
+      // cursor on org.typelevel in the string entry
+      const result = findReferences(lines, 1, 5);
+      expect(result).toHaveLength(2);
+      expect(result![0].line).toBe(1);
+      expect(result![1].line).toBe(4);
+    });
+  });
+
   describe("no match", () => {
     it("returns undefined when cursor is not on any entity", () => {
       const lines = [

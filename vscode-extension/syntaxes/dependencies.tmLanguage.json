@@ -38,6 +38,7 @@
       },
       "patterns": [
         { "include": "#comments" },
+        { "include": "#dependency-object" },
         { "include": "#dependency-string" }
       ]
     },
@@ -75,6 +76,7 @@
       },
       "patterns": [
         { "include": "#comments" },
+        { "include": "#dependency-object" },
         { "include": "#dependency-string" }
       ]
     },
@@ -91,6 +93,28 @@
       "patterns": [
         { "include": "#version-marker" },
         { "include": "#version-number" }
+      ]
+    },
+    "dependency-object": {
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.object.begin.sbt-dependencies" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.object.end.sbt-dependencies" }
+      },
+      "patterns": [
+        { "include": "#comments" },
+        {
+          "match": "\\b(dependency|note)\\b",
+          "name": "support.type.property-name.sbt-dependencies"
+        },
+        {
+          "match": "=",
+          "name": "keyword.operator.assignment.sbt-dependencies"
+        },
+        { "include": "#dependency-string" }
       ]
     },
     "dependency-string": {

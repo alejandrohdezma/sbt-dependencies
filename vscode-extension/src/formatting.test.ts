@@ -288,6 +288,63 @@ describe("formatDocument", () => {
     ].join("\n"));
   });
 
+  it("sorts single-line object entries alongside string entries", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
+      '  "co.fs2::fs2-core:^3.9.4"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "co.fs2::fs2-core:^3.9.4"',
+      '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
+      ']',
+    ].join("\n"));
+  });
+
+  it("preserves object entries in advanced block dependencies", () => {
+    const lines = [
+      'my-project {',
+      '  scala-versions = ["2.13.12"]',
+      '  dependencies = [',
+      '    { dependency = "org.typelevel::cats-core:=2.10.0", note = "Exact pin" }',
+      '    "co.fs2::fs2-core:^3.9.4"',
+      '  ]',
+      '}',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-project {',
+      '  scala-versions = ["2.13.12"]',
+      '  dependencies = [',
+      '    "co.fs2::fs2-core:^3.9.4"',
+      '    { dependency = "org.typelevel::cats-core:=2.10.0", note = "Exact pin" }',
+      '  ]',
+      '}',
+    ].join("\n"));
+  });
+
+  it("handles multi-line object entries", () => {
+    const lines = [
+      'my-group = [',
+      '  {',
+      '    dependency = "org.typelevel::cats-core:^2.10.0"',
+      '    note = "v3 drops Scala 2.12"',
+      '  }',
+      '  "co.fs2::fs2-core:^3.9.4"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "co.fs2::fs2-core:^3.9.4"',
+      '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
+      ']',
+    ].join("\n"));
+  });
+
   it("handles hash comments in groups", () => {
     const lines = [
       'my-group = [',

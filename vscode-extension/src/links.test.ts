@@ -67,6 +67,20 @@ describe("parseDocumentLinks", () => {
     expect(links[1].url).toContain("fs2-core");
   });
 
+  it("returns link for dependency in single-line object entry", () => {
+    const lines = ['  { dependency = "org.typelevel::cats-core:^2.10.0", note = "pinned" }'];
+    const links = parseDocumentLinks(lines);
+    expect(links).toHaveLength(1);
+    expect(links[0].url).toBe("https://mvnrepository.com/artifact/org.typelevel/cats-core");
+  });
+
+  it("returns link for dependency in multi-line object field", () => {
+    const lines = ['    dependency = "org.typelevel::cats-core:=2.10.0"'];
+    const links = parseDocumentLinks(lines);
+    expect(links).toHaveLength(1);
+    expect(links[0].url).toBe("https://mvnrepository.com/artifact/org.typelevel/cats-core");
+  });
+
   it("uses resolver URL when resolver returns a value", () => {
     const lines = ['  "org.typelevel::cats-core:2.10.0"'];
     const resolver = () => "https://github.com/typelevel/cats";

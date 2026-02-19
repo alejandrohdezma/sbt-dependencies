@@ -240,6 +240,122 @@ describe("parseDiagnostics", () => {
     });
   });
 
+  describe("object format entries", () => {
+    it("returns no diagnostics for valid single-line object entry", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("returns no diagnostics for mixed string and object entries", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
+        '  "org.scalameta::munit:1.2.1:test"',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("returns error for object entry without dependency field", () => {
+      const lines = [
+        'my-group = [',
+        '  { note = "missing dep" }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe("Object entry must have a 'dependency' field");
+    });
+
+    it("returns error for object entry without note field", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org.typelevel::cats-core:^2.10.0" }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe("Object entry must have a 'note' field");
+    });
+
+    it("validates dependency value inside object entry", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "bad", note = "reason" }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe('Malformed dependency: expected format "org:artifact" or "org::artifact"');
+    });
+
+    it("returns no diagnostics for valid object entry in advanced block", () => {
+      const lines = [
+        'my-group {',
+        '  dependencies = [',
+        '    { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
+        '  ]',
+        '}',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("detects duplicates across string and object entries", () => {
+      const lines = [
+        'my-group = [',
+        '  "org.typelevel::cats-core:2.10.0"',
+        '  { dependency = "org.typelevel::cats-core:^2.11.0", note = "pinned" }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].severity).toBe("warning");
+      expect(result[0].message).toBe("Duplicate dependency in group");
+    });
+
+    it("handles multi-line object entry", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "org.typelevel::cats-core:^2.10.0"',
+        '    note = "v3 drops Scala 2.12"',
+        '  }',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("returns error for multi-line object without dependency field", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    note = "missing dep"',
+        '  }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe("Object entry must have a 'dependency' field");
+    });
+
+    it("returns error for multi-line object without note field", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "org.typelevel::cats-core:^2.10.0"',
+        '  }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe("Object entry must have a 'note' field");
+    });
+  });
+
   describe("edge cases", () => {
     it("validates dep on same line as closing bracket", () => {
       const lines = [

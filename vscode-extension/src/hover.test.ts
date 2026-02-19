@@ -76,6 +76,22 @@ describe("parseDependency", () => {
     expect(parseDependency("")).toBeUndefined();
   });
 
+  it("parses dependency from single-line object entry", () => {
+    const result = parseDependency('  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops" }');
+    expect(result).toBeDefined();
+    expect(result!.org).toBe("org.typelevel");
+    expect(result!.separator).toBe("::");
+    expect(result!.artifact).toBe("cats-core");
+    expect(result!.version).toBe("^2.10.0");
+  });
+
+  it("parses dependency from multi-line object dependency field", () => {
+    const result = parseDependency('    dependency = "org.typelevel::cats-core:=2.10.0"');
+    expect(result).toBeDefined();
+    expect(result!.org).toBe("org.typelevel");
+    expect(result!.version).toBe("=2.10.0");
+  });
+
   it("returns correct matchStart and matchEnd", () => {
     const result = parseDependency('  "org.typelevel::cats-core:2.10.0"');
     expect(result).toBeDefined();
