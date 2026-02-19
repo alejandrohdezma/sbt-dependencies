@@ -31,6 +31,12 @@ class RetractedArtifactSuite extends munit.FunSuite {
 
   implicit val logger: TestLogger = TestLogger()
 
+  private val tempCacheDir = Files.createTempDirectory("config-cache")
+
+  override def beforeAll(): Unit = ConfigCache.withCacheDir(tempCacheDir.toFile())
+
+  override def afterAll(): Unit = IO.delete(tempCacheDir.toFile())
+
   override def beforeEach(context: BeforeEach): Unit = logger.cleanLogs()
 
   // --- HOCON parsing tests ---

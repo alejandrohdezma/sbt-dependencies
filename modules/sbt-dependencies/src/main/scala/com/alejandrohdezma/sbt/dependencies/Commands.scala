@@ -24,6 +24,7 @@ import sbt.Keys._
 import sbt.internal.util.complete.Parser
 import sbt.{Keys => _, _}
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
@@ -144,6 +145,8 @@ class Commands {
 
     val project = Project.extract(state)
 
+    ConfigCache.withCacheDir(project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / "config-cache")
+
     val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
 
     val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
@@ -236,6 +239,8 @@ class Commands {
 
     val base = project.get(ThisBuild / baseDirectory)
 
+    ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
+
     logger.info("\n↻ Checking for new versions of Scalafmt\n")
 
     val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
@@ -267,6 +272,8 @@ class Commands {
     val project = Project.extract(state)
 
     val base = project.get(ThisBuild / baseDirectory)
+
+    ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))

@@ -26,6 +26,7 @@ import sbt.complete.DefaultParsers._
 import sbt.internal.util.complete.Parser
 import sbt.{Keys => _, _}
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdateFilter
 import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
@@ -45,6 +46,8 @@ class Tasks {
   /** Updates dependencies to their latest versions based on the filter and version constraints. */
   val updateDependencies = Def.inputTask {
     implicit val logger: Logger = streams.value.log
+
+    ConfigCache.withCacheDir((ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "config-cache")
 
     val ignoreFinder = IgnoreFinder.fromUrls(Keys.dependencyUpdateIgnores.value)
 
@@ -215,6 +218,8 @@ class Tasks {
   /** Updates Scala versions to their latest versions within the same minor line. */
   val updateScalaVersions = Def.inputTask {
     implicit val logger: Logger = streams.value.log
+
+    ConfigCache.withCacheDir((ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "config-cache")
 
     val ignoreFinder = IgnoreFinder.fromUrls(Keys.dependencyUpdateIgnores.value)
 
