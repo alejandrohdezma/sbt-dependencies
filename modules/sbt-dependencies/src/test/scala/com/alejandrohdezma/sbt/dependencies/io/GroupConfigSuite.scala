@@ -20,6 +20,12 @@ import com.typesafe.config.ConfigFactory
 
 class GroupConfigSuite extends munit.FunSuite {
 
+  /** Helper to create an AnnotatedDependency */
+  implicit def dep(line: String): AnnotatedDependency = AnnotatedDependency(line, None) // scalafix:ok
+
+  /** Helper to create an AnnotatedDependency with a note. */
+  private def dep(line: String, note: String): AnnotatedDependency = AnnotatedDependency(line, Some(note))
+
   def parseGroup(hocon: String, group: String): Either[String, GroupConfig] = {
     val config = ConfigFactory.parseString(hocon)
     GroupConfig.parse(config, group)
@@ -154,6 +160,54 @@ class GroupConfigSuite extends munit.FunSuite {
     assert(result.left.exists(_.contains("cannot be empty")))
   }
 
+  // --- parse() tests: Object format with notes ---
+
+  test("parse simple format with object entry containing note") {
+    val result = parseGroup(
+      """|my-group = [
+         |  { dependency = "org::name:^1.0.0", note = "Pinned to major 1" }
+         |  "org2::name2:2.0.0"
+         |]""".stripMargin,
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(GroupConfig.Simple(List(dep("org::name:^1.0.0", "Pinned to major 1"), "org2::name2:2.0.0")))
+    )
+  }
+
+  test("parse advanced format with object entry containing note") {
+    val result = parseGroup(
+      """|my-group {
+         |  dependencies = [
+         |    { dependency = "org::name:=1.0.0", note = "Exact pin for compat" }
+         |    "org2::name2:2.0.0"
+         |  ]
+         |}""".stripMargin,
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(GroupConfig.Advanced(List(dep("org::name:=1.0.0", "Exact pin for compat"), "org2::name2:2.0.0"), Nil))
+    )
+  }
+
+  test("parse returns error for object entry without dependency field") {
+    val result = parseGroup("""my-group = [{ note = "missing dep" }]""", "my-group")
+
+    assert(result.isLeft)
+    assert(result.left.exists(_.contains("'dependency'")))
+  }
+
+  test("parse returns error for object entry without note field") {
+    val result = parseGroup("""my-group = [{ dependency = "org::name:1.0" }]""", "my-group")
+
+    assert(result.isLeft)
+    assert(result.left.exists(_.contains("'note'")))
+  }
+
   // --- format() tests: Simple format ---
 
   test("format Simple produces correct HOCON") {
@@ -255,6 +309,89 @@ class GroupConfigSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  // --- format() tests: Object format with notes ---
+
+  test("format Simple with short note uses single-line object") {
+    val config = GroupConfig.Simple(List(dep("org::name:^1.0.0", "v2 drops Scala 2.12")))
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org::name:^1.0.0", note = "v2 drops Scala 2.12" }
+         |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Simple with long note uses multi-line object") {
+    val longNote =
+      "This dependency is pinned because the next major version drops support for Scala 2.12 and we still need cross-building"
+    val config = GroupConfig.Simple(List(dep("org.typelevel::cats-core:^2.10.0", longNote)))
+    val result = config.format("my-project")
+
+    val expected =
+      s"""|my-project = [
+          |  {
+          |    dependency = "org.typelevel::cats-core:^2.10.0"
+          |    note = "$longNote"
+          |  }
+          |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format mixed string and object entries") {
+    val config = GroupConfig.Simple(
+      List(
+        dep("org::name:^1.0.0", "Pinned to major 1"),
+        "org2::name2:2.0.0"
+      )
+    )
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org::name:^1.0.0", note = "Pinned to major 1" }
+         |  "org2::name2:2.0.0"
+         |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Advanced with note in dependencies") {
+    val config = GroupConfig.Advanced(
+      List(dep("org::name:=1.0.0", "Exact pin for compat"), "org2::name2:2.0.0"),
+      List("2.13.12")
+    )
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project {
+         |  scala-version = "2.13.12"
+         |  dependencies = [
+         |    { dependency = "org::name:=1.0.0", note = "Exact pin for compat" }
+         |    "org2::name2:2.0.0"
+         |  ]
+         |}""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  // --- parse/format round-trip tests ---
+
+  test("parse then format round-trips simple format with notes") {
+    val hocon =
+      """|my-group = [
+         |  { dependency = "org::name:^1.0.0", note = "Pinned to major 1" }
+         |  "org2::name2:2.0.0"
+         |]""".stripMargin
+
+    val parsed    = parseGroup(hocon, "my-group")
+    val formatted = parsed.map(_.format("my-group"))
+
+    assertEquals(formatted, Right(hocon))
+  }
+
   // --- scalaVersions property tests ---
 
   test("Simple.scalaVersions returns empty list") {
@@ -275,18 +412,18 @@ class GroupConfigSuite extends munit.FunSuite {
     assertEquals(config.scalaVersions, Nil)
   }
 
-  // --- dependencies property tests ---
+  // --- dependencyLines property tests ---
 
-  test("Simple.dependencies returns the list") {
-    val config = GroupConfig.Simple(List("dep1", "dep2"))
+  test("Simple.dependencyLines returns the lines") {
+    val config = GroupConfig.Simple(List("dep1", dep("dep2", "a note")))
 
-    assertEquals(config.dependencies, List("dep1", "dep2"))
+    assertEquals(config.dependencyLines, List("dep1", "dep2"))
   }
 
-  test("Advanced.dependencies returns the list") {
-    val config = GroupConfig.Advanced(List("dep1", "dep2"), List("2.13.12"))
+  test("Advanced.dependencyLines returns the lines") {
+    val config = GroupConfig.Advanced(List("dep1", dep("dep2", "a note")), List("2.13.12"))
 
-    assertEquals(config.dependencies, List("dep1", "dep2"))
+    assertEquals(config.dependencyLines, List("dep1", "dep2"))
   }
 
 }
