@@ -4,5 +4,9 @@
 # Verify snapshot was cleaned up
 -$ exists target/sbt-dependencies/.sbt-dependency-snapshot
 
+# Verify meta-build snapshot and diff were cleaned up
+-$ exists project/target/sbt-dependencies/.sbt-dependency-snapshot
+-$ exists project/target/sbt-dependencies/.sbt-dependency-diff
+
 # Validate the diff file matches expected output
 $ must-mirror target/sbt-dependencies/.sbt-dependency-diff expected-diff

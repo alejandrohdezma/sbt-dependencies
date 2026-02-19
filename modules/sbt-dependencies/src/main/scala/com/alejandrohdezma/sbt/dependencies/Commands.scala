@@ -43,7 +43,8 @@ class Commands {
   /** All commands provided by this plugin. */
   val all = Seq(initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies,
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
-    enableEvictionWarnings, snapshotDependencies, computeDependencyDiff)
+    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, computeDependencyDiff,
+    computeBuildDependencyDiff)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -129,9 +130,22 @@ class Commands {
   lazy val updateAllDependencies = Command.command("updateAllDependencies") { state =>
     val base = Project.extract(state).get(ThisBuild / baseDirectory)
 
-    val steps = List("snapshotDependencies", "updateSbtPlugin", "updateBuildScalaVersions", "updateBuildDependencies",
-      "updateScalafmtVersion", "updateScalaVersions", "updateDependencies", "reload", "updateSbt",
-      "disableEvictionWarnings", "computeDependencyDiff", "enableEvictionWarnings")
+    val steps = List(
+      "snapshotDependencies",       // Record resolved deps before any changes
+      "snapshotBuildDependencies",  // Record resolved meta-build deps before any changes
+      "updateSbtPlugin",            // Update sbt-dependencies (or wrapper) plugin version
+      "updateBuildScalaVersions",   // Update Scala versions in meta-build
+      "updateBuildDependencies",    // Update dependencies in meta-build
+      "computeBuildDependencyDiff", // Compute meta-build dependency diff from snapshot
+      "updateScalafmtVersion",      // Update scalafmt version in .scalafmt.conf files
+      "updateScalaVersions",        // Update Scala versions in main build
+      "updateDependencies",         // Update dependencies in main build
+      "reload",                     // Reload build with updated dependencies
+      "updateSbt",                  // Update sbt version in build.properties
+      "disableEvictionWarnings",    // Temporarily lower eviction errors to info
+      "computeDependencyDiff",      // Compute main dependency diff and merge meta-build diff
+      "enableEvictionWarnings"      // Restore eviction errors
+    )
 
     runStepsSafely(steps: _*)(state, base / "target" / "sbt-dependencies")
   }
@@ -320,8 +334,7 @@ class Commands {
 
         IO.writeLines(buildProperties, updatedLines.map(_._1))
 
-        if (updatedLines.exists(_._2)) runCommand("reboot")(state)
-        else state
+        state
       }
     }
   }
@@ -355,13 +368,24 @@ class Commands {
     state
   }
 
+  /** Snapshots all resolved dependencies in the meta-build (project/) for later diff computation. */
+  lazy val snapshotBuildDependencies = Command.command("snapshotBuildDependencies") { state =>
+    Try(runInMetaBuild("snapshotDependencies")(state)).onError { case e =>
+      state.log.trace(e)
+      state.log.error("Unable to generate build dependency snapshot")
+    }
+
+    state
+  }
+
   /** Computes dependency diff from snapshot, writes `target/sbt-dependencies/.sbt-dependency-diff`, and cleans up the
     * snapshot file.
     */
   lazy val computeDependencyDiff = Command.command("computeDependencyDiff") { state =>
     Try {
-      val outputDir =
-        Project.extract(state).get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies"
+      val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+      val outputDir = base / "target" / "sbt-dependencies"
 
       val snapshotFile = outputDir / ".sbt-dependency-snapshot"
 
@@ -372,7 +396,26 @@ class Commands {
 
         val after = generateSnapshot(state)
 
-        val diffs = DependencyDiff.compute(before, after)
+        var diffs = DependencyDiff.compute(before, after) // scalafix:ok
+
+        // Merge meta-build diff (produced by computeBuildDependencyDiff) under "sbt-build" key
+        val buildDiffFile = base / "project" / "target" / "sbt-dependencies" / ".sbt-dependency-diff"
+
+        if (buildDiffFile.exists()) {
+          val buildDiffs = DependencyDiff.readDiff(buildDiffFile)
+
+          if (buildDiffs.nonEmpty) {
+            val merged = DependencyDiff.ProjectDiff(
+              updated = buildDiffs.values.flatMap(_.updated).toList,
+              added = buildDiffs.values.flatMap(_.added).toList,
+              removed = buildDiffs.values.flatMap(_.removed).toList
+            )
+
+            diffs = diffs + ("sbt-build" -> merged)
+          }
+
+          IO.delete(buildDiffFile)
+        }
 
         if (diffs.nonEmpty)
           IO.write(outputDir / ".sbt-dependency-diff", DependencyDiff.toHocon(diffs))
@@ -380,6 +423,18 @@ class Commands {
         IO.delete(snapshotFile)
       }
     }.onError { case e => state.log.warn(s"computeDependencyDiff: ${e.getMessage}") }
+
+    state
+  }
+
+  /** Computes dependency diff for the meta-build (project/) and writes it to
+    * `project/target/sbt-dependencies/.sbt-dependency-diff`.
+    */
+  lazy val computeBuildDependencyDiff = Command.command("computeBuildDependencyDiff") { state =>
+    Try(runInMetaBuild("computeDependencyDiff")(state)).onError { case e =>
+      state.log.trace(e)
+      state.log.error("Unable to compute build dependency diff")
+    }
 
     state
   }
@@ -427,6 +482,11 @@ class Commands {
     IO.delete(outputDir / ".sbt-update-report")
     IO.delete(outputDir / ".sbt-dependency-snapshot")
     IO.delete(outputDir / ".sbt-dependency-diff")
+
+    val buildOutputDir = outputDir.getParentFile.getParentFile / "project" / "target" / "sbt-dependencies"
+
+    IO.delete(buildOutputDir / ".sbt-dependency-snapshot")
+    IO.delete(buildOutputDir / ".sbt-dependency-diff")
 
     val remaining = ListBuffer(steps: _*)
 

@@ -57,10 +57,14 @@ class Keys {
     settingKey[Boolean]("Whether scala versions are managed by sbt-dependencies via dependencies.conf")
 
   val sbtDependenciesPluginOrganization =
-    settingKey[String]("Organization of the plugin to update in project/project/plugins.sbt")
+    settingKey[String] {
+      "Organization of the plugin to update in project/project/plugins.sbt"
+    }.withRank(KeyRanks.Invisible)
 
   val sbtDependenciesPluginName =
-    settingKey[String]("Name of the plugin to update in project/project/plugins.sbt")
+    settingKey[String] {
+      "Name of the plugin to update in project/project/plugins.sbt"
+    }.withRank(KeyRanks.Invisible)
 
   /** All resolved library dependencies for the project, after conflict resolution and eviction. */
   val allProjectDependencies = taskKey[List[ModuleID]] {
