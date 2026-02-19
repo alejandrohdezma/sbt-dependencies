@@ -16,10 +16,13 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import java.util.concurrent.ForkJoinPool
+import java.util.concurrent.Executors
 
 import scala.Console._
-import scala.collection.parallel.ForkJoinTaskSupport
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+import scala.concurrent.duration.Duration
 
 import sbt.Keys._
 import sbt.complete.DefaultParsers._
@@ -40,7 +43,6 @@ import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.string.box._
 
 /** SBT input tasks for managing dependencies. */
-@SuppressWarnings(Array("scalafix:Disable.scala.collection.parallel"))
 class Tasks {
 
   /** Updates dependencies to their latest versions based on the filter and version constraints. */
@@ -80,66 +82,62 @@ class Tasks {
 
       val filtered = dependencies.filterNot(filter.matches)
 
-      val parallelism = Keys.dependencyResolverParallelism.value
+      val executor = Executors.newFixedThreadPool(Keys.dependencyResolverParallelism.value)
 
-      val parDependencies = dependencies.par
+      implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
-      parDependencies.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(parallelism))
+      val futures = dependencies.filter(filter.matches).map(dep => Future((dep, dep.findLatestVersion)))
 
-      val updated =
-        parDependencies
-          .filter(filter.matches)
-          .map(dep =>
-            (dep, dep.findLatestVersion) match {
-              case (original: Dependency.WithNumericVersion, _) if original.version.marker.isExact =>
-                logger.info(s" ↳ $CYAN⊙$RESET $CYAN${original.toLine}$RESET")
-                original
+      val updated = futures.map { future =>
+        val (dependency, message) = Await.result(future, Duration.Inf) match {
+          case (original: Dependency.WithNumericVersion, _) if original.version.marker.isExact =>
+            (original, s" ↳ $CYAN⊙$RESET $CYAN${original.toLine}$RESET")
 
-              case (original: Dependency.WithNumericVersion, updated) if !updated.isSameArtifact(original) =>
-                logger.info(s" ↳ $YELLOW⇄$RESET $YELLOW${original.toLine}$RESET -> $CYAN${updated.toLine}$RESET")
-                updated
+          case (original: Dependency.WithNumericVersion, latest) if !latest.isSameArtifact(original) =>
+            (latest, s" ↳ $YELLOW⇄$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.toLine}$RESET")
 
-              case (original: Dependency.WithNumericVersion, updated)
-                  if updated.version.isSameVersion(original.version) =>
-                logger.info(s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET")
-                original
+          case (original: Dependency.WithNumericVersion, latest) if latest.version.isSameVersion(original.version) =>
+            (original, s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET")
 
-              case (original: Dependency.WithNumericVersion, updated) =>
-                logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${original.toLine}$RESET -> $CYAN${updated.version.show}$RESET")
-                updated
+          case (original: Dependency.WithNumericVersion, latest) =>
+            (latest, s" ↳ $YELLOW⬆$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.version.show}$RESET")
 
-              case (original: Dependency.WithVariableVersion, updated)
-                  if !updated.isSameArtifact(original) && updated.version.isSameVersion(original.version.resolved) =>
-                logger.info {
-                  s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`), migration " +
-                    s"to ${updated.organization}:${updated.name} available"
-                }
-                original
+          case (original: Dependency.WithVariableVersion, latest)
+              if !latest.isSameArtifact(original) && latest.version.isSameVersion(original.version.resolved) =>
+            (
+              original,
+              s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`), migration " +
+                s"to ${latest.organization}:${latest.name} available"
+            )
 
-              case (original: Dependency.WithVariableVersion, updated) if !updated.isSameArtifact(original) =>
-                logger.info {
-                  s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-                    s"latest: `$YELLOW${updated.version.toVersionString}$RESET`, migration to" +
-                    s" ${updated.organization}:${updated.name} available)"
-                }
-                original
+          case (original: Dependency.WithVariableVersion, latest) if !latest.isSameArtifact(original) =>
+            (
+              original,
+              s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
+                s"latest: `$YELLOW${latest.version.toVersionString}$RESET`, migration to" +
+                s" ${latest.organization}:${latest.name} available)"
+            )
 
-              case (original: Dependency.WithVariableVersion, updated)
-                  if updated.version.isSameVersion(original.version.resolved) =>
-                logger.info(
-                  s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`)"
-                )
-                original
+          case (original: Dependency.WithVariableVersion, latest)
+              if latest.version.isSameVersion(original.version.resolved) =>
+            (
+              original,
+              s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`)"
+            )
 
-              case (original: Dependency.WithVariableVersion, updated) =>
-                logger.info {
-                  s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-                    s"latest: `$YELLOW${updated.version.toVersionString}$RESET`)"
-                }
-                original
-            }
-          )
-          .toList
+          case (original: Dependency.WithVariableVersion, latest) =>
+            (
+              original,
+              s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
+                s"latest: `$YELLOW${latest.version.toVersionString}$RESET`)"
+            )
+        }
+
+        logger.info(message)
+        dependency
+      }
+
+      executor.shutdown()
 
       updated.foreach(retractionFinder.warnIfRetracted(_))
 

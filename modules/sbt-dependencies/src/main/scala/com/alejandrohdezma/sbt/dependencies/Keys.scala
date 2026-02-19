@@ -202,7 +202,7 @@ class Keys {
 
   /** Maximum number of dependencies resolved concurrently.
     *
-    * Controls the parallelism of the `ForkJoinPool` used when checking dependency versions.
+    * Controls the size of the thread pool used when checking dependency versions.
     *
     * Default: `Runtime.getRuntime.availableProcessors`
     *
