@@ -1,0 +1,7 @@
+myproject = [
+  { dependency = "org.http4s::http4s-core:=0.21.34", note = "Exact pin: API removed in 0.22" }
+  {
+    dependency = "org.http4s::http4s-dsl:~0.21.34"
+    note = "Pinned to 0.21.x because the EntityEncoder changes in 0.22 require a full rewrite of our streaming layer"
+  }
+]
