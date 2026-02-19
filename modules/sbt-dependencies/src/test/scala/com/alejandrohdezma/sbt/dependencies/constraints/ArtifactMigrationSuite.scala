@@ -31,6 +31,12 @@ class ArtifactMigrationSuite extends munit.FunSuite {
 
   implicit val logger: Logger = TestLogger()
 
+  private val tempCacheDir = Files.createTempDirectory("config-cache")
+
+  override def beforeAll(): Unit = ConfigCache.withCacheDir(tempCacheDir.toFile())
+
+  override def afterAll(): Unit = IO.delete(tempCacheDir.toFile())
+
   def withMigrationFile(contents: String*) = FunFixture[List[URL]](
     setup = { _ =>
       contents.toList.map { content =>

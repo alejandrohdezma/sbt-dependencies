@@ -30,7 +30,6 @@ import com.alejandrohdezma.sbt.dependencies.ConfigOps
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import com.typesafe.config.ConfigFactory
 
 /** Represents an artifact migration from old coordinates to new coordinates.
   *
@@ -93,9 +92,9 @@ object ArtifactMigration {
     */
   def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[ArtifactMigration] = urls.flatMap { url =>
     Option(cache.get(url)).getOrElse {
-      logger.info(s"↻ Loading migrations from $CYAN$url$RESET")
+      logger.debug(s"↻ Loading migrations from $CYAN$url$RESET")
 
-      val config = Try(ConfigFactory.parseURL(url)).recover { case e =>
+      val config = Try(ConfigCache.get(url)).recover { case e =>
         Utils.fail(s"Failed to parse migration file $url: ${e.getMessage}")
       }.get
 
