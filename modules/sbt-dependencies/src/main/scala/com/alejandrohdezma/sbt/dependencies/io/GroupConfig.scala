@@ -24,8 +24,11 @@ import com.typesafe.config.ConfigValueType
 /** Represents the configuration for a group in the dependencies file. */
 sealed trait GroupConfig {
 
-  /** The list of dependencies for this group. */
-  def dependencies: List[String]
+  /** The list of annotated dependencies for this group. */
+  def dependencies: List[AnnotatedDependency]
+
+  /** The dependency lines (without notes) for this group. */
+  def dependencyLines: List[String] = dependencies.map(_.line)
 
   /** The list of Scala versions for this group. */
   def scalaVersions: List[String] = Nil
@@ -33,7 +36,7 @@ sealed trait GroupConfig {
   /** Formats a group with its configuration for HOCON output. */
   def format(group: String): String = this match {
     case GroupConfig.Simple(deps) =>
-      s"""$group = [\n${deps.map(d => s"""  "$d"""").mkString("\n")}\n]"""
+      s"""$group = [\n${deps.map(_.format.indent(2).stripTrailing()).mkString("\n")}\n]"""
 
     case GroupConfig.Advanced(deps, versions) =>
       val scalaVersionsSection = versions match {
@@ -44,7 +47,8 @@ sealed trait GroupConfig {
       }
 
       val depsSection =
-        if (deps.nonEmpty) s"""  dependencies = [\n${deps.map(d => s"""    "$d"""").mkString("\n")}\n  ]"""
+        if (deps.nonEmpty)
+          s"""  dependencies = [\n${deps.map(_.format.indent(4).stripTrailing()).mkString("\n")}\n  ]"""
         else "  dependencies = []"
 
       s"$group {\n$scalaVersionsSection$depsSection\n}"
@@ -58,7 +62,7 @@ object GroupConfig {
   def parse(config: Config, group: String): Either[String, GroupConfig] =
     config.getValue(group).valueType() match {
       case ConfigValueType.LIST =>
-        Right(GroupConfig.Simple(config.getStringList(group).asScala.toList))
+        AnnotatedDependency.parse(config, group).map(GroupConfig.Simple(_))
 
       case ConfigValueType.OBJECT =>
         val groupConfig = config.getConfig(group)
@@ -66,7 +70,7 @@ object GroupConfig {
         val dependencies =
           if (groupConfig.hasPath("dependencies"))
             groupConfig.getValue("dependencies").valueType() match {
-              case ConfigValueType.LIST => Right(groupConfig.getStringList("dependencies").asScala.toList)
+              case ConfigValueType.LIST => AnnotatedDependency.parse(groupConfig, "dependencies")
               case other                => Left(s"'dependencies' must be a list, got $other")
             }
           else Right(Nil)
@@ -102,11 +106,11 @@ object GroupConfig {
     * {{{
     * my-project = [
     *   "org::name:version"
-    *   "org2::name2:version2"
+    *   { dependency = "org2::name2:^version2", note = "Reason for pinning" }
     * ]
     * }}}
     */
-  final case class Simple(dependencies: List[String]) extends GroupConfig
+  final case class Simple(dependencies: List[AnnotatedDependency]) extends GroupConfig
 
   /** Advanced format: an object with dependencies and potentially other fields.
     *
@@ -116,12 +120,12 @@ object GroupConfig {
     *   scala-versions = ["2.13.12", "2.12.18"]
     *   dependencies = [
     *     "org::name:version"
-    *     "org2::name2:version2"
+    *     { dependency = "org2::name2:^version2", note = "Reason for pinning" }
     *   ]
     * }
     * }}}
     */
-  final case class Advanced(dependencies: List[String], override val scalaVersions: List[String] = Nil)
+  final case class Advanced(dependencies: List[AnnotatedDependency], override val scalaVersions: List[String] = Nil)
       extends GroupConfig
 
 }
