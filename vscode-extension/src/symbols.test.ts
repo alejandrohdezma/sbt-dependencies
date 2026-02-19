@@ -194,6 +194,72 @@ describe("parseDocumentSymbols", () => {
     });
   });
 
+  describe("object format entries", () => {
+    it("extracts dependency from single-line object entry", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
+        ']',
+      ];
+      const result = parseDocumentSymbols(lines);
+      expect(result[0].children).toHaveLength(1);
+      expect(result[0].children![0].name).toBe("org.typelevel::cats-core:^2.10.0");
+    });
+
+    it("extracts dependency from mixed string and object entries", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "pinned" }',
+        '  "org.scalameta::munit:1.2.1:test"',
+        ']',
+      ];
+      const result = parseDocumentSymbols(lines);
+      expect(result[0].children).toHaveLength(2);
+      expect(result[0].children![0].name).toBe("org.typelevel::cats-core:^2.10.0");
+      expect(result[0].children![1].name).toBe("org.scalameta::munit:1.2.1:test");
+    });
+
+    it("does not create symbol for note value", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
+        ']',
+      ];
+      const result = parseDocumentSymbols(lines);
+      // Should only have 1 child (the dependency), not 2 (dependency + note)
+      expect(result[0].children).toHaveLength(1);
+    });
+
+    it("extracts dependency from multi-line object entry", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "org.typelevel::cats-core:^2.10.0"',
+        '    note = "v3 drops Scala 2.12"',
+        '  }',
+        ']',
+      ];
+      const result = parseDocumentSymbols(lines);
+      expect(result[0].children).toHaveLength(1);
+      expect(result[0].children![0].name).toBe("org.typelevel::cats-core:^2.10.0");
+    });
+
+    it("handles object entries in advanced block", () => {
+      const lines = [
+        'my-group {',
+        '  dependencies = [',
+        '    { dependency = "org.typelevel::cats-core:=2.10.0", note = "Exact pin" }',
+        '    "org.scalameta::munit:1.2.1:test"',
+        '  ]',
+        '}',
+      ];
+      const result = parseDocumentSymbols(lines);
+      expect(result[0].children).toHaveLength(2);
+      expect(result[0].children![0].name).toBe("org.typelevel::cats-core:=2.10.0");
+      expect(result[0].children![1].name).toBe("org.scalameta::munit:1.2.1:test");
+    });
+  });
+
   describe("real-world example", () => {
     it("handles mixed groups, comments, and empty arrays", () => {
       const lines = [

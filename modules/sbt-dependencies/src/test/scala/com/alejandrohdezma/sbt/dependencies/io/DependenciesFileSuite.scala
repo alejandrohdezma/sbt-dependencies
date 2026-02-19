@@ -1046,6 +1046,275 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(deps.head.name, "cats-core")
   }
 
+  // --- Dependency notes tests ---
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+       |  "org.scalameta::munit:1.2.1:test"
+       |]
+       |""".stripMargin
+  }.test("read parses dependencies from object entries with notes") { file =>
+    val result = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    val expected = List(
+      Dependency.WithNumericVersion(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
+        isCross = true
+      ),
+      Dependency.WithNumericVersion(
+        "org.scalameta",
+        "munit",
+        Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "test"
+      )
+    )
+
+    assertEquals(result, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+       |  "org.scalameta::munit:1.2.1:test"
+       |]
+       |""".stripMargin
+  }.test("write preserves notes when updating dependency versions") { file =>
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.Major),
+        isCross = true
+      ),
+      Dependency.WithNumericVersion(
+        "org.scalameta",
+        "munit",
+        Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "test"
+      )
+    )
+
+    DependenciesFile.write(file, "my-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org.typelevel::cats-core:^2.11.0", note = "v3 drops Scala 2.12" }
+         |  "org.scalameta::munit:1.3.0:test"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+       |  "org.scalameta::munit:1.2.1:test"
+       |]
+       |""".stripMargin
+  }.test("write drops notes when dependency is removed") { file =>
+    // Only write munit, cats-core is removed
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.scalameta",
+        "munit",
+        Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "test"
+      )
+    )
+
+    DependenciesFile.write(file, "my-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  "org.scalameta::munit:1.2.1:test"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project {
+       |  scala-version = "2.13.12"
+       |  dependencies = [
+       |    { dependency = "org.typelevel::cats-core:=2.10.0", note = "Exact pin for compat" }
+       |    "org.scalameta::munit:1.2.1:test"
+       |  ]
+       |}
+       |""".stripMargin
+  }.test("write preserves notes in advanced format") { file =>
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
+        isCross = true
+      ),
+      Dependency.WithNumericVersion(
+        "org.scalameta",
+        "munit",
+        Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "test"
+      )
+    )
+
+    DependenciesFile.write(file, "my-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project {
+         |  scala-version = "2.13.12"
+         |  dependencies = [
+         |    { dependency = "org.typelevel::cats-core:=2.10.0", note = "Exact pin for compat" }
+         |    "org.scalameta::munit:1.3.0:test"
+         |  ]
+         |}
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+       |  { dependency = "org.typelevel::cats-effect:=3.5.0", note = "Binary compat issue" }
+       |]
+       |""".stripMargin
+  }.test("write preserves multiple notes through update") { file =>
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.Major),
+        isCross = true
+      ),
+      Dependency.WithNumericVersion(
+        "org.typelevel",
+        "cats-effect",
+        Version.Numeric(List(3, 6, 0), None, Version.Numeric.Marker.Exact),
+        isCross = true
+      )
+    )
+
+    DependenciesFile.write(file, "my-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org.typelevel::cats-core:^2.11.0", note = "v3 drops Scala 2.12" }
+         |  { dependency = "org.typelevel::cats-effect:=3.6.0", note = "Binary compat issue" }
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+       |]
+       |""".stripMargin
+  }.test("write then read round-trip with notes") { file =>
+    val deps = DependenciesFile.read(file, "my-project", variableResolvers)
+
+    val expected = List(
+      Dependency.WithNumericVersion(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
+        isCross = true
+      )
+    )
+
+    assertEquals(deps, expected)
+
+    // Write back the same deps
+    DependenciesFile.write(file, "my-project", deps)
+
+    val content = IO.read(file)
+
+    val expectedContent =
+      """|my-project = [
+         |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expectedContent)
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+       |]
+       |
+       |other-project = [
+       |  "org.scalameta::munit:1.2.1:test"
+       |]
+       |""".stripMargin
+  }.test("write preserves notes in one group while updating another") { file =>
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.scalameta",
+        "munit",
+        Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "test"
+      )
+    )
+
+    DependenciesFile.write(file, "other-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+         |]
+         |
+         |other-project = [
+         |  "org.scalameta::munit:1.3.0:test"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+       |]
+       |""".stripMargin
+  }.test("writeScalaVersions preserves notes in existing dependencies") { file =>
+    DependenciesFile.writeScalaVersions(file, "my-project", List(v("2.13.12")))
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project {
+         |  scala-version = "~2.13.12"
+         |  dependencies = [
+         |    { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+         |  ]
+         |}
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
   // --- hasGroup tests ---
 
   withDependenciesFile {

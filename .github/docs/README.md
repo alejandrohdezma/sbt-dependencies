@@ -5,6 +5,7 @@
 - Manage all dependencies in a single [`project/dependencies.conf`](#user-content-define-dependencies) file (HOCON format).
 - [Update dependencies](#user-content-update-project-dependencies) to their latest versions with a single command.
 - Control updates with [version markers](#user-content-pin-a-dependency): pin, restrict to major, or restrict to minor.
+- Document pinning decisions with [dependency notes](#user-content-add-a-note-to-a-pinned-dependency).
 - Automatically [migrate renamed artifacts](#user-content-configure-artifact-migrations) using Scala Steward's migration list.
 - [Exclude known-bad versions](#user-content-configure-update-ignores) from updates using Scala Steward's ignore list.
 - Automatically exclude [retracted versions](#user-content-configure-retracted-versions) from updates using Scala Steward's retraction list.
@@ -52,6 +53,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Use cross-compiled (Scala) dependencies](#user-content-use-cross-compiled-dependencies)
   + [Filter dependencies by Scala version](#user-content-filter-by-scala-version)
   + [Pin a dependency to a specific version](#user-content-pin-a-dependency)
+  + [Add a note to a pinned dependency](#user-content-add-a-note-to-a-pinned-dependency)
   + [Use shared version variables](#user-content-use-shared-version-variables)
   + [Configure Scala versions](#user-content-configure-scala-versions)
   + [Use the advanced group format](#user-content-use-advanced-group-format)
@@ -174,6 +176,33 @@ my-project = [
   "io.circe::circe-core:~0.14.6"      # Updated within 0.14.x only
 ]
 ```
+
+---
+
+</details>
+
+<details><summary><b id="add-a-note-to-a-pinned-dependency">Add a note to a pinned dependency</b></summary><br/>
+
+When pinning a dependency with a [version marker](#user-content-pin-a-dependency), you can add a note explaining why using an object format:
+
+```hocon
+my-project = [
+  { dependency = "org.typelevel::cats-core:=2.10.0", note = "v3 drops Scala 2.12" }
+]
+```
+
+The `note` field is required when using object format — it exists specifically to document pinning decisions. Long notes are automatically formatted across multiple lines:
+
+```hocon
+my-project = [
+  {
+    dependency = "org.http4s::http4s-core:~0.21.34"
+    note = "Pinned to 0.21.x because the EntityEncoder changes in 0.22 require a full rewrite of our streaming layer"
+  }
+]
+```
+
+Both formats (plain strings and objects with notes) can coexist in the same dependency list. Notes are preserved through `updateDependencies` — only the version is updated while the note remains unchanged.
 
 ---
 
