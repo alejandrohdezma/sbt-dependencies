@@ -79,7 +79,7 @@ object ConfigCache {
   private def fileFor(url: URL): File = {
     val hash = MessageDigest
       .getInstance("SHA-256")
-      .digest(url.toString.getBytes("UTF-8"))
+      .digest(url.toExternalForm().getBytes("UTF-8"))
       .map("%02x".format(_))
       .mkString
 
