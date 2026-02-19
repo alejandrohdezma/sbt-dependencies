@@ -72,7 +72,10 @@ object VersionFinder {
         .available
         .collect { case Dependency.Version.Numeric(v) => v }
 
-      logger.debug(s"Retrieved ${result.size} versions for ${module.organization.value}:${module.name.value}")
+      logger.debug {
+        s"Retrieved ${result.size} versions for `${module.organization.value}:${module.name.value}`:\n" +
+          result.map("`" + _.show + "`").mkString(", ")
+      }
 
       result
     } catch {
@@ -115,36 +118,60 @@ object VersionFinder {
     def cached: VersionFinder = {
       val cache = new ConcurrentHashMap[(String, String, Boolean, Boolean), List[Dependency.Version.Numeric]]()
 
-      (organization, name, isCross, isSbtPlugin) => {
-        val key = (organization, name, isCross, isSbtPlugin)
-        Option(cache.get(key)).getOrElse {
-          val result = underlying.findVersions(organization, name, isCross, isSbtPlugin)
-          cache.put(key, result)
-          result
-        }
-      }
+      (organization, name, isCross, isSbtPlugin) =>
+        cache.computeIfAbsent(
+          (organization, name, isCross, isSbtPlugin),
+          tuple => (underlying.findVersions _).tupled(tuple)
+        )
     }
 
     /** Wraps this `VersionFinder` to filter out versions matched by the given `IgnoreFinder`. */
-    def ignoringVersions(ignoreFinder: IgnoreFinder): VersionFinder =
-      (organization, name, isCross, isSbtPlugin) =>
-        underlying
+    def ignoringVersions(ignoreFinder: IgnoreFinder)(implicit logger: Logger): VersionFinder =
+      (organization, name, isCross, isSbtPlugin) => {
+        val versions = underlying
           .findVersions(organization, name, isCross, isSbtPlugin)
-          .filterNot(v => ignoreFinder.isIgnored(organization, name, v.toVersionString))
+
+        val filtered = versions.filterNot(v => ignoreFinder.isIgnored(organization, name, v.toVersionString))
+
+        logger.debug {
+          s"Filtered ${filtered.size} versions for `$organization:$name` after ignoring:\n" +
+            filtered.map("`" + _.show + "`").mkString(", ")
+        }
+
+        filtered
+      }
 
     /** Wraps this `VersionFinder` to filter out versions matched by the given `RetractionFinder`. */
-    def excludingRetracted(retractionFinder: RetractionFinder): VersionFinder =
-      (organization, name, isCross, isSbtPlugin) =>
-        underlying
+    def excludingRetracted(retractionFinder: RetractionFinder)(implicit logger: Logger): VersionFinder =
+      (organization, name, isCross, isSbtPlugin) => {
+        val versions = underlying
           .findVersions(organization, name, isCross, isSbtPlugin)
-          .filterNot(v => retractionFinder.isRetracted(organization, name, v.toVersionString))
+
+        val filtered = versions.filterNot(v => retractionFinder.isRetracted(organization, name, v.toVersionString))
+
+        logger.debug {
+          s"Filtered ${filtered.size} versions for `$organization:$name` after excluding retracted:\n" +
+            filtered.map("`" + _.show + "`").mkString(", ")
+        }
+
+        filtered
+      }
 
     /** Wraps this `VersionFinder` to keep only versions allowed by the given `PinFinder`. */
-    def pinningVersions(pinFinder: PinFinder): VersionFinder =
-      (organization, name, isCross, isSbtPlugin) =>
-        underlying
+    def pinningVersions(pinFinder: PinFinder)(implicit logger: Logger): VersionFinder =
+      (organization, name, isCross, isSbtPlugin) => {
+        val versions = underlying
           .findVersions(organization, name, isCross, isSbtPlugin)
-          .filter(v => pinFinder.isAllowed(organization, name, v.toVersionString))
+
+        val filtered = versions.filter(v => pinFinder.isAllowed(organization, name, v.toVersionString))
+
+        logger.debug {
+          s"Filtered ${filtered.size} versions for `$organization:$name` after pinning:\n" +
+            filtered.map("`" + _.show + "`").mkString(", ")
+        }
+
+        filtered
+      }
 
   }
 
