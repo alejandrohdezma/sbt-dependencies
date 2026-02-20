@@ -455,9 +455,7 @@ class Commands {
 
         if (dependencies.nonEmpty) {
           val snapshot = Map(
-            `sbt-build` -> dependencies
-              .map(d => DependencyDiff.ResolvedDep(d.organization, d.name, d.version.toVersionString))
-              .toSet
+            `sbt-build` -> dependencies.map(DependencyDiff.ResolvedDep.from).toSet
           )
 
           val outputFile =
@@ -509,12 +507,8 @@ class Commands {
 
             val before = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
 
-            val after = {
-              DependenciesFile
-                .read(file, `sbt-build`, Map.empty)
-                .map(d => DependencyDiff.ResolvedDep(d.organization, d.name, d.version.toVersionString))
-                .toSet
-            }
+            val after =
+              DependenciesFile.read(file, `sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
 
             IO.delete(buildSnapshotFile)
 

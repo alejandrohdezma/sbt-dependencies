@@ -27,6 +27,7 @@ import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigRenderOptions
 import com.typesafe.config.ConfigValueFactory
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
 
 /** Utilities for snapshotting resolved dependencies and computing diffs. */
 object DependencyDiff {
@@ -35,6 +36,9 @@ object DependencyDiff {
   final case class ResolvedDep(organization: String, name: String, revision: String)
 
   object ResolvedDep {
+
+    def from(dependency: Dependency): ResolvedDep =
+      ResolvedDep(dependency.organization, dependency.name, dependency.version.toVersionString)
 
     def fromModuleID(m: ModuleID): ResolvedDep =
       ResolvedDep(m.organization, m.name, m.revision)
