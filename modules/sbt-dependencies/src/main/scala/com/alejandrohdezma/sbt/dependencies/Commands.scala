@@ -494,39 +494,29 @@ class Commands {
 
       val snapshotFile = outputDir / ".sbt-dependency-snapshot"
 
-      if (!snapshotFile.exists()) {
-        state.log.warn("Snapshot file not found, skipping diff computation")
-      } else {
+      // Merge sbt-build snapshot from project/dependencies.conf
+      val buildSnapshotFile = outputDir / ".sbt-build-snapshot"
 
-        // Merge sbt-build snapshot from project/dependencies.conf
-        val buildSnapshotFile = outputDir / ".sbt-build-snapshot"
+      val (buildBefore, buildAfter) = {
+        val file = DependenciesFile(base / "project" / "dependencies.conf")
 
-        val (buildBefore, buildAfter) =
-          if (!buildSnapshotFile.exists())
-            (Set.empty[DependencyDiff.ResolvedDep], Set.empty[DependencyDiff.ResolvedDep])
-          else {
-            val file = DependenciesFile(base / "project" / "dependencies.conf")
+        val before = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
+        val after  = file.read(`sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
 
-            val before = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
+        IO.delete(buildSnapshotFile)
 
-            val after =
-              file.read(`sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
-
-            IO.delete(buildSnapshotFile)
-
-            (before, after)
-          }
-
-        val before = DependencyDiff.readSnapshot(snapshotFile)
-        val after  = generateSnapshot(state)
-
-        val diffs = DependencyDiff.compute(before + (`sbt-build` -> buildBefore), after + (`sbt-build` -> buildAfter))
-
-        if (diffs.nonEmpty)
-          IO.write(outputDir / ".sbt-dependency-diff", DependencyDiff.toHocon(diffs))
-
-        IO.delete(snapshotFile)
+        (before, after)
       }
+
+      val before = DependencyDiff.readSnapshot(snapshotFile)
+      val after  = generateSnapshot(state)
+
+      val diffs = DependencyDiff.compute(before + (`sbt-build` -> buildBefore), after + (`sbt-build` -> buildAfter))
+
+      if (diffs.nonEmpty)
+        IO.write(outputDir / ".sbt-dependency-diff", DependencyDiff.toHocon(diffs))
+
+      IO.delete(snapshotFile)
     }.onError { case e => state.log.warn(s"computeDependencyDiff: ${e.getMessage}") }
 
     state

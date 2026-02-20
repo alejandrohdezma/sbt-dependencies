@@ -84,15 +84,13 @@ object DependencyDiff {
   }
 
   /** Reads a dependency snapshot from a HOCON file previously written by `writeSnapshot`. */
-  def readSnapshot(file: File): Map[String, Set[ResolvedDep]] = {
-    val config = ConfigFactory.parseFile(file)
+  def readSnapshot(file: File): Map[String, Set[ResolvedDep]] =
+    if (!file.exists()) Map.empty
+    else {
+      val config = ConfigFactory.parseFile(file)
 
-    config
-      .root()
-      .keySet()
-      .asScala
-      .map { project =>
-        val deps = config
+      def readProject(project: String): Set[ResolvedDep] =
+        config
           .getConfigList(project)
           .asScala
           .map { entry =>
@@ -100,10 +98,10 @@ object DependencyDiff {
           }
           .toSet
 
-        project -> deps
-      }
-      .toMap
-  }
+      val projects = config.root().keySet().asScala
+
+      projects.map(project => project -> readProject(project)).toMap
+    }
 
   /** Computes the diff between two dependency snapshots.
     *
