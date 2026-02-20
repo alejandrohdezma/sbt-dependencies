@@ -16,13 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import java.util.concurrent.Executors
-
 import scala.Console._
-import scala.concurrent.Await
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
-import scala.concurrent.duration.Duration
 
 import sbt.Keys._
 import sbt.complete.DefaultParsers._
@@ -82,62 +76,9 @@ class Tasks {
 
       val filtered = dependencies.filterNot(filter.matches)
 
-      val executor = Executors.newFixedThreadPool(Keys.dependencyResolverParallelism.value)
+      val parallelism = Keys.dependencyResolverParallelism.value
 
-      implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
-
-      val futures = dependencies.filter(filter.matches).map(dep => Future((dep, dep.findLatestVersion)))
-
-      val updated = futures.map { future =>
-        val (dependency, message) = Await.result(future, Duration.Inf) match {
-          case (original: Dependency.WithNumericVersion, _) if original.version.marker.isExact =>
-            (original, s" ↳ $CYAN⊙$RESET $CYAN${original.toLine}$RESET")
-
-          case (original: Dependency.WithNumericVersion, latest) if !latest.isSameArtifact(original) =>
-            (latest, s" ↳ $YELLOW⇄$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.toLine}$RESET")
-
-          case (original: Dependency.WithNumericVersion, latest) if latest.version.isSameVersion(original.version) =>
-            (original, s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET")
-
-          case (original: Dependency.WithNumericVersion, latest) =>
-            (latest, s" ↳ $YELLOW⬆$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.version.show}$RESET")
-
-          case (original: Dependency.WithVariableVersion, latest)
-              if !latest.isSameArtifact(original) && latest.version.isSameVersion(original.version.resolved) =>
-            (
-              original,
-              s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`), migration " +
-                s"to ${latest.organization}:${latest.name} available"
-            )
-
-          case (original: Dependency.WithVariableVersion, latest) if !latest.isSameArtifact(original) =>
-            (
-              original,
-              s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-                s"latest: `$YELLOW${latest.version.toVersionString}$RESET`, migration to" +
-                s" ${latest.organization}:${latest.name} available)"
-            )
-
-          case (original: Dependency.WithVariableVersion, latest)
-              if latest.version.isSameVersion(original.version.resolved) =>
-            (
-              original,
-              s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`)"
-            )
-
-          case (original: Dependency.WithVariableVersion, latest) =>
-            (
-              original,
-              s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-                s"latest: `$YELLOW${latest.version.toVersionString}$RESET`)"
-            )
-        }
-
-        logger.info(message)
-        dependency
-      }
-
-      executor.shutdown()
+      val updated = Utils.resolveLatestVersions(dependencies.filter(filter.matches), parallelism)
 
       updated.foreach(retractionFinder.warnIfRetracted(_))
 
