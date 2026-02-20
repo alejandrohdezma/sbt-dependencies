@@ -229,7 +229,11 @@ class Commands {
       }
   }
 
-  /** Updates dependencies in the `sbt-build` group of `project/dependencies.conf`. */
+  /** Resolves latest versions for dependencies in the `sbt-build` group of `project/dependencies.conf`.
+    *
+    * Reads the file directly from the main build (no `reload plugins` needed), resolves each dependency to its latest
+    * version using Coursier, and writes the updated versions back. Retracted versions are warned about but not applied.
+    */
   lazy val updateBuildDependencies = Command.command("updateBuildDependencies") { state =>
     withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
       implicit val logger: Logger = state.log
@@ -250,7 +254,11 @@ class Commands {
     }
   }
 
-  /** Updates Scala versions in the `sbt-build` group of `project/dependencies.conf`. */
+  /** Resolves latest Scala patch versions in the `sbt-build` group of `project/dependencies.conf`.
+    *
+    * Reads the file directly from the main build (no `reload plugins` needed) and updates each Scala version to the
+    * latest patch release within the same minor series (e.g. 2.12.x, 3.3.x).
+    */
   lazy val updateBuildScalaVersions = Command.command("updateBuildScalaVersions") { state =>
     withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => _ => (_, file) =>
       implicit val logger: Logger = state.log
@@ -281,7 +289,11 @@ class Commands {
     }
   }
 
-  /** Installs a dependency in `project/dependencies.conf` directly from the main build. */
+  /** Installs a dependency in the `sbt-build` group of `project/dependencies.conf` from the main build.
+    *
+    * Accepts a dependency string with or without a version (e.g. `org::name:1.0.0` or `org::name`). When the version is
+    * omitted, the latest stable version is resolved automatically.
+    */
   lazy val installBuildDependencies = Command.single("installBuildDependencies") { case (state, dependency) =>
     implicit val logger: Logger = state.log
 
@@ -428,8 +440,11 @@ class Commands {
     state
   }
 
-  /** Snapshots declared dependencies from `project/dependencies.conf` to `target/sbt-dependencies/.sbt-build-snapshot`
-    * for later diff computation.
+  /** Snapshots declared meta-build dependencies from `project/dependencies.conf` for later diff computation.
+    *
+    * Reads the `sbt-build` group and writes the current versions to `target/sbt-dependencies/.sbt-build-snapshot`. This
+    * snapshot is later consumed by `computeDependencyDiff` to produce a unified diff that includes both main-build and
+    * meta-build changes.
     */
   lazy val snapshotBuildDependencies = Command.command("snapshotBuildDependencies") { state =>
     Try {
@@ -461,8 +476,11 @@ class Commands {
     state
   }
 
-  /** Computes dependency diff from snapshot, writes `target/sbt-dependencies/.sbt-dependency-diff`, and cleans up the
-    * snapshot file.
+  /** Computes a unified dependency diff by merging main-build and meta-build changes.
+    *
+    * Compares the current resolved dependencies against the snapshots taken before updates, merges the `sbt-build`
+    * group diff from `project/dependencies.conf`, and writes the combined result to
+    * `target/sbt-dependencies/.sbt-dependency-diff`. Cleans up snapshot files after processing.
     */
   lazy val computeDependencyDiff = Command.command("computeDependencyDiff") { state =>
     Try {
