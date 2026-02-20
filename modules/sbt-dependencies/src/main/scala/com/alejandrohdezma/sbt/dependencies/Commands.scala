@@ -69,12 +69,12 @@ class Commands {
     val pluginName = project.get(Keys.sbtDependenciesPluginName)
 
     val newGroups = project.structure.allProjectRefs.map { ref =>
-      if (isSbtBuild) "sbt-build" else project.get(ref / name)
+      if (isSbtBuild) `sbt-build` else project.get(ref / name)
     }.toSet
 
     val dependenciesByGroup: Map[String, List[Dependency]] =
       project.structure.allProjectRefs.flatMap { ref =>
-        val group = if (isSbtBuild) "sbt-build" else project.get(ref / name)
+        val group = if (isSbtBuild) `sbt-build` else project.get(ref / name)
 
         project
           .get(ref / libraryDependencies)
@@ -103,14 +103,14 @@ class Commands {
       else base / "project" / "dependencies.conf"
 
     // Write sbt-build group with shared scala versions (if any)
-    val sbtBuildDeps = dependenciesByGroup.getOrElse("sbt-build", Nil)
+    val sbtBuildDeps = dependenciesByGroup.getOrElse(`sbt-build`, Nil)
 
-    if (sharedVersions.nonEmpty || (newGroups.contains("sbt-build") && sbtBuildDeps.nonEmpty)) {
-      DependenciesFile.write(file, "sbt-build", sbtBuildDeps, sharedVersions)
+    if (sharedVersions.nonEmpty || (newGroups.contains(`sbt-build`) && sbtBuildDeps.nonEmpty)) {
+      DependenciesFile.write(file, `sbt-build`, sbtBuildDeps, sharedVersions)
     }
 
     // Write each group's dependencies (and scala versions if not shared)
-    newGroups.filterNot(_ === "sbt-build").foreach { group =>
+    newGroups.filterNot(_ === `sbt-build`).foreach { group =>
       val deps          = dependenciesByGroup.getOrElse(group, Nil)
       val scalaVersions = if (sharedVersions.isEmpty) scalaVersionsByGroup.getOrElse(group, Nil) else Nil
       DependenciesFile.write(file, group, deps, scalaVersions)
@@ -228,12 +228,12 @@ class Commands {
       }
   }
 
-  /** Updates dependencies in the meta-build (project/dependencies). */
+  /** Updates dependencies in the `sbt-build` group of `project/dependencies.conf`. */
   lazy val updateBuildDependencies = Command.command("updateBuildDependencies") { state =>
     runInMetaBuild("updateDependencies")(state)
   }
 
-  /** Updates Scala versions in the meta-build (project/dependencies). */
+  /** Updates Scala versions in the `sbt-build` group of `project/dependencies.conf`. */
   lazy val updateBuildScalaVersions = Command.command("updateBuildScalaVersions") { state =>
     runInMetaBuild("updateScalaVersions")(state)
   }
@@ -403,7 +403,7 @@ class Commands {
 
         var diffs = DependencyDiff.compute(before, after) // scalafix:ok
 
-        // Merge meta-build diff (produced by computeBuildDependencyDiff) under "sbt-build" key
+        // Merge meta-build diff (produced by computeBuildDependencyDiff) under `sbt-build` key
         val buildDiffFile = base / "project" / "target" / "sbt-dependencies" / ".sbt-dependency-diff"
 
         if (buildDiffFile.exists()) {
@@ -416,7 +416,7 @@ class Commands {
               removed = buildDiffs.values.flatMap(_.removed).toList
             )
 
-            diffs = diffs + ("sbt-build" -> merged)
+            diffs = diffs + (`sbt-build` -> merged)
           }
 
           IO.delete(buildDiffFile)
@@ -476,6 +476,8 @@ class Commands {
 
     snapshot
   }
+
+  val `sbt-build` = "sbt-build"
 
   private def runInMetaBuild(commands: String*)(state: State): State =
     if (isPluginInMetaBuild(state))
