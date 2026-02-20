@@ -428,9 +428,32 @@ class Commands {
     state
   }
 
-  /** Snapshots all resolved dependencies in the meta-build (project/) for later diff computation. */
+  /** Snapshots declared dependencies from `project/dependencies.conf` to `target/sbt-dependencies/.sbt-build-snapshot`
+    * for later diff computation.
+    */
   lazy val snapshotBuildDependencies = Command.command("snapshotBuildDependencies") { state =>
-    Try(runInMetaBuild("snapshotDependencies")(state)).onError { case e =>
+    Try {
+      withSbtBuild(state) { implicit versionFinder => _ => _ => (project, file) =>
+        implicit val logger: Logger = state.log
+
+        val dependencies = DependenciesFile.read(file, `sbt-build`, Map.empty)
+
+        if (dependencies.nonEmpty) {
+          val snapshot = Map(
+            `sbt-build` -> dependencies
+              .map(d => DependencyDiff.ResolvedDep(d.organization, d.name, d.version.toVersionString))
+              .toSet
+          )
+
+          val outputFile =
+            project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-build-snapshot"
+
+          DependencyDiff.writeSnapshot(outputFile, snapshot)
+        }
+
+        state
+      }
+    }.onError { case e =>
       state.log.trace(e)
       state.log.error("Unable to generate build dependency snapshot")
     }
