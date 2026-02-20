@@ -281,6 +281,8 @@ object Dependency {
     */
   sealed trait Version {
 
+    override def toString(): String = toVersionString // scalafix:ok
+
     /** Full string representation (with marker prefix for numeric, with braces for variable). */
     def show: String
 

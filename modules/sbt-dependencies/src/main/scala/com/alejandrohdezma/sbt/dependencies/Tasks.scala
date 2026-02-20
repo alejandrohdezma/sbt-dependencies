@@ -139,7 +139,7 @@ class Tasks {
           val organization = s""""${dep.organization}"""".padTo(maxOrgLength + 2, ' ')
           val cross        = if (dep.isCross) s"$CYAN%%$RESET" else s"$CYAN %$RESET"
           val depName      = s""""${dep.name}"""".padTo(maxNameLength + 2, ' ')
-          val version      = s""""${dep.version.toVersionString}"""".padTo(maxVersionLength + 2, ' ')
+          val version      = s""""${dep.version}"""".padTo(maxVersionLength + 2, ' ')
 
           if (directDependencies.contains((dep.organization, dep.name)))
             s"$GREEN$organization$RESET $cross $GREEN$depName$RESET $CYAN%$RESET $GREEN$version$RESET $config"
@@ -188,11 +188,11 @@ class Tasks {
         val latest = Utils.findLatestScalaVersion(version)
 
         if (latest === version) {
-          logger.info(s" ↳ $GREEN✓$RESET $GREEN${version.toVersionString}$RESET")
+          logger.info(s" ↳ $GREEN✓$RESET $GREEN$version$RESET")
           version
         } else {
           logger.info(
-            s" ↳ $YELLOW⬆$RESET $YELLOW${version.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET"
+            s" ↳ $YELLOW⬆$RESET $YELLOW$version$RESET -> $CYAN$latest$RESET"
           )
           latest
         }

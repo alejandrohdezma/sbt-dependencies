@@ -272,11 +272,11 @@ class Commands {
           val latest = Utils.findLatestScalaVersion(version)
 
           if (latest === version) {
-            logger.info(s" ↳ $GREEN✓$RESET $GREEN${version.toVersionString}$RESET")
+            logger.info(s" ↳ $GREEN✓$RESET $GREEN$version$RESET")
             version
           } else {
             logger.info(
-              s" ↳ $YELLOW⬆$RESET $YELLOW${version.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET"
+              s" ↳ $YELLOW⬆$RESET $YELLOW$version$RESET -> $CYAN$latest$RESET"
             )
             latest
           }
@@ -399,7 +399,7 @@ class Commands {
               (line, false)
             } else {
               logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
-              (s"sbt.version=${latest.toVersionString}", true)
+              (s"sbt.version=$latest", true)
             }
           case line => (line, false)
         }

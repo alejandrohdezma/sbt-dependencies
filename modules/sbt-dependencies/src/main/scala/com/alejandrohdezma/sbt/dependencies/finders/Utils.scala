@@ -66,15 +66,15 @@ object Utils {
             if !latest.isSameArtifact(original) && latest.version.isSameVersion(original.version.resolved) =>
           (
             original,
-            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`), migration " +
+            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version}`), migration " +
               s"to ${latest.organization}:${latest.name} available"
           )
 
         case (original: Dependency.WithVariableVersion, latest) if !latest.isSameArtifact(original) =>
           (
             original,
-            s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-              s"latest: `$YELLOW${latest.version.toVersionString}$RESET`, migration to" +
+            s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version}`, " +
+              s"latest: `$YELLOW${latest.version}$RESET`, migration to" +
               s" ${latest.organization}:${latest.name} available)"
           )
 
@@ -82,14 +82,14 @@ object Utils {
             if latest.version.isSameVersion(original.version.resolved) =>
           (
             original,
-            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`)"
+            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version}`)"
           )
 
         case (original: Dependency.WithVariableVersion, latest) =>
           (
             original,
-            s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-              s"latest: `$YELLOW${latest.version.toVersionString}$RESET`)"
+            s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version}`, " +
+              s"latest: `$YELLOW${latest.version}$RESET`)"
           )
       }
 

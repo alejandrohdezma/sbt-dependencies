@@ -88,15 +88,15 @@ object Scalafmt {
 
         if (latest === current) {
           retractionFinder.warnIfRetracted(dependency)
-          logger.info(s" ↳ $GREEN✓$RESET $GREEN$relativePath: ${current.toVersionString}$RESET")
+          logger.info(s" ↳ $GREEN✓$RESET $GREEN$relativePath: $current$RESET")
           false
         } else {
           logger.info(
-            s" ↳ $YELLOW⬆$RESET $YELLOW$relativePath: ${current.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET"
+            s" ↳ $YELLOW⬆$RESET $YELLOW$relativePath: $current$RESET -> $CYAN$latest$RESET"
           )
 
           val newContent =
-            versionRegex.replaceAllIn(content, m => s"${m.group(1)}${latest.toVersionString}${m.group(3)}")
+            versionRegex.replaceAllIn(content, m => s"${m.group(1)}$latest${m.group(3)}")
 
           IO.write(file, newContent)
 
