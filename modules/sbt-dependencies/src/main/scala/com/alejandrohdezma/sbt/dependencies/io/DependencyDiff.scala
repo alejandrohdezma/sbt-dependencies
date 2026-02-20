@@ -23,6 +23,7 @@ import scala.collection.JavaConverters._
 import sbt.IO
 import sbt.librarymanagement.ModuleID
 
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigRenderOptions
@@ -35,6 +36,9 @@ object DependencyDiff {
   final case class ResolvedDep(organization: String, name: String, revision: String)
 
   object ResolvedDep {
+
+    def from(dependency: Dependency): ResolvedDep =
+      ResolvedDep(dependency.organization, dependency.name, dependency.version.toVersionString)
 
     def fromModuleID(m: ModuleID): ResolvedDep =
       ResolvedDep(m.organization, m.name, m.revision)
@@ -80,15 +84,13 @@ object DependencyDiff {
   }
 
   /** Reads a dependency snapshot from a HOCON file previously written by `writeSnapshot`. */
-  def readSnapshot(file: File): Map[String, Set[ResolvedDep]] = {
-    val config = ConfigFactory.parseFile(file)
+  def readSnapshot(file: File): Map[String, Set[ResolvedDep]] =
+    if (!file.exists()) Map.empty
+    else {
+      val config = ConfigFactory.parseFile(file)
 
-    config
-      .root()
-      .keySet()
-      .asScala
-      .map { project =>
-        val deps = config
+      def readProject(project: String): Set[ResolvedDep] =
+        config
           .getConfigList(project)
           .asScala
           .map { entry =>
@@ -96,10 +98,10 @@ object DependencyDiff {
           }
           .toSet
 
-        project -> deps
-      }
-      .toMap
-  }
+      val projects = config.root().keySet().asScala
+
+      projects.map(project => project -> readProject(project)).toMap
+    }
 
   /** Computes the diff between two dependency snapshots.
     *
@@ -137,51 +139,6 @@ object DependencyDiff {
 
         if (diff.isEmpty) None else Some(project -> diff)
       })
-      .toMap
-  }
-
-  /** Reads a dependency diff from a HOCON file previously written by `toHocon`. */
-  def readDiff(file: File): Map[String, ProjectDiff] = {
-    val config = ConfigFactory.parseFile(file)
-
-    config
-      .root()
-      .keySet()
-      .asScala
-      .map { project =>
-        val projectConfig = config.getConfig(project)
-
-        val updated = projectConfig
-          .getConfigList("updated")
-          .asScala
-          .map { entry =>
-            UpdatedDep(
-              entry.getString("organization"),
-              entry.getString("name"),
-              entry.getString("from"),
-              entry.getString("to")
-            )
-          }
-          .toList
-
-        val added = projectConfig
-          .getConfigList("added")
-          .asScala
-          .map { entry =>
-            ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("version"))
-          }
-          .toList
-
-        val removed = projectConfig
-          .getConfigList("removed")
-          .asScala
-          .map { entry =>
-            ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("version"))
-          }
-          .toList
-
-        project -> ProjectDiff(updated, added, removed)
-      }
       .toMap
   }
 

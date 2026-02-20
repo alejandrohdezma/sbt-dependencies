@@ -361,58 +361,6 @@ class DependencyDiffSuite extends munit.FunSuite {
     assertNoDiff(result, expected)
   }
 
-  // --- readDiff ---
-
-  fileFixture.test("toHocon / readDiff round-trip preserves data") { file =>
-    val diffs = Map(
-      "core" -> ProjectDiff(
-        updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
-        added = List(ResolvedDep("org.typelevel", "cats-parse_2.13", "1.1.0")),
-        removed = List(ResolvedDep("org.typelevel", "cats-macros_2.13", "2.9.0"))
-      )
-    )
-
-    sbt.io.IO.write(file, toHocon(diffs))
-    val result = readDiff(file)
-
-    assertEquals(result, diffs)
-  }
-
-  fileFixture.test("readDiff handles multiple projects") { file =>
-    val diffs = Map(
-      "core" -> ProjectDiff(
-        updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
-        added = Nil,
-        removed = Nil
-      ),
-      "web" -> ProjectDiff(
-        updated = Nil,
-        added = List(ResolvedDep("org.http4s", "http4s-core_2.13", "0.23.1")),
-        removed = Nil
-      )
-    )
-
-    sbt.io.IO.write(file, toHocon(diffs))
-    val result = readDiff(file)
-
-    assertEquals(result, diffs)
-  }
-
-  fileFixture.test("readDiff handles hyphenated project keys") { file =>
-    val diffs = Map(
-      "sbt-build" -> ProjectDiff(
-        updated = List(UpdatedDep("ch.epfl.scala", "sbt-scalafix", "0.13.0", "0.14.0")),
-        added = Nil,
-        removed = Nil
-      )
-    )
-
-    sbt.io.IO.write(file, toHocon(diffs))
-    val result = readDiff(file)
-
-    assertEquals(result, diffs)
-  }
-
   def fileFixture: FunFixture[File] = FunFixture[File](
     setup = { _ =>
       val file = Files.createTempFile("snapshot", ".txt").toFile

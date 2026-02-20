@@ -21,7 +21,6 @@ import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
 import sbt.Keys._
-import sbt.internal.util.complete.Parser
 import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
@@ -44,8 +43,7 @@ class Commands {
   /** All commands provided by this plugin. */
   val all = Seq(initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies,
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
-    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, computeDependencyDiff,
-    computeBuildDependencyDiff)
+    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, computeDependencyDiff)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -71,12 +69,12 @@ class Commands {
     val pluginName = project.get(Keys.sbtDependenciesPluginName)
 
     val newGroups = project.structure.allProjectRefs.map { ref =>
-      if (isSbtBuild) "sbt-build" else project.get(ref / name)
+      if (isSbtBuild) `sbt-build` else project.get(ref / name)
     }.toSet
 
     val dependenciesByGroup: Map[String, List[Dependency]] =
       project.structure.allProjectRefs.flatMap { ref =>
-        val group = if (isSbtBuild) "sbt-build" else project.get(ref / name)
+        val group = if (isSbtBuild) `sbt-build` else project.get(ref / name)
 
         project
           .get(ref / libraryDependencies)
@@ -100,22 +98,24 @@ class Commands {
     val uniqueVersionSets = scalaVersionsByGroup.values.map(_.sorted).toSet
     val sharedVersions    = if (uniqueVersionSets.size === 1) uniqueVersionSets.head else Nil
 
-    val file =
+    val file = DependenciesFile {
       if (isSbtBuild) base / "dependencies.conf"
       else base / "project" / "dependencies.conf"
+    }
 
     // Write sbt-build group with shared scala versions (if any)
-    val sbtBuildDeps = dependenciesByGroup.getOrElse("sbt-build", Nil)
+    val sbtBuildDeps = dependenciesByGroup.getOrElse(`sbt-build`, Nil)
 
-    if (sharedVersions.nonEmpty || (newGroups.contains("sbt-build") && sbtBuildDeps.nonEmpty)) {
-      DependenciesFile.write(file, "sbt-build", sbtBuildDeps, sharedVersions)
+    if (sharedVersions.nonEmpty || (newGroups.contains(`sbt-build`) && sbtBuildDeps.nonEmpty)) {
+      file.write(`sbt-build`, sbtBuildDeps, sharedVersions)
     }
 
     // Write each group's dependencies (and scala versions if not shared)
-    newGroups.filterNot(_ === "sbt-build").foreach { group =>
+    newGroups.filterNot(_ === `sbt-build`).foreach { group =>
       val deps          = dependenciesByGroup.getOrElse(group, Nil)
       val scalaVersions = if (sharedVersions.isEmpty) scalaVersionsByGroup.getOrElse(group, Nil) else Nil
-      DependenciesFile.write(file, group, deps, scalaVersions)
+
+      file.write(group, deps, scalaVersions)
     }
 
     logger.info("✎ Created project/dependencies.conf file with your dependencies")
@@ -124,7 +124,8 @@ class Commands {
     val flagsString = args.mkString(" ")
 
     if (isSbtBuild) state
-    else runInMetaBuild(s"initDependenciesFile $flagsString")(state)
+    else if (!isPluginInMetaBuild(state)) state
+    else queueInMetaBuild(s"initDependenciesFile $flagsString")(state)
   }
 
   /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */
@@ -132,20 +133,20 @@ class Commands {
     val base = Project.extract(state).get(ThisBuild / baseDirectory)
 
     val steps = List(
-      "snapshotDependencies",       // Record resolved deps before any changes
-      "snapshotBuildDependencies",  // Record resolved meta-build deps before any changes
-      "updateSbtPlugin",            // Update sbt-dependencies (or wrapper) plugin version
-      "updateBuildScalaVersions",   // Update Scala versions in meta-build
-      "updateBuildDependencies",    // Update dependencies in meta-build
-      "computeBuildDependencyDiff", // Compute meta-build dependency diff from snapshot
-      "updateScalafmtVersion",      // Update scalafmt version in .scalafmt.conf files
-      "updateScalaVersions",        // Update Scala versions in main build
-      "updateDependencies",         // Update dependencies in main build
-      "reload",                     // Reload build with updated dependencies
-      "updateSbt",                  // Update sbt version in build.properties
-      "disableEvictionWarnings",    // Temporarily lower eviction errors to info
-      "computeDependencyDiff",      // Compute main dependency diff and merge meta-build diff
-      "enableEvictionWarnings"      // Restore eviction errors
+      "disableEvictionWarnings",   // Lower eviction errors so snapshots can resolve
+      "snapshotDependencies",      // Record resolved main-build deps before changes
+      "snapshotBuildDependencies", // Record declared meta-build deps before changes
+      "updateSbtPlugin",           // Update sbt-dependencies (or wrapper) plugin version
+      "updateBuildScalaVersions",  // Update Scala versions in project/dependencies.conf
+      "updateBuildDependencies",   // Update dependencies in project/dependencies.conf
+      "updateScalafmtVersion",     // Update scalafmt version in .scalafmt.conf files
+      "updateScalaVersions",       // Update Scala versions in main build
+      "updateDependencies",        // Update dependencies in main build
+      "reload",                    // Reload build (resets session settings)
+      "updateSbt",                 // Update sbt version in build.properties
+      "disableEvictionWarnings",   // Re-lower eviction errors (lost after reload)
+      "computeDependencyDiff",     // Compute main diff and merge sbt-build diff
+      "enableEvictionWarnings"     // Restore eviction errors
     )
 
     runStepsSafely(steps: _*)(state, base / "target" / "sbt-dependencies")
@@ -217,7 +218,7 @@ class Commands {
 
         IO.writeLines(file, updatedLines.map(_._1))
 
-        if (updatedLines.exists(_._2)) Some(runCommand("reload")(state))
+        if (updatedLines.exists(_._2)) Some(Command.process("reload", state))
         else Some(state)
       }
     }
@@ -230,19 +231,85 @@ class Commands {
       }
   }
 
-  /** Updates dependencies in the meta-build (project/dependencies). */
+  /** Resolves latest versions for dependencies in the `sbt-build` group of `project/dependencies.conf`.
+    *
+    * Reads the file directly from the main build (no `reload plugins` needed), resolves each dependency to its latest
+    * version using Coursier, and writes the updated versions back. Retracted versions are warned about but not applied.
+    */
   lazy val updateBuildDependencies = Command.command("updateBuildDependencies") { state =>
-    runInMetaBuild("updateDependencies")(state)
+    withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
+      implicit val logger: Logger = state.log
+
+      val deps = file.read(`sbt-build`, Map.empty)
+
+      if (deps.nonEmpty) {
+        logger.info(s"\n↻ Updating dependencies for `${`sbt-build`}` in project/dependencies.conf\n")
+
+        val updated = Utils.resolveLatestVersions(deps, project.get(ThisBuild / Keys.dependencyResolverParallelism))
+
+        updated.foreach(retractionFinder.warnIfRetracted(_))
+
+        file.write(`sbt-build`, updated)
+      }
+
+      state
+    }
   }
 
-  /** Updates Scala versions in the meta-build (project/dependencies). */
+  /** Resolves latest Scala patch versions in the `sbt-build` group of `project/dependencies.conf`.
+    *
+    * Reads the file directly from the main build (no `reload plugins` needed) and updates each Scala version to the
+    * latest patch release within the same minor series (e.g. 2.12.x, 3.3.x).
+    */
   lazy val updateBuildScalaVersions = Command.command("updateBuildScalaVersions") { state =>
-    runInMetaBuild("updateScalaVersions")(state)
+    withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => _ => (_, file) =>
+      implicit val logger: Logger = state.log
+
+      val versions = file.readScalaVersions(`sbt-build`)
+
+      if (versions.nonEmpty) {
+        logger.info(s"\n↻ Updating Scala versions for `${`sbt-build`}` in project/dependencies.conf\n")
+
+        val updated = versions.map { version =>
+          val latest = Utils.findLatestScalaVersion(version)
+
+          if (latest === version) {
+            logger.info(s" ↳ $GREEN✓$RESET $GREEN$version$RESET")
+            version
+          } else {
+            logger.info(
+              s" ↳ $YELLOW⬆$RESET $YELLOW$version$RESET -> $CYAN$latest$RESET"
+            )
+            latest
+          }
+        }
+
+        file.writeScalaVersions(`sbt-build`, updated)
+      }
+
+      state
+    }
   }
 
-  /** Installs a dependency in the meta-build (project/dependencies). */
+  /** Installs a dependency in the `sbt-build` group of `project/dependencies.conf` from the main build.
+    *
+    * Accepts a dependency string with or without a version (e.g. `org::name:1.0.0` or `org::name`). When the version is
+    * omitted, the latest stable version is resolved automatically.
+    */
   lazy val installBuildDependencies = Command.single("installBuildDependencies") { case (state, dependency) =>
-    runInMetaBuild(s"install $dependency")(state)
+    implicit val logger: Logger = state.log
+
+    withSbtBuild(state) { implicit versionFinder => _ => _ => (_, file) =>
+      val dependencies = file.read(`sbt-build`, Map.empty)
+
+      val dep = Dependency.parseIncludingMissingVersion(dependency)
+
+      logger.info(s"➕ [${`sbt-build`}] $YELLOW${dep.toLine}$RESET")
+
+      file.write(`sbt-build`, dependencies.filterNot(_.isSameArtifact(dep)) :+ dep)
+
+      state
+    }
   }
 
   /** Updates scalafmt version in `.scalafmt.conf` to the latest version. */
@@ -334,7 +401,7 @@ class Commands {
               (line, false)
             } else {
               logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
-              (s"sbt.version=${latest.toVersionString}", true)
+              (s"sbt.version=$latest", true)
             }
           case line => (line, false)
         }
@@ -348,12 +415,12 @@ class Commands {
 
   /** Downgrades eviction errors to info level, preventing them from failing the build. */
   lazy val disableEvictionWarnings = Command.command("disableEvictionWarnings") { state =>
-    runCommand("set ThisBuild / evictionErrorLevel := Level.Info")(state)
+    Command.process("set ThisBuild / evictionErrorLevel := Level.Info", state)
   }
 
   /** Restores eviction warnings to error level, causing eviction issues to fail the build. */
   lazy val enableEvictionWarnings = Command.command("enableEvictionWarnings") { state =>
-    runCommand("set ThisBuild / evictionErrorLevel := Level.Error")(state)
+    Command.process("set ThisBuild / evictionErrorLevel := Level.Error", state)
   }
 
   /** Snapshots all resolved dependencies (including transitives) for every project to
@@ -375,9 +442,33 @@ class Commands {
     state
   }
 
-  /** Snapshots all resolved dependencies in the meta-build (project/) for later diff computation. */
+  /** Snapshots declared meta-build dependencies from `project/dependencies.conf` for later diff computation.
+    *
+    * Reads the `sbt-build` group and writes the current versions to `target/sbt-dependencies/.sbt-build-snapshot`. This
+    * snapshot is later consumed by `computeDependencyDiff` to produce a unified diff that includes both main-build and
+    * meta-build changes.
+    */
   lazy val snapshotBuildDependencies = Command.command("snapshotBuildDependencies") { state =>
-    Try(runInMetaBuild("snapshotDependencies")(state)).onError { case e =>
+    Try {
+      withSbtBuild(state) { _ => _ => _ => (project, file) =>
+        implicit val logger: Logger = state.log
+
+        val dependencies = file.read(`sbt-build`, Map.empty)
+
+        if (dependencies.nonEmpty) {
+          val snapshot = Map(
+            `sbt-build` -> dependencies.map(DependencyDiff.ResolvedDep.from).toSet
+          )
+
+          val outputFile =
+            project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-build-snapshot"
+
+          DependencyDiff.writeSnapshot(outputFile, snapshot)
+        }
+
+        state
+      }
+    }.onError { case e =>
       state.log.trace(e)
       state.log.error("Unable to generate build dependency snapshot")
     }
@@ -385,63 +476,48 @@ class Commands {
     state
   }
 
-  /** Computes dependency diff from snapshot, writes `target/sbt-dependencies/.sbt-dependency-diff`, and cleans up the
-    * snapshot file.
+  /** Computes a unified dependency diff by merging main-build and meta-build changes.
+    *
+    * Compares the current resolved dependencies against the snapshots taken before updates, merges the `sbt-build`
+    * group diff from `project/dependencies.conf`, and writes the combined result to
+    * `target/sbt-dependencies/.sbt-dependency-diff`. Cleans up snapshot files after processing.
     */
   lazy val computeDependencyDiff = Command.command("computeDependencyDiff") { state =>
     Try {
-      val base = Project.extract(state).get(ThisBuild / baseDirectory)
+      implicit val logger: Logger = state.log
+
+      val project = Project.extract(state)
+
+      val base = project.get(ThisBuild / baseDirectory)
 
       val outputDir = base / "target" / "sbt-dependencies"
 
       val snapshotFile = outputDir / ".sbt-dependency-snapshot"
 
-      if (!snapshotFile.exists()) {
-        state.log.warn("Snapshot file not found, skipping diff computation")
-      } else {
-        val before = DependencyDiff.readSnapshot(snapshotFile)
+      // Merge sbt-build snapshot from project/dependencies.conf
+      val buildSnapshotFile = outputDir / ".sbt-build-snapshot"
 
-        val after = generateSnapshot(state)
+      val (buildBefore, buildAfter) = {
+        val file = DependenciesFile(base / "project" / "dependencies.conf")
 
-        var diffs = DependencyDiff.compute(before, after) // scalafix:ok
+        val before = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
+        val after  = file.read(`sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
 
-        // Merge meta-build diff (produced by computeBuildDependencyDiff) under "sbt-build" key
-        val buildDiffFile = base / "project" / "target" / "sbt-dependencies" / ".sbt-dependency-diff"
+        IO.delete(buildSnapshotFile)
 
-        if (buildDiffFile.exists()) {
-          val buildDiffs = DependencyDiff.readDiff(buildDiffFile)
-
-          if (buildDiffs.nonEmpty) {
-            val merged = DependencyDiff.ProjectDiff(
-              updated = buildDiffs.values.flatMap(_.updated).toList,
-              added = buildDiffs.values.flatMap(_.added).toList,
-              removed = buildDiffs.values.flatMap(_.removed).toList
-            )
-
-            diffs = diffs + ("sbt-build" -> merged)
-          }
-
-          IO.delete(buildDiffFile)
-        }
-
-        if (diffs.nonEmpty)
-          IO.write(outputDir / ".sbt-dependency-diff", DependencyDiff.toHocon(diffs))
-
-        IO.delete(snapshotFile)
+        (before, after)
       }
+
+      val before = DependencyDiff.readSnapshot(snapshotFile)
+      val after  = generateSnapshot(state)
+
+      val diffs = DependencyDiff.compute(before + (`sbt-build` -> buildBefore), after + (`sbt-build` -> buildAfter))
+
+      if (diffs.nonEmpty)
+        IO.write(outputDir / ".sbt-dependency-diff", DependencyDiff.toHocon(diffs))
+
+      IO.delete(snapshotFile)
     }.onError { case e => state.log.warn(s"computeDependencyDiff: ${e.getMessage}") }
-
-    state
-  }
-
-  /** Computes dependency diff for the meta-build (project/) and writes it to
-    * `project/target/sbt-dependencies/.sbt-dependency-diff`.
-    */
-  lazy val computeBuildDependencyDiff = Command.command("computeBuildDependencyDiff") { state =>
-    Try(runInMetaBuild("computeDependencyDiff")(state)).onError { case e =>
-      state.log.trace(e)
-      state.log.error("Unable to compute build dependency diff")
-    }
 
     state
   }
@@ -479,9 +555,41 @@ class Commands {
     snapshot
   }
 
-  private def runInMetaBuild(commands: String*)(state: State): State =
-    if (isPluginInMetaBuild(state)) runCommand(("reload plugins" +: commands :+ "reload return"): _*)(state)
-    else state
+  private def withSbtBuild(state: State)(
+      f: VersionFinder => MigrationFinder => RetractionFinder => (Extracted, DependenciesFile) => State
+  ): State = {
+    implicit val logger: Logger = state.log
+
+    val project          = Project.extract(state)
+    val base             = project.get(ThisBuild / baseDirectory)
+    val file             = base / "project" / "dependencies.conf"
+    val dependenciesFile = DependenciesFile(file)
+
+    if (!file.exists() || !dependenciesFile.hasGroup(`sbt-build`)) state
+    else {
+      ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
+
+      val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
+
+      val versionFinder = VersionFinder
+        .fromCoursier("2.12", project.get(ThisBuild / Keys.dependencyResolverTimeout))
+        .cached
+        .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
+        .excludingRetracted(retractionFinder)
+        .pinningVersions(PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins)))
+
+      val migrationFinder = MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
+
+      f(versionFinder)(migrationFinder)(retractionFinder)(project, dependenciesFile)
+    }
+  }
+
+  val `sbt-build` = "sbt-build"
+
+  private def queueInMetaBuild(commands: String*)(state: State): State = {
+    val composite = ("reload plugins" +: commands :+ "reload return").mkString("; ")
+    state.copy(remainingCommands = Exec(composite, None) +: state.remainingCommands)
+  }
 
   private def runStepsSafely(steps: String*)(state: State, outputDir: File): State = {
     implicit val logger: Logger = state.log
@@ -489,11 +597,7 @@ class Commands {
     IO.delete(outputDir / ".sbt-update-report")
     IO.delete(outputDir / ".sbt-dependency-snapshot")
     IO.delete(outputDir / ".sbt-dependency-diff")
-
-    val buildOutputDir = outputDir.getParentFile.getParentFile / "project" / "target" / "sbt-dependencies"
-
-    IO.delete(buildOutputDir / ".sbt-dependency-snapshot")
-    IO.delete(buildOutputDir / ".sbt-dependency-diff")
+    IO.delete(outputDir / ".sbt-build-snapshot")
 
     val remaining = ListBuffer(steps: _*)
 
@@ -504,7 +608,7 @@ class Commands {
 
       remaining.remove(0)
 
-      currentState = Try(runCommand(step)(currentState))
+      currentState = Try(Command.process(step, currentState))
         .flatMap(newState => Try(Project.extract(newState)).map(_ => newState))
         .onError { case e => logger.error(s"⚠ '$step' failed: ${e.getMessage}") }
         .onError { case _ if remaining.nonEmpty => logger.error(s"⚠ Skipped: ${remaining.mkString(", ")}") }
@@ -530,15 +634,6 @@ class Commands {
          |> 4. Push the changes to this branch.""".stripMargin
 
     IO.write(outputDir / ".sbt-update-report", report)
-  }
-
-  private def runCommand(commands: String*)(state: State): State = {
-    implicit val logger: Logger = state.log
-
-    Parser.parse(commands.mkString("; "), state.combinedParser) match {
-      case Right(cmd) => cmd()
-      case Left(err)  => Utils.fail(s"Failed to parse command: $err")
-    }
   }
 
 }

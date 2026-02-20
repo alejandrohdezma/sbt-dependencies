@@ -21,7 +21,6 @@ import sbt.Keys._
 import sbt.util.Logger
 import sbt.{Keys => _, _}
 
-import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -39,21 +38,18 @@ class Settings {
   }
 
   /** The path to the dependencies.conf file. */
-  val dependenciesFile: Def.Initialize[File] = Def.setting {
-    if (isSbtBuild.value) (ThisBuild / baseDirectory).value / "dependencies.conf"
-    else (ThisBuild / baseDirectory).value / "project" / "dependencies.conf"
+  val dependenciesFile: Def.Initialize[DependenciesFile] = Def.setting {
+    if (isSbtBuild.value) DependenciesFile((ThisBuild / baseDirectory).value / "dependencies.conf")
+    else DependenciesFile((ThisBuild / baseDirectory).value / "project" / "dependencies.conf")
   }
 
   /** The list of dependencies read from the file (with variables resolved). */
   val dependenciesFromFile: Def.Initialize[List[Dependency]] = Def.setting {
     implicit val logger: Logger = sLog.value
 
-    implicit val versionFinder: VersionFinder =
-      VersionFinder.fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value).cached
-
     val variableResolvers = Keys.dependencyVersionVariables.value
 
-    DependenciesFile.read(dependenciesFile.value, currentGroup.value, variableResolvers)
+    dependenciesFile.value.read(currentGroup.value, variableResolvers)
   }
 
   /** Scala versions from the sbt-build group (only in normal build, not meta-build).
@@ -65,7 +61,7 @@ class Settings {
 
     // Return Nil in meta-build to avoid cyclic reference with crossScalaVersions
     if (isSbtBuild.value) Nil
-    else DependenciesFile.readScalaVersions(dependenciesFile.value, "sbt-build").map(_.toVersionString)
+    else dependenciesFile.value.readScalaVersions("sbt-build").map(_.toVersionString)
   }
 
   /** Scala versions from the current project's group (only in normal build, not meta-build).
@@ -77,7 +73,7 @@ class Settings {
 
     // Return Nil in meta-build to avoid cyclic reference with crossScalaVersions
     if (isSbtBuild.value) Nil
-    else DependenciesFile.readScalaVersions(dependenciesFile.value, currentGroup.value).map(_.toVersionString)
+    else dependenciesFile.value.readScalaVersions(currentGroup.value).map(_.toVersionString)
   }
 
   /** Gets the inherited dependencies from other projects (recursively). */

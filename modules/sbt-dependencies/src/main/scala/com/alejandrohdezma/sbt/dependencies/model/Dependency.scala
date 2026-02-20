@@ -225,14 +225,31 @@ object Dependency {
     */
   val dependencyRegex = """^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$""".r
 
-  /** Parses a dependency line into a dependency */
-  def parse(
+  /** Parses a dependency line, resolving the latest stable version when no version is specified.
+    *
+    * Delegates to [[parse]] for lines that include a version. For lines without a version (e.g. `org::name`), resolves
+    * the latest stable version via the implicit [[finders.VersionFinder]].
+    */
+  def parseIncludingMissingVersion(
       line: String,
       variableResolvers: Map[String, OrganizationArtifactName => ModuleID] = Map.empty
   )(implicit versionFinder: VersionFinder, logger: Logger): Dependency =
     line match {
       case dependencyRegex(org, sep, name, null, _) => // scalafix:ok
         Dependency.withLatestStableVersion(org, name, isCross = sep === "::")
+
+      case other =>
+        Dependency.parse(other, variableResolvers)
+    }
+
+  /** Parses a dependency line into a dependency */
+  def parse(
+      line: String,
+      variableResolvers: Map[String, OrganizationArtifactName => ModuleID] = Map.empty
+  )(implicit logger: Logger): Dependency =
+    line match {
+      case dependencyRegex(_, _, _, null, _) => // scalafix:ok
+        Utils.fail(s"$line is missing a version")
 
       case dependencyRegex(org, sep, name, Version.Variable.regex(variable), config) =>
         variableResolvers
@@ -263,6 +280,8 @@ object Dependency {
     * Can be either a numeric version (e.g., `1.2.3`) or a variable reference (e.g., `{{myVar}}`).
     */
   sealed trait Version {
+
+    override def toString(): String = toVersionString // scalafix:ok
 
     /** Full string representation (with marker prefix for numeric, with braces for variable). */
     def show: String

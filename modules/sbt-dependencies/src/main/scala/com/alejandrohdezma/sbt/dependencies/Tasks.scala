@@ -16,13 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-import java.util.concurrent.Executors
-
 import scala.Console._
-import scala.concurrent.Await
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
-import scala.concurrent.duration.Duration
 
 import sbt.Keys._
 import sbt.complete.DefaultParsers._
@@ -37,7 +31,6 @@ import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
-import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.string.box._
@@ -67,8 +60,8 @@ class Tasks {
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
-    val groupExists  = DependenciesFile.hasGroup(file, group)
-    val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
+    val groupExists  = file.hasGroup(group)
+    val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
     val filter       = updateFilterParser.parsed
 
     implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
@@ -82,66 +75,13 @@ class Tasks {
 
       val filtered = dependencies.filterNot(filter.matches)
 
-      val executor = Executors.newFixedThreadPool(Keys.dependencyResolverParallelism.value)
+      val parallelism = Keys.dependencyResolverParallelism.value
 
-      implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
-
-      val futures = dependencies.filter(filter.matches).map(dep => Future((dep, dep.findLatestVersion)))
-
-      val updated = futures.map { future =>
-        val (dependency, message) = Await.result(future, Duration.Inf) match {
-          case (original: Dependency.WithNumericVersion, _) if original.version.marker.isExact =>
-            (original, s" ↳ $CYAN⊙$RESET $CYAN${original.toLine}$RESET")
-
-          case (original: Dependency.WithNumericVersion, latest) if !latest.isSameArtifact(original) =>
-            (latest, s" ↳ $YELLOW⇄$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.toLine}$RESET")
-
-          case (original: Dependency.WithNumericVersion, latest) if latest.version.isSameVersion(original.version) =>
-            (original, s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET")
-
-          case (original: Dependency.WithNumericVersion, latest) =>
-            (latest, s" ↳ $YELLOW⬆$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.version.show}$RESET")
-
-          case (original: Dependency.WithVariableVersion, latest)
-              if !latest.isSameArtifact(original) && latest.version.isSameVersion(original.version.resolved) =>
-            (
-              original,
-              s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`), migration " +
-                s"to ${latest.organization}:${latest.name} available"
-            )
-
-          case (original: Dependency.WithVariableVersion, latest) if !latest.isSameArtifact(original) =>
-            (
-              original,
-              s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-                s"latest: `$YELLOW${latest.version.toVersionString}$RESET`, migration to" +
-                s" ${latest.organization}:${latest.name} available)"
-            )
-
-          case (original: Dependency.WithVariableVersion, latest)
-              if latest.version.isSameVersion(original.version.resolved) =>
-            (
-              original,
-              s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`)"
-            )
-
-          case (original: Dependency.WithVariableVersion, latest) =>
-            (
-              original,
-              s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version.toVersionString}`, " +
-                s"latest: `$YELLOW${latest.version.toVersionString}$RESET`)"
-            )
-        }
-
-        logger.info(message)
-        dependency
-      }
-
-      executor.shutdown()
+      val updated = Utils.resolveLatestVersions(dependencies.filter(filter.matches), parallelism)
 
       updated.foreach(retractionFinder.warnIfRetracted(_))
 
-      DependenciesFile.write(file, group, filtered ++ updated)
+      file.write(group, filtered ++ updated)
     }
   }
 
@@ -155,14 +95,14 @@ class Tasks {
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
-    val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
-    val dependency   = Dependency.parse(installParser.parsed)
+    val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
+    val dependency   = Dependency.parseIncludingMissingVersion(installParser.parsed)
 
     logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 
     val updated = dependencies.filterNot(_.isSameArtifact(dependency)) :+ dependency
 
-    DependenciesFile.write(file, group, updated)
+    file.write(group, updated)
   }
 
   /** Shows the library dependencies for the current project in a formatted, colored output. */
@@ -198,7 +138,7 @@ class Tasks {
           val organization = s""""${dep.organization}"""".padTo(maxOrgLength + 2, ' ')
           val cross        = if (dep.isCross) s"$CYAN%%$RESET" else s"$CYAN %$RESET"
           val depName      = s""""${dep.name}"""".padTo(maxNameLength + 2, ' ')
-          val version      = s""""${dep.version.toVersionString}"""".padTo(maxVersionLength + 2, ' ')
+          val version      = s""""${dep.version}"""".padTo(maxVersionLength + 2, ' ')
 
           if (directDependencies.contains((dep.organization, dep.name)))
             s"$GREEN$organization$RESET $cross $GREEN$depName$RESET $CYAN%$RESET $GREEN$version$RESET $config"
@@ -237,8 +177,8 @@ class Tasks {
 
     val file        = Settings.dependenciesFile.value
     val group       = Settings.currentGroup.value
-    val groupExists = DependenciesFile.hasGroup(file, group)
-    val versions    = DependenciesFile.readScalaVersions(file, group)
+    val groupExists = file.hasGroup(group)
+    val versions    = file.readScalaVersions(group)
 
     if (groupExists && versions.nonEmpty) {
       logger.info(s"\n↻ Updating Scala versions for `$group`\n")
@@ -247,17 +187,17 @@ class Tasks {
         val latest = Utils.findLatestScalaVersion(version)
 
         if (latest === version) {
-          logger.info(s" ↳ $GREEN✓$RESET $GREEN${version.toVersionString}$RESET")
+          logger.info(s" ↳ $GREEN✓$RESET $GREEN$version$RESET")
           version
         } else {
           logger.info(
-            s" ↳ $YELLOW⬆$RESET $YELLOW${version.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET"
+            s" ↳ $YELLOW⬆$RESET $YELLOW$version$RESET -> $CYAN$latest$RESET"
           )
           latest
         }
       }
 
-      DependenciesFile.writeScalaVersions(file, group, updated)
+      file.writeScalaVersions(group, updated)
     }
   }
 

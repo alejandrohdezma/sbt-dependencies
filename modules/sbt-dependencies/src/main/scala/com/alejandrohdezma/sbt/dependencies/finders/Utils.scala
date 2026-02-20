@@ -16,6 +16,14 @@
 
 package com.alejandrohdezma.sbt.dependencies.finders
 
+import java.util.concurrent.Executors
+
+import scala.Console._
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+import scala.concurrent.duration.Duration
+
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
@@ -24,6 +32,74 @@ import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** Utility functions for dependency resolution. */
 object Utils {
+
+  /** Resolves the latest version for each dependency in parallel, logging updates.
+    *
+    * Returns the list of dependencies with their versions updated where applicable.
+    */
+  def resolveLatestVersions(deps: List[Dependency], parallelism: Int)(implicit
+      vf: VersionFinder,
+      mf: MigrationFinder,
+      logger: Logger
+  ): List[Dependency] = {
+    val executor = Executors.newFixedThreadPool(parallelism)
+
+    implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
+
+    val futures = deps.map(dep => Future((dep, dep.findLatestVersion)))
+
+    val updated = futures.map { future =>
+      val (dependency, message) = Await.result(future, Duration.Inf) match {
+        case (original: Dependency.WithNumericVersion, _) if original.version.marker.isExact =>
+          (original, s" ↳ $CYAN⊙$RESET $CYAN${original.toLine}$RESET")
+
+        case (original: Dependency.WithNumericVersion, latest) if !latest.isSameArtifact(original) =>
+          (latest, s" ↳ $YELLOW⇄$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.toLine}$RESET")
+
+        case (original: Dependency.WithNumericVersion, latest) if latest.version.isSameVersion(original.version) =>
+          (original, s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET")
+
+        case (original: Dependency.WithNumericVersion, latest) =>
+          (latest, s" ↳ $YELLOW⬆$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.version.show}$RESET")
+
+        case (original: Dependency.WithVariableVersion, latest)
+            if !latest.isSameArtifact(original) && latest.version.isSameVersion(original.version.resolved) =>
+          (
+            original,
+            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version}`), migration " +
+              s"to ${latest.organization}:${latest.name} available"
+          )
+
+        case (original: Dependency.WithVariableVersion, latest) if !latest.isSameArtifact(original) =>
+          (
+            original,
+            s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version}`, " +
+              s"latest: `$YELLOW${latest.version}$RESET`, migration to" +
+              s" ${latest.organization}:${latest.name} available)"
+          )
+
+        case (original: Dependency.WithVariableVersion, latest)
+            if latest.version.isSameVersion(original.version.resolved) =>
+          (
+            original,
+            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version}`)"
+          )
+
+        case (original: Dependency.WithVariableVersion, latest) =>
+          (
+            original,
+            s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version}`, " +
+              s"latest: `$YELLOW${latest.version}$RESET`)"
+          )
+      }
+
+      logger.info(message)
+      dependency
+    }
+
+    executor.shutdown()
+    updated
+  }
 
   /** Finds the latest version of a dependency based on the current version's marker.
     *
