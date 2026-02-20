@@ -28,6 +28,7 @@ import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
+import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff
@@ -230,17 +231,71 @@ class Commands {
 
   /** Updates dependencies in the `sbt-build` group of `project/dependencies.conf`. */
   lazy val updateBuildDependencies = Command.command("updateBuildDependencies") { state =>
-    runInMetaBuild("updateDependencies")(state)
+    withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
+      implicit val logger: Logger = state.log
+
+      val deps = DependenciesFile.read(file, `sbt-build`, Map.empty)
+
+      if (deps.nonEmpty) {
+        logger.info(s"\n↻ Updating dependencies for `${`sbt-build`}` in project/dependencies.conf\n")
+
+        val updated = Utils.resolveLatestVersions(deps, project.get(ThisBuild / Keys.dependencyResolverParallelism))
+
+        updated.foreach(retractionFinder.warnIfRetracted(_))
+
+        DependenciesFile.write(file, `sbt-build`, updated)
+      }
+
+      state
+    }
   }
 
   /** Updates Scala versions in the `sbt-build` group of `project/dependencies.conf`. */
   lazy val updateBuildScalaVersions = Command.command("updateBuildScalaVersions") { state =>
-    runInMetaBuild("updateScalaVersions")(state)
+    withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => _ => (_, file) =>
+      implicit val logger: Logger = state.log
+
+      val versions = DependenciesFile.readScalaVersions(file, `sbt-build`)
+
+      if (versions.nonEmpty) {
+        logger.info(s"\n↻ Updating Scala versions for `${`sbt-build`}` in project/dependencies.conf\n")
+
+        val updated = versions.map { version =>
+          val latest = Utils.findLatestScalaVersion(version)
+
+          if (latest === version) {
+            logger.info(s" ↳ $GREEN✓$RESET $GREEN${version.toVersionString}$RESET")
+            version
+          } else {
+            logger.info(
+              s" ↳ $YELLOW⬆$RESET $YELLOW${version.toVersionString}$RESET -> $CYAN${latest.toVersionString}$RESET"
+            )
+            latest
+          }
+        }
+
+        DependenciesFile.writeScalaVersions(file, `sbt-build`, updated)
+      }
+
+      state
+    }
   }
 
-  /** Installs a dependency in the meta-build (project/dependencies). */
+  /** Installs a dependency in `project/dependencies.conf` directly from the main build. */
   lazy val installBuildDependencies = Command.single("installBuildDependencies") { case (state, dependency) =>
-    runInMetaBuild(s"install $dependency")(state)
+    implicit val logger: Logger = state.log
+
+    withSbtBuild(state) { implicit versionFinder => _ => _ => (_, file) =>
+      val dependencies = DependenciesFile.read(file, `sbt-build`, Map.empty)
+
+      val dep = Dependency.parse(dependency)
+
+      logger.info(s"➕ [${`sbt-build`}] $YELLOW${dep.toLine}$RESET")
+
+      DependenciesFile.write(file, `sbt-build`, dependencies.filterNot(_.isSameArtifact(dep)) :+ dep)
+
+      state
+    }
   }
 
   /** Updates scalafmt version in `.scalafmt.conf` to the latest version. */
@@ -475,6 +530,34 @@ class Commands {
     }
 
     snapshot
+  }
+
+  private def withSbtBuild(state: State)(
+      f: VersionFinder => MigrationFinder => RetractionFinder => (Extracted, File) => State
+  ): State = {
+    implicit val logger: Logger = state.log
+
+    val project = Project.extract(state)
+    val base    = project.get(ThisBuild / baseDirectory)
+    val file    = base / "project" / "dependencies.conf"
+
+    if (!file.exists() || !DependenciesFile.hasGroup(file, `sbt-build`)) state
+    else {
+      ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
+
+      val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
+
+      val versionFinder = VersionFinder
+        .fromCoursier("2.12", project.get(ThisBuild / Keys.dependencyResolverTimeout))
+        .cached
+        .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
+        .excludingRetracted(retractionFinder)
+        .pinningVersions(PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins)))
+
+      val migrationFinder = MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
+
+      f(versionFinder)(migrationFinder)(retractionFinder)(project, file)
+    }
   }
 
   val `sbt-build` = "sbt-build"
