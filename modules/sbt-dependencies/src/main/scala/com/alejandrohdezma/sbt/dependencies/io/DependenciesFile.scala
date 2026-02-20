@@ -28,8 +28,15 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigFactory
 
-/** Handles reading and writing dependencies to/from the dependencies.conf file. */
-object DependenciesFile {
+/** Handles reading and writing dependencies to/from the dependencies.conf file.
+  *
+  * @param file
+  *   The dependencies.conf file to read.
+  */
+final case class DependenciesFile(file: File) {
+
+  /** Whether the file exists. */
+  def exists(): Boolean = file.exists()
 
   /** Reads dependencies for a specific group from the given HOCON file.
     *
@@ -47,8 +54,6 @@ object DependenciesFile {
     * ]
     * }}}
     *
-    * @param file
-    *   The dependencies.conf file to read.
     * @param group
     *   The group to read dependencies for.
     * @param variableResolvers
@@ -56,7 +61,7 @@ object DependenciesFile {
     * @return
     *   List of parsed dependencies for the specified group.
     */
-  def read(file: File, group: String, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
+  def read(group: String, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
       logger: Logger
   ): List[Dependency] =
     readRaw(file).get(group).map(_.dependencyLines).toList.flatten.map(Dependency.parse(_, variableResolvers))
@@ -66,8 +71,6 @@ object DependenciesFile {
     * Other groups in the file are preserved. The format (simple vs advanced) of existing groups is preserved, unless
     * scalaVersions is provided, in which case Advanced format is used.
     *
-    * @param file
-    *   The target file.
     * @param group
     *   The group to write dependencies for.
     * @param dependencies
@@ -75,7 +78,7 @@ object DependenciesFile {
     * @param scalaVersions
     *   Optional list of Scala versions to write. If non-empty, Advanced format is used.
     */
-  def write(file: File, group: String, dependencies: List[Dependency], scalaVersions: List[String] = Nil)(implicit
+  def write(group: String, dependencies: List[Dependency], scalaVersions: List[String] = Nil)(implicit
       logger: Logger
   ): Unit =
     if (dependencies.nonEmpty || scalaVersions.nonEmpty) {
@@ -121,14 +124,12 @@ object DependenciesFile {
     * Validates that each version is a valid numeric version format. Invalid versions are logged as warnings and
     * filtered out. Versions without an explicit marker default to `Minor` (`~`) for safety.
     *
-    * @param file
-    *   The dependencies.conf file to read.
     * @param group
     *   The group to read scalaVersions for.
     * @return
     *   List of valid Scala versions, or empty list if not defined.
     */
-  def readScalaVersions(file: File, group: String)(implicit logger: Logger): List[Numeric] =
+  def readScalaVersions(group: String)(implicit logger: Logger): List[Numeric] =
     readRaw(file).get(group).map(_.scalaVersions).getOrElse(Nil).flatMap {
       case Numeric(v) =>
         // Default to Minor marker for Scala versions without explicit marker (safer than NoMarker)
@@ -143,14 +144,12 @@ object DependenciesFile {
     *
     * Other groups and dependencies in the file are preserved. Version markers are preserved when writing.
     *
-    * @param file
-    *   The target file.
     * @param group
     *   The group to write Scala versions for.
     * @param scalaVersions
     *   The list of Scala versions to write (including markers).
     */
-  def writeScalaVersions(file: File, group: String, scalaVersions: List[Numeric])(implicit logger: Logger): Unit = {
+  def writeScalaVersions(group: String, scalaVersions: List[Numeric])(implicit logger: Logger): Unit = {
     val existingConfigs = readRaw(file)
 
     val newConfig = existingConfigs.get(group) match {
@@ -170,14 +169,12 @@ object DependenciesFile {
 
   /** Checks if a group exists in the given HOCON file.
     *
-    * @param file
-    *   The dependencies.conf file to check.
     * @param group
     *   The group to check for.
     * @return
     *   `true` if the group exists in the file, `false` otherwise.
     */
-  def hasGroup(file: File, group: String)(implicit logger: Logger): Boolean =
+  def hasGroup(group: String)(implicit logger: Logger): Boolean =
     readRaw(file).contains(group)
 
   /** Reads the raw HOCON file as a map of group names to group configurations.
@@ -207,5 +204,11 @@ object DependenciesFile {
           .toMap
       }
     }
+
+}
+
+object DependenciesFile {
+
+  def apply(file: File): DependenciesFile = new DependenciesFile(file)
 
 }

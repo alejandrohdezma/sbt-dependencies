@@ -31,7 +31,6 @@ import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
-import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.string.box._
@@ -61,8 +60,8 @@ class Tasks {
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
-    val groupExists  = DependenciesFile.hasGroup(file, group)
-    val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
+    val groupExists  = file.hasGroup(group)
+    val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
     val filter       = updateFilterParser.parsed
 
     implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
@@ -82,7 +81,7 @@ class Tasks {
 
       updated.foreach(retractionFinder.warnIfRetracted(_))
 
-      DependenciesFile.write(file, group, filtered ++ updated)
+      file.write(group, filtered ++ updated)
     }
   }
 
@@ -96,14 +95,14 @@ class Tasks {
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
-    val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
+    val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
     val dependency   = Dependency.parseIncludingMissingVersion(installParser.parsed)
 
     logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 
     val updated = dependencies.filterNot(_.isSameArtifact(dependency)) :+ dependency
 
-    DependenciesFile.write(file, group, updated)
+    file.write(group, updated)
   }
 
   /** Shows the library dependencies for the current project in a formatted, colored output. */
@@ -178,8 +177,8 @@ class Tasks {
 
     val file        = Settings.dependenciesFile.value
     val group       = Settings.currentGroup.value
-    val groupExists = DependenciesFile.hasGroup(file, group)
-    val versions    = DependenciesFile.readScalaVersions(file, group)
+    val groupExists = file.hasGroup(group)
+    val versions    = file.readScalaVersions(group)
 
     if (groupExists && versions.nonEmpty) {
       logger.info(s"\n↻ Updating Scala versions for `$group`\n")
@@ -198,7 +197,7 @@ class Tasks {
         }
       }
 
-      DependenciesFile.writeScalaVersions(file, group, updated)
+      file.writeScalaVersions(group, updated)
     }
   }
 

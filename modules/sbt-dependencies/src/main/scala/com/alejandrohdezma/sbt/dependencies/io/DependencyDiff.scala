@@ -23,11 +23,11 @@ import scala.collection.JavaConverters._
 import sbt.IO
 import sbt.librarymanagement.ModuleID
 
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigRenderOptions
 import com.typesafe.config.ConfigValueFactory
-import com.alejandrohdezma.sbt.dependencies.model.Dependency
 
 /** Utilities for snapshotting resolved dependencies and computing diffs. */
 object DependencyDiff {

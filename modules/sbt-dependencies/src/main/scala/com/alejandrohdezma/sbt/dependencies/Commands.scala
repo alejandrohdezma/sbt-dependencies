@@ -98,22 +98,24 @@ class Commands {
     val uniqueVersionSets = scalaVersionsByGroup.values.map(_.sorted).toSet
     val sharedVersions    = if (uniqueVersionSets.size === 1) uniqueVersionSets.head else Nil
 
-    val file =
+    val file = DependenciesFile {
       if (isSbtBuild) base / "dependencies.conf"
       else base / "project" / "dependencies.conf"
+    }
 
     // Write sbt-build group with shared scala versions (if any)
     val sbtBuildDeps = dependenciesByGroup.getOrElse(`sbt-build`, Nil)
 
     if (sharedVersions.nonEmpty || (newGroups.contains(`sbt-build`) && sbtBuildDeps.nonEmpty)) {
-      DependenciesFile.write(file, `sbt-build`, sbtBuildDeps, sharedVersions)
+      file.write(`sbt-build`, sbtBuildDeps, sharedVersions)
     }
 
     // Write each group's dependencies (and scala versions if not shared)
     newGroups.filterNot(_ === `sbt-build`).foreach { group =>
       val deps          = dependenciesByGroup.getOrElse(group, Nil)
       val scalaVersions = if (sharedVersions.isEmpty) scalaVersionsByGroup.getOrElse(group, Nil) else Nil
-      DependenciesFile.write(file, group, deps, scalaVersions)
+
+      file.write(group, deps, scalaVersions)
     }
 
     logger.info("✎ Created project/dependencies.conf file with your dependencies")
@@ -238,7 +240,7 @@ class Commands {
     withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
       implicit val logger: Logger = state.log
 
-      val deps = DependenciesFile.read(file, `sbt-build`, Map.empty)
+      val deps = file.read(`sbt-build`, Map.empty)
 
       if (deps.nonEmpty) {
         logger.info(s"\n↻ Updating dependencies for `${`sbt-build`}` in project/dependencies.conf\n")
@@ -247,7 +249,7 @@ class Commands {
 
         updated.foreach(retractionFinder.warnIfRetracted(_))
 
-        DependenciesFile.write(file, `sbt-build`, updated)
+        file.write(`sbt-build`, updated)
       }
 
       state
@@ -263,7 +265,7 @@ class Commands {
     withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => _ => (_, file) =>
       implicit val logger: Logger = state.log
 
-      val versions = DependenciesFile.readScalaVersions(file, `sbt-build`)
+      val versions = file.readScalaVersions(`sbt-build`)
 
       if (versions.nonEmpty) {
         logger.info(s"\n↻ Updating Scala versions for `${`sbt-build`}` in project/dependencies.conf\n")
@@ -282,7 +284,7 @@ class Commands {
           }
         }
 
-        DependenciesFile.writeScalaVersions(file, `sbt-build`, updated)
+        file.writeScalaVersions(`sbt-build`, updated)
       }
 
       state
@@ -298,13 +300,13 @@ class Commands {
     implicit val logger: Logger = state.log
 
     withSbtBuild(state) { implicit versionFinder => _ => _ => (_, file) =>
-      val dependencies = DependenciesFile.read(file, `sbt-build`, Map.empty)
+      val dependencies = file.read(`sbt-build`, Map.empty)
 
       val dep = Dependency.parseIncludingMissingVersion(dependency)
 
       logger.info(s"➕ [${`sbt-build`}] $YELLOW${dep.toLine}$RESET")
 
-      DependenciesFile.write(file, `sbt-build`, dependencies.filterNot(_.isSameArtifact(dep)) :+ dep)
+      file.write(`sbt-build`, dependencies.filterNot(_.isSameArtifact(dep)) :+ dep)
 
       state
     }
@@ -451,7 +453,7 @@ class Commands {
       withSbtBuild(state) { _ => _ => _ => (project, file) =>
         implicit val logger: Logger = state.log
 
-        val dependencies = DependenciesFile.read(file, `sbt-build`, Map.empty)
+        val dependencies = file.read(`sbt-build`, Map.empty)
 
         if (dependencies.nonEmpty) {
           val snapshot = Map(
@@ -503,12 +505,12 @@ class Commands {
           if (!buildSnapshotFile.exists())
             (Set.empty[DependencyDiff.ResolvedDep], Set.empty[DependencyDiff.ResolvedDep])
           else {
-            val file = base / "project" / "dependencies.conf"
+            val file = DependenciesFile(base / "project" / "dependencies.conf")
 
             val before = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
 
             val after =
-              DependenciesFile.read(file, `sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
+              file.read(`sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
 
             IO.delete(buildSnapshotFile)
 
@@ -564,15 +566,16 @@ class Commands {
   }
 
   private def withSbtBuild(state: State)(
-      f: VersionFinder => MigrationFinder => RetractionFinder => (Extracted, File) => State
+      f: VersionFinder => MigrationFinder => RetractionFinder => (Extracted, DependenciesFile) => State
   ): State = {
     implicit val logger: Logger = state.log
 
-    val project = Project.extract(state)
-    val base    = project.get(ThisBuild / baseDirectory)
-    val file    = base / "project" / "dependencies.conf"
+    val project          = Project.extract(state)
+    val base             = project.get(ThisBuild / baseDirectory)
+    val file             = base / "project" / "dependencies.conf"
+    val dependenciesFile = DependenciesFile(file)
 
-    if (!file.exists() || !DependenciesFile.hasGroup(file, `sbt-build`)) state
+    if (!file.exists() || !dependenciesFile.hasGroup(`sbt-build`)) state
     else {
       ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
 
@@ -587,7 +590,7 @@ class Commands {
 
       val migrationFinder = MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 
-      f(versionFinder)(migrationFinder)(retractionFinder)(project, file)
+      f(versionFinder)(migrationFinder)(retractionFinder)(project, dependenciesFile)
     }
   }
 
