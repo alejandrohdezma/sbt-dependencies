@@ -466,7 +466,11 @@ class Commands {
     */
   lazy val computeDependencyDiff = Command.command("computeDependencyDiff") { state =>
     Try {
-      val base = Project.extract(state).get(ThisBuild / baseDirectory)
+      implicit val logger: Logger = state.log
+
+      val project = Project.extract(state)
+
+      val base = project.get(ThisBuild / baseDirectory)
 
       val outputDir = base / "target" / "sbt-dependencies"
 
@@ -475,30 +479,37 @@ class Commands {
       if (!snapshotFile.exists()) {
         state.log.warn("Snapshot file not found, skipping diff computation")
       } else {
-        val before = DependencyDiff.readSnapshot(snapshotFile)
 
-        val after = generateSnapshot(state)
+        // Merge sbt-build snapshot from project/dependencies.conf
+        val buildSnapshotFile = outputDir / ".sbt-build-snapshot"
 
-        var diffs = DependencyDiff.compute(before, after) // scalafix:ok
+        val (buildBefore, buildAfter) =
+          if (!buildSnapshotFile.exists())
+            (Set.empty[DependencyDiff.ResolvedDep], Set.empty[DependencyDiff.ResolvedDep])
+          else {
+            val file = base / "project" / "dependencies.conf"
 
-        // Merge meta-build diff (produced by computeBuildDependencyDiff) under `sbt-build` key
-        val buildDiffFile = base / "project" / "target" / "sbt-dependencies" / ".sbt-dependency-diff"
+            val before = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
 
-        if (buildDiffFile.exists()) {
-          val buildDiffs = DependencyDiff.readDiff(buildDiffFile)
+            val after = {
+              implicit val versionFinder: VersionFinder =
+                VersionFinder.fromCoursier("2.12", project.get(ThisBuild / Keys.dependencyResolverTimeout)).cached
 
-          if (buildDiffs.nonEmpty) {
-            val merged = DependencyDiff.ProjectDiff(
-              updated = buildDiffs.values.flatMap(_.updated).toList,
-              added = buildDiffs.values.flatMap(_.added).toList,
-              removed = buildDiffs.values.flatMap(_.removed).toList
-            )
+              DependenciesFile
+                .read(file, `sbt-build`, Map.empty)
+                .map(d => DependencyDiff.ResolvedDep(d.organization, d.name, d.version.toVersionString))
+                .toSet
+            }
 
-            diffs = diffs + (`sbt-build` -> merged)
+            IO.delete(buildSnapshotFile)
+
+            (before, after)
           }
 
-          IO.delete(buildDiffFile)
-        }
+        val before = DependencyDiff.readSnapshot(snapshotFile)
+        val after  = generateSnapshot(state)
+
+        val diffs = DependencyDiff.compute(before + (`sbt-build` -> buildBefore), after + (`sbt-build` -> buildAfter))
 
         if (diffs.nonEmpty)
           IO.write(outputDir / ".sbt-dependency-diff", DependencyDiff.toHocon(diffs))
