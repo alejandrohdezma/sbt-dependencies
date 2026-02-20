@@ -21,7 +21,6 @@ import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
 import sbt.Keys._
-import sbt.internal.util.complete.Parser
 import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
@@ -29,7 +28,6 @@ import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
-import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff
@@ -217,7 +215,7 @@ class Commands {
 
         IO.writeLines(file, updatedLines.map(_._1))
 
-        if (updatedLines.exists(_._2)) Some(runCommand("reload")(state))
+        if (updatedLines.exists(_._2)) Some(Command.process("reload", state))
         else Some(state)
       }
     }
@@ -348,12 +346,12 @@ class Commands {
 
   /** Downgrades eviction errors to info level, preventing them from failing the build. */
   lazy val disableEvictionWarnings = Command.command("disableEvictionWarnings") { state =>
-    runCommand("set ThisBuild / evictionErrorLevel := Level.Info")(state)
+    Command.process("set ThisBuild / evictionErrorLevel := Level.Info", state)
   }
 
   /** Restores eviction warnings to error level, causing eviction issues to fail the build. */
   lazy val enableEvictionWarnings = Command.command("enableEvictionWarnings") { state =>
-    runCommand("set ThisBuild / evictionErrorLevel := Level.Error")(state)
+    Command.process("set ThisBuild / evictionErrorLevel := Level.Error", state)
   }
 
   /** Snapshots all resolved dependencies (including transitives) for every project to
@@ -480,7 +478,8 @@ class Commands {
   }
 
   private def runInMetaBuild(commands: String*)(state: State): State =
-    if (isPluginInMetaBuild(state)) runCommand(("reload plugins" +: commands :+ "reload return"): _*)(state)
+    if (isPluginInMetaBuild(state))
+      Command.process(("reload plugins" +: commands :+ "reload return").mkString("; "), state)
     else state
 
   private def runStepsSafely(steps: String*)(state: State, outputDir: File): State = {
@@ -504,7 +503,7 @@ class Commands {
 
       remaining.remove(0)
 
-      currentState = Try(runCommand(step)(currentState))
+      currentState = Try(Command.process(step, currentState))
         .flatMap(newState => Try(Project.extract(newState)).map(_ => newState))
         .onError { case e => logger.error(s"⚠ '$step' failed: ${e.getMessage}") }
         .onError { case _ if remaining.nonEmpty => logger.error(s"⚠ Skipped: ${remaining.mkString(", ")}") }
@@ -530,15 +529,6 @@ class Commands {
          |> 4. Push the changes to this branch.""".stripMargin
 
     IO.write(outputDir / ".sbt-update-report", report)
-  }
-
-  private def runCommand(commands: String*)(state: State): State = {
-    implicit val logger: Logger = state.log
-
-    Parser.parse(commands.mkString("; "), state.combinedParser) match {
-      case Right(cmd) => cmd()
-      case Left(err)  => Utils.fail(s"Failed to parse command: $err")
-    }
   }
 
 }
