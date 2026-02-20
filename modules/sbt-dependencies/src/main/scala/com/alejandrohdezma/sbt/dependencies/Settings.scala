@@ -21,7 +21,6 @@ import sbt.Keys._
 import sbt.util.Logger
 import sbt.{Keys => _, _}
 
-import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -47,9 +46,6 @@ class Settings {
   /** The list of dependencies read from the file (with variables resolved). */
   val dependenciesFromFile: Def.Initialize[List[Dependency]] = Def.setting {
     implicit val logger: Logger = sLog.value
-
-    implicit val versionFinder: VersionFinder =
-      VersionFinder.fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value).cached
 
     val variableResolvers = Keys.dependencyVersionVariables.value
 

@@ -45,8 +45,16 @@ class DependencyParseSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
-  test("parse cross-version dependency without version") {
-    val result = Dependency.parse("org.typelevel::cats-core")
+  test("parse cross-version dependency without version fails") {
+    interceptMessage[Exception](
+      "org.typelevel::cats-core is missing a version"
+    ) {
+      Dependency.parse("org.typelevel::cats-core")
+    }
+  }
+
+  test("parseIncludingMissingVersion resolves cross-version dependency without version") {
+    val result = Dependency.parseIncludingMissingVersion("org.typelevel::cats-core")
 
     val expected = Dependency.WithNumericVersion(
       organization = "org.typelevel",
@@ -71,8 +79,16 @@ class DependencyParseSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
-  test("parse java dependency without version") {
-    val result = Dependency.parse("com.google.guava:guava")
+  test("parse java dependency without version fails") {
+    interceptMessage[Exception](
+      "com.google.guava:guava is missing a version"
+    ) {
+      Dependency.parse("com.google.guava:guava")
+    }
+  }
+
+  test("parseIncludingMissingVersion resolves java dependency without version") {
+    val result = Dependency.parseIncludingMissingVersion("com.google.guava:guava")
 
     val expected = Dependency.WithNumericVersion(
       organization = "com.google.guava",

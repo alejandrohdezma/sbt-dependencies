@@ -288,7 +288,7 @@ class Commands {
     withSbtBuild(state) { implicit versionFinder => _ => _ => (_, file) =>
       val dependencies = DependenciesFile.read(file, `sbt-build`, Map.empty)
 
-      val dep = Dependency.parse(dependency)
+      val dep = Dependency.parseIncludingMissingVersion(dependency)
 
       logger.info(s"➕ [${`sbt-build`}] $YELLOW${dep.toLine}$RESET")
 
@@ -433,7 +433,7 @@ class Commands {
     */
   lazy val snapshotBuildDependencies = Command.command("snapshotBuildDependencies") { state =>
     Try {
-      withSbtBuild(state) { implicit versionFinder => _ => _ => (project, file) =>
+      withSbtBuild(state) { _ => _ => _ => (project, file) =>
         implicit val logger: Logger = state.log
 
         val dependencies = DependenciesFile.read(file, `sbt-build`, Map.empty)
@@ -492,9 +492,6 @@ class Commands {
             val before = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
 
             val after = {
-              implicit val versionFinder: VersionFinder =
-                VersionFinder.fromCoursier("2.12", project.get(ThisBuild / Keys.dependencyResolverTimeout)).cached
-
               DependenciesFile
                 .read(file, `sbt-build`, Map.empty)
                 .map(d => DependencyDiff.ResolvedDep(d.organization, d.name, d.version.toVersionString))

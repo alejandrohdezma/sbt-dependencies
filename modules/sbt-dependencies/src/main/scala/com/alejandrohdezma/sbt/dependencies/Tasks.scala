@@ -97,7 +97,7 @@ class Tasks {
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
     val dependencies = DependenciesFile.read(file, group, Keys.dependencyVersionVariables.value)
-    val dependency   = Dependency.parse(installParser.parsed)
+    val dependency   = Dependency.parseIncludingMissingVersion(installParser.parsed)
 
     logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 
