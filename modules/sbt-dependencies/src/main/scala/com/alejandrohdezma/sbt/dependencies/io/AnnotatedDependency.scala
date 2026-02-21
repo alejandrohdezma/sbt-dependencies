@@ -10,24 +10,11 @@ import com.typesafe.config.ConfigValueType
 /** A dependency entry that may optionally carry a note explaining why it is configured a certain way. */
 final case class AnnotatedDependency(line: String, note: Option[String] = None) {
 
-  /** Formats a single dependency entry as HOCON, using single-line object format if it fits within the max line length
-    * (120 characters), or multi-line otherwise.
-    */
+  /** Formats a single dependency entry as HOCON. */
   def format: String = note match {
-    case None                                => s""""$line""""
-    case Some(_) if singleLine.length <= 120 => singleLine
-    case Some(_)                             => multiLine
+    case None    => s""""$line""""
+    case Some(n) => s"""{ dependency = "$line", note = "$n" }"""
   }
-
-  /** Formats a single dependency with a note entry as a multi-line object. */
-  lazy val multiLine =
-    s"""{
-       |  dependency = "$line"
-       |  note = "${note.getOrElse("")}"
-       |}""".stripMargin
-
-  /** Formats a single dependency with a note entry as a single-line object. */
-  lazy val singleLine = s"""{ dependency = "$line", note = "${note.getOrElse("")}" }"""
 
 }
 

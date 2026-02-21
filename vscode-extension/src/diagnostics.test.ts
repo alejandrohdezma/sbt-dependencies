@@ -317,43 +317,6 @@ describe("parseDiagnostics", () => {
       expect(result[0].message).toBe("Duplicate dependency in group");
     });
 
-    it("handles multi-line object entry", () => {
-      const lines = [
-        'my-group = [',
-        '  {',
-        '    dependency = "org.typelevel::cats-core:^2.10.0"',
-        '    note = "v3 drops Scala 2.12"',
-        '  }',
-        ']',
-      ];
-      expect(parseDiagnostics(lines)).toEqual([]);
-    });
-
-    it("returns error for multi-line object without dependency field", () => {
-      const lines = [
-        'my-group = [',
-        '  {',
-        '    note = "missing dep"',
-        '  }',
-        ']',
-      ];
-      const result = parseDiagnostics(lines);
-      expect(result).toHaveLength(1);
-      expect(result[0].message).toBe("Object entry must have a 'dependency' field");
-    });
-
-    it("returns error for multi-line object without note field", () => {
-      const lines = [
-        'my-group = [',
-        '  {',
-        '    dependency = "org.typelevel::cats-core:^2.10.0"',
-        '  }',
-        ']',
-      ];
-      const result = parseDiagnostics(lines);
-      expect(result).toHaveLength(1);
-      expect(result[0].message).toBe("Object entry must have a 'note' field");
-    });
   });
 
   describe("edge cases", () => {

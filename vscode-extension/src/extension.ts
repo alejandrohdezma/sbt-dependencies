@@ -6,6 +6,7 @@ import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
 import { parseDependency, buildHoverMarkdown } from "./hover";
 import { parseDocumentLinks } from "./links";
+import { parseNoteDecorations } from "./note-decorations";
 import { resolveRepositoryUrl } from "./pom";
 import { findReferences } from "./references";
 import { getQuickFixes } from "./quickfix";
@@ -714,6 +715,64 @@ class PinnedDepCodeLensProvider implements vscode.CodeLensProvider {
   }
 }
 
+/** Decoration type that hides text by making it invisible and zero-width. */
+const hideDecorationType = vscode.window.createTextEditorDecorationType({
+  opacity: "0",
+  letterSpacing: "-100em",
+});
+
+/** Decoration type used as a container for per-line `after` note text. */
+const noteDecorationType = vscode.window.createTextEditorDecorationType({});
+
+/**
+ * Applies note decorations to a text editor, visually collapsing single-line
+ * `{ dependency = "...", note = "..." }` entries into `"..." // note`.
+ *
+ * Lines where the cursor is positioned are excluded so the user can see
+ * and edit the real content.
+ */
+function applyNoteDecorations(editor: vscode.TextEditor): void {
+  if (editor.document.languageId !== "sbt-dependencies") return;
+
+  const lines: string[] = [];
+  for (let i = 0; i < editor.document.lineCount; i++) {
+    lines.push(editor.document.lineAt(i).text);
+  }
+
+  const cursorLines = new Set(editor.selections.map(s => s.active.line));
+  const decorations = parseNoteDecorations(lines).filter(d => !cursorLines.has(d.line));
+
+  const hideRanges: vscode.DecorationOptions[] = [];
+  const noteRanges: vscode.DecorationOptions[] = [];
+
+  for (const d of decorations) {
+    // Hide the prefix: `{ dependency = "`
+    hideRanges.push({
+      range: new vscode.Range(d.line, d.prefixRange.startCol, d.line, d.prefixRange.endCol),
+    });
+
+    // Hide the suffix: `", note = "..." }`
+    hideRanges.push({
+      range: new vscode.Range(d.line, d.suffixRange.startCol, d.line, d.suffixRange.endCol),
+    });
+
+    // Show note text as an after-decoration on the dependency string
+    noteRanges.push({
+      range: new vscode.Range(d.line, d.prefixRange.endCol, d.line, d.suffixRange.startCol),
+      renderOptions: {
+        after: {
+          contentText: `  // ${d.noteText}`,
+          color: new vscode.ThemeColor("editorLineNumber.foreground"),
+          fontStyle: "italic",
+        },
+      },
+    });
+  }
+
+  editor.setDecorations(hideDecorationType, hideRanges);
+  editor.setDecorations(noteDecorationType, noteRanges);
+}
+
 /** Registers providers, commands, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: "sbt-dependencies", scheme: "file" };
@@ -791,7 +850,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "sbt-dependencies.addDependencyNote",
       addDependencyNote
-    )
+    ),
   );
 
   const diagnostics = vscode.languages.createDiagnosticCollection("sbt-dependencies");
@@ -807,15 +866,31 @@ export function activate(context: vscode.ExtensionContext): void {
       updateDiagnostics(e.document, diagnostics);
       warmAvailabilityCache(e.document);
       warmRepoUrlCache(e.document);
+      const editor = vscode.window.activeTextEditor;
+      if (editor && editor.document === e.document) {
+        applyNoteDecorations(editor);
+      }
     }),
-    vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri))
+    vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri)),
+    vscode.window.onDidChangeTextEditorSelection(e => {
+      applyNoteDecorations(e.textEditor);
+    }),
+    vscode.window.onDidChangeActiveTextEditor(editor => {
+      if (editor) applyNoteDecorations(editor);
+    })
   );
+
+  context.subscriptions.push(hideDecorationType, noteDecorationType);
 
   vscode.workspace.textDocuments.forEach(doc => {
     updateDiagnostics(doc, diagnostics);
     warmAvailabilityCache(doc);
     warmRepoUrlCache(doc);
   });
+
+  if (vscode.window.activeTextEditor) {
+    applyNoteDecorations(vscode.window.activeTextEditor);
+  }
 }
 
 export function deactivate(): void {}
