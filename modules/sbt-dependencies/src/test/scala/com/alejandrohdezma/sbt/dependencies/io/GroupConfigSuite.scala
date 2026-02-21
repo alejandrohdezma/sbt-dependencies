@@ -323,7 +323,7 @@ class GroupConfigSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
-  test("format Simple with long note uses multi-line object") {
+  test("format Simple with long note uses single-line object") {
     val longNote =
       "This dependency is pinned because the next major version drops support for Scala 2.12 and we still need cross-building"
     val config = GroupConfig.Simple(List(dep("org.typelevel::cats-core:^2.10.0", longNote)))
@@ -331,10 +331,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
     val expected =
       s"""|my-project = [
-          |  {
-          |    dependency = "org.typelevel::cats-core:^2.10.0"
-          |    note = "$longNote"
-          |  }
+          |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "$longNote" }
           |]""".stripMargin
 
     assertEquals(result, expected)

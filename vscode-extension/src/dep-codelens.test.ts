@@ -69,19 +69,6 @@ describe("parsePinnedWithoutNote", () => {
     expect(results).toHaveLength(0);
   });
 
-  it("skips multi-line object entries", () => {
-    const lines = [
-      'my-group = [',
-      '  {',
-      '    dependency = "org.typelevel::cats-core:^2.10.0"',
-      '    note = "v3 drops Scala 2.12"',
-      '  }',
-      ']',
-    ];
-    const results = parsePinnedWithoutNote(lines);
-    expect(results).toHaveLength(0);
-  });
-
   it("returns only pinned deps without notes from mixed entries", () => {
     const lines = [
       'my-group = [',

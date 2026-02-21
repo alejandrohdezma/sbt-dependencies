@@ -13,7 +13,7 @@ const dependenciesArrayStart = /^\s*dependencies\s*=\s*\[/;
 /** Extracts the `dependency` field value from an object entry. */
 const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
 
-type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array" | "dependency_object";
+type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array";
 
 /**
  * Parses lines from a `dependencies.conf` file and returns document symbols
@@ -26,8 +26,6 @@ type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies
 export function parseDocumentSymbols(lines: string[]): ParsedSymbol[] {
   const symbols: ParsedSymbol[] = [];
   let state: ParserState = "outside";
-  /** State to return to after a multi-line dependency object closes. */
-  let preObjectState: "simple_array" | "dependencies_array" = "simple_array";
   let inBlockComment = false;
   let currentGroup: ParsedSymbol | undefined;
 
@@ -105,14 +103,6 @@ export function parseDocumentSymbols(lines: string[]): ParsedSymbol[] {
         continue;
       }
     } else if (state === "simple_array") {
-      // Check for multi-line object start before extracting deps
-      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
-        // Extract any deps from the line before entering object state
-        extractDependencyFromObjectLine(line, i, currentGroup!);
-        preObjectState = "simple_array";
-        state = "dependency_object";
-        continue;
-      }
       extractDependencies(line, i, currentGroup!);
       if (effectiveLine.includes("]")) {
         currentGroup!.range.endLine = i;
@@ -136,22 +126,9 @@ export function parseDocumentSymbols(lines: string[]): ParsedSymbol[] {
         state = "outside";
       }
     } else if (state === "dependencies_array") {
-      // Check for multi-line object start before extracting deps
-      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
-        extractDependencyFromObjectLine(line, i, currentGroup!);
-        preObjectState = "dependencies_array";
-        state = "dependency_object";
-        continue;
-      }
       extractDependencies(line, i, currentGroup!);
       if (effectiveLine.includes("]")) {
         state = "advanced_block";
-      }
-    } else if (state === "dependency_object") {
-      // Inside a multi-line object — extract dependency field if present
-      extractDependencyFromObjectLine(line, i, currentGroup!);
-      if (effectiveLine.includes("}")) {
-        state = preObjectState;
       }
     }
   }
@@ -198,24 +175,6 @@ function extractDependencies(line: string, lineIndex: number, group: ParsedSymbo
     const content = match[1];
     if (content.length === 0) continue;
     const startCol = match.index + 1;
-    group.children!.push({
-      name: content,
-      kind: "dependency",
-      range: { startLine: lineIndex, startCol, endLine: lineIndex, endCol: startCol + content.length },
-    });
-  }
-}
-
-/**
- * Extracts a dependency from a line inside a multi-line object entry.
- * Only extracts the `dependency = "..."` field value.
- */
-function extractDependencyFromObjectLine(line: string, lineIndex: number, group: ParsedSymbol): void {
-  const depMatch = objectDepFieldPattern.exec(line);
-  if (depMatch) {
-    const content = depMatch[1];
-    if (content.length === 0) return;
-    const startCol = depMatch.index + depMatch[0].indexOf('"') + 1;
     group.children!.push({
       name: content,
       kind: "dependency",
