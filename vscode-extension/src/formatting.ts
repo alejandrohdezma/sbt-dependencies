@@ -3,7 +3,7 @@ const simpleGroupStart = /^(\s*)([\w][\w.-]*)\s*=\s*\[/;
 const advancedGroupStart = /^(\s*)([\w][\w.-]*)\s*\{/;
 const dependenciesArrayStart = /^\s*dependencies\s*=\s*\[/;
 
-type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array";
+type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array" | "dependency_object";
 
 /** Regex mirroring Scala-side `Dependency.dependencyRegex`. */
 const dependencyPattern =
@@ -12,9 +12,15 @@ const dependencyPattern =
 /** Extracts the `dependency` field value from an object entry. */
 const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
 
-/** A dependency entry with any preceding comment lines. */
+/** Max line length for single-line object entries. */
+const maxObjectLineLength = 120;
+
+/** Matches SBT-style dependency: "org" %% "art" % "ver" [% "config"] */
+const sbtDependencyPattern =
+  /^\s*(?:libraryDependencies\s*\+[+=]\s*)?"([^"]+)"\s*(%{1,2})\s*"([^"]+)"\s*%\s*"([^"]+)"(?:\s*%\s*"([^"]+)")?\s*,?\s*$/;
+
+/** A dependency entry ready for sorting and output. */
 interface DependencyEntry {
-  commentLines: string[];
   depLine: string;
   /** Composite sort key: config + \0 + org:artifact (lowercased). */
   sortKey: string;
@@ -27,14 +33,14 @@ interface DependencyEntry {
  * - Simple groups: 2-space indent for dependencies
  * - Advanced blocks: 2-space indent for fields, 4-space indent for
  *   dependencies inside `dependencies = [...]`
- * - Comment lines above a dependency stay attached to it after sorting
- * - Trailing comments at the end of a group stay at the bottom
- * - Lines outside groups are output as-is
+ * - All comments are stripped (the SBT plugin never writes them back)
  * - Object entries (`{ dependency = "...", note = "..." }`) are preserved
  */
 export function formatDocument(lines: string[]): string {
   const output: string[] = [];
   let state: ParserState = "outside";
+  /** State to return to after a multi-line dependency object closes. */
+  let preObjectState: "simple_array" | "dependencies_array" = "simple_array";
   let inBlockComment = false;
 
   /** Indent for deps: 2 in simple groups, 4 in advanced blocks. */
@@ -43,20 +49,17 @@ export function formatDocument(lines: string[]): string {
   /** Collected dependency entries in the current array. */
   let entries: DependencyEntry[] = [];
 
-  /** Pending comment lines that will attach to the next dependency. */
-  let pendingComments: string[] = [];
-
   /** Whether the opening bracket line has already been pushed. */
   let headerPushed = false;
 
   /** Whether at least one group has been emitted (for blank-line normalization). */
   let hasEmittedGroup = false;
 
-  /**
-   * Pending "outside" lines (blanks, comments) collected between groups.
-   * Flushed when a new group starts, ensuring exactly one blank line separator.
-   */
-  let outsideBuffer: string[] = [];
+  /** Accumulated lines for a multi-line object entry. */
+  let objectLines: string[] = [];
+
+  /** Dependency string extracted from a multi-line object. */
+  let objectDepString: string | undefined;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -101,18 +104,11 @@ export function formatDocument(lines: string[]): string {
       const advancedMatch = !simpleMatch ? advancedGroupStart.exec(effectiveLine) : null;
 
       if (simpleMatch || advancedMatch) {
-        // About to start a new group — flush outside buffer with
-        // exactly one blank line between this group and the previous one.
+        // About to start a new group — insert exactly one blank line
+        // between this group and the previous one. Comments are stripped.
         if (hasEmittedGroup) {
-          // Keep non-blank lines (comments) from the buffer, but
-          // replace any run of blank lines with exactly one.
-          const nonBlank = outsideBuffer.filter(l => l.trim().length > 0);
           output.push("");
-          for (const l of nonBlank) output.push(l);
-        } else {
-          for (const l of outsideBuffer) output.push(l);
         }
-        outsideBuffer = [];
         hasEmittedGroup = true;
 
         if (simpleMatch) {
@@ -123,7 +119,6 @@ export function formatDocument(lines: string[]): string {
             output.push(line);
             headerPushed = true;
             entries = [];
-            pendingComments = [];
             state = "simple_array";
           }
         } else {
@@ -134,8 +129,7 @@ export function formatDocument(lines: string[]): string {
         continue;
       }
 
-      // Not a group start — buffer the line
-      outsideBuffer.push(line);
+      // Not a group start — comments and blanks outside groups are dropped
       continue;
     }
 
@@ -143,27 +137,29 @@ export function formatDocument(lines: string[]): string {
       if (effectiveLine.includes("]")) {
         // Closing bracket line — may contain a last dep on same line
         const entry = extractDependencyEntry(line, depIndent);
-        if (entry) {
-          entries.push({ commentLines: pendingComments, ...entry });
-          pendingComments = [];
-        }
-        flushEntries(output, entries, pendingComments);
+        if (entry) entries.push(entry);
+        flushEntries(output, entries);
         output.push("]");
         entries = [];
-        pendingComments = [];
         headerPushed = false;
         state = "outside";
         continue;
       }
 
-      const entry = extractDependencyEntry(line, depIndent);
-      if (entry) {
-        entries.push({ commentLines: pendingComments, ...entry });
-        pendingComments = [];
-      } else {
-        // Comment or blank line inside the array
-        pendingComments.push(normalizeCommentLine(line, depIndent));
+      // Check for multi-line object start
+      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
+        objectLines = [line];
+        objectDepString = undefined;
+        const depMatch = objectDepFieldPattern.exec(line);
+        if (depMatch) objectDepString = depMatch[1];
+        preObjectState = "simple_array";
+        state = "dependency_object";
+        continue;
       }
+
+      const entry = extractDependencyEntry(line, depIndent);
+      if (entry) entries.push(entry);
+      // Comments and blank lines inside the array are dropped
       continue;
     }
 
@@ -176,7 +172,6 @@ export function formatDocument(lines: string[]): string {
           output.push(`  dependencies = [`);
           headerPushed = true;
           entries = [];
-          pendingComments = [];
           state = "dependencies_array";
         }
         continue;
@@ -196,32 +191,48 @@ export function formatDocument(lines: string[]): string {
     if (state === "dependencies_array") {
       if (effectiveLine.includes("]")) {
         const entry = extractDependencyEntry(line, depIndent);
-        if (entry) {
-          entries.push({ commentLines: pendingComments, ...entry });
-          pendingComments = [];
-        }
-        flushEntries(output, entries, pendingComments);
+        if (entry) entries.push(entry);
+        flushEntries(output, entries);
         output.push("  ]");
         entries = [];
-        pendingComments = [];
         headerPushed = false;
         state = "advanced_block";
         continue;
       }
 
+      // Check for multi-line object start
+      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
+        objectLines = [line];
+        objectDepString = undefined;
+        const depMatch = objectDepFieldPattern.exec(line);
+        if (depMatch) objectDepString = depMatch[1];
+        preObjectState = "dependencies_array";
+        state = "dependency_object";
+        continue;
+      }
+
       const entry = extractDependencyEntry(line, depIndent);
-      if (entry) {
-        entries.push({ commentLines: pendingComments, ...entry });
-        pendingComments = [];
-      } else {
-        pendingComments.push(normalizeCommentLine(line, depIndent));
+      if (entry) entries.push(entry);
+      // Comments and blank lines inside the array are dropped
+      continue;
+    }
+
+    if (state === "dependency_object") {
+      objectLines.push(line);
+      const depMatch = objectDepFieldPattern.exec(line);
+      if (depMatch) objectDepString = depMatch[1];
+
+      if (effectiveLine.includes("}")) {
+        // Object closed — reconstruct as a properly indented entry
+        const entry = buildObjectEntry(objectLines, depIndent, objectDepString);
+        entries.push(entry);
+        objectLines = [];
+        objectDepString = undefined;
+        state = preObjectState;
       }
       continue;
     }
   }
-
-  // Flush any remaining outside lines at the end of the document
-  for (const l of outsideBuffer) output.push(l);
 
   return output.join("\n");
 }
@@ -249,15 +260,28 @@ function extractDependencyEntry(
       const note = noteMatch?.[1];
 
       if (note) {
-        return {
-          depLine: `${indent}{ dependency = "${depString}", note = "${note}" }`,
-          sortKey: buildSortKey(depString),
-        };
+        // Re-format with proper indent, choosing single vs multi-line based on length
+        const singleLine = `${indent}{ dependency = "${depString}", note = "${note}" }`;
+        if (singleLine.length <= maxObjectLineLength) {
+          return { depLine: singleLine, sortKey: buildSortKey(depString) };
+        } else {
+          // Multi-line format — first line is depLine, extra lines follow
+          return {
+            depLine: `${indent}{\n${indent}  dependency = "${depString}"\n${indent}  note = "${note}"\n${indent}}`,
+            sortKey: buildSortKey(depString),
+          };
+        }
       } else {
         // Object without note — preserve as-is with normalized indent
         return { depLine: `${indent}${objectText.trim()}`, sortKey: buildSortKey(depString) };
       }
     }
+  }
+
+  // SBT format: "org" %% "art" % "ver" [% "config"]
+  const sbtDep = convertSbtDependency(line);
+  if (sbtDep) {
+    return { depLine: `${indent}"${sbtDep}"`, sortKey: buildSortKey(sbtDep) };
   }
 
   // Plain string entry
@@ -269,17 +293,68 @@ function extractDependencyEntry(
   return undefined;
 }
 
+/**
+ * Builds a DependencyEntry from accumulated multi-line object lines.
+ */
+function buildObjectEntry(
+  objectLines: string[],
+  indent: string,
+  depString: string | undefined
+): { depLine: string; sortKey: string } {
+  if (!depString) {
+    // No dependency field found — preserve as-is
+    return {
+      depLine: objectLines.map(l => `${indent}${l.trim()}`).join("\n"),
+      sortKey: "",
+    };
+  }
+
+  // Extract note from the multi-line object
+  let note: string | undefined;
+  for (const l of objectLines) {
+    const noteMatch = /note\s*=\s*"([^"]*)"/.exec(l);
+    if (noteMatch) {
+      note = noteMatch[1];
+      break;
+    }
+  }
+
+  if (note) {
+    // Re-format with threshold-based formatting
+    const singleLine = `${indent}{ dependency = "${depString}", note = "${note}" }`;
+    if (singleLine.length <= maxObjectLineLength) {
+      return { depLine: singleLine, sortKey: buildSortKey(depString) };
+    } else {
+      return {
+        depLine: `${indent}{\n${indent}  dependency = "${depString}"\n${indent}  note = "${note}"\n${indent}}`,
+        sortKey: buildSortKey(depString),
+      };
+    }
+  }
+
+  // No note — preserve with normalized indent
+  return {
+    depLine: objectLines.map(l => `${indent}${l.trim()}`).join("\n"),
+    sortKey: buildSortKey(depString),
+  };
+}
+
 /** Extracts the content of the first quoted string on a line, or undefined. */
 function extractQuotedString(line: string): string | undefined {
   const match = /"([^"]*)"/.exec(line);
   return match?.[1];
 }
 
-/** Normalizes a comment/blank line to use the given indent. */
-function normalizeCommentLine(line: string, indent: string): string {
-  const trimmed = line.trim();
-  if (trimmed.length === 0) return "";
-  return `${indent}${trimmed}`;
+/** Converts an SBT-style dependency line to the canonical HOCON format, or undefined. */
+function convertSbtDependency(line: string): string | undefined {
+  const m = sbtDependencyPattern.exec(line);
+  if (!m) return undefined;
+  const org = m[1];
+  const sep = m[2] === "%%" ? "::" : ":";
+  const artifact = m[3];
+  const version = m[4];
+  const config = m[5];
+  return `${org}${sep}${artifact}:${version}${config ? `:${config}` : ""}`;
 }
 
 /**
@@ -300,21 +375,17 @@ function buildSortKey(depString: string): string {
   return `${config}\0${org}${separator}${artifact}`;
 }
 
-/** Sorts entries and flushes them (plus trailing comments) to output. */
+/** Sorts entries and flushes them to output. */
 function flushEntries(
   output: string[],
-  entries: DependencyEntry[],
-  trailingComments: string[]
+  entries: DependencyEntry[]
 ): void {
   entries.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   for (const entry of entries) {
-    for (const comment of entry.commentLines) {
-      output.push(comment);
+    // depLine may contain newlines for multi-line objects
+    for (const line of entry.depLine.split("\n")) {
+      output.push(line);
     }
-    output.push(entry.depLine);
-  }
-  for (const comment of trailingComments) {
-    output.push(comment);
   }
 }
 

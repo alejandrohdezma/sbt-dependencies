@@ -230,6 +230,20 @@ describe("parseDocumentSymbols", () => {
       expect(result[0].children).toHaveLength(1);
     });
 
+    it("extracts dependency from multi-line object entry", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "org.typelevel::cats-core:^2.10.0"',
+        '    note = "v3 drops Scala 2.12"',
+        '  }',
+        ']',
+      ];
+      const result = parseDocumentSymbols(lines);
+      expect(result[0].children).toHaveLength(1);
+      expect(result[0].children![0].name).toBe("org.typelevel::cats-core:^2.10.0");
+    });
+
     it("handles object entries in advanced block", () => {
       const lines = [
         'my-group {',

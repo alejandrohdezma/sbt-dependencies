@@ -20,7 +20,7 @@ describe("formatDocument", () => {
     ].join("\n"));
   });
 
-  it("keeps comment above a dep attached after sorting", () => {
+  it("strips comments above deps", () => {
     const lines = [
       'my-group = [',
       '  // Core library',
@@ -32,9 +32,7 @@ describe("formatDocument", () => {
     const result = formatDocument(lines);
     expect(result).toBe([
       'my-group = [',
-      '  // FS2 streaming',
       '  "co.fs2::fs2-core:^3.9.4"',
-      '  // Core library',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
     ].join("\n"));
@@ -108,7 +106,7 @@ describe("formatDocument", () => {
     expect(result).toBe('my-group = []');
   });
 
-  it("keeps trailing comments at end of group", () => {
+  it("strips trailing comments at end of group", () => {
     const lines = [
       'my-group = [',
       '  "org.typelevel::cats-core:2.10.0"',
@@ -119,7 +117,6 @@ describe("formatDocument", () => {
     expect(result).toBe([
       'my-group = [',
       '  "org.typelevel::cats-core:2.10.0"',
-      '  // TODO: add more deps',
       ']',
     ].join("\n"));
   });
@@ -161,7 +158,6 @@ describe("formatDocument", () => {
     ];
     const result = formatDocument(lines);
     expect(result).toBe([
-      '// SBT build plugins',
       'sbt-build = [',
       '  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"',
       '  "com.alejandrohdezma:sbt-ci:2.22.0:sbt-plugin"',
@@ -228,7 +224,7 @@ describe("formatDocument", () => {
     ].join("\n"));
   });
 
-  it("preserves comment between groups with one blank line", () => {
+  it("strips comment between groups", () => {
     const lines = [
       'group-a = [',
       '  "org.typelevel::cats-core:2.10.0"',
@@ -247,7 +243,6 @@ describe("formatDocument", () => {
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
       '',
-      '// Shared utilities',
       'group-b = [',
       '  "co.fs2::fs2-core:^3.9.4"',
       ']',
@@ -326,7 +321,26 @@ describe("formatDocument", () => {
     ].join("\n"));
   });
 
-  it("handles hash comments in groups", () => {
+  it("handles multi-line object entries", () => {
+    const lines = [
+      'my-group = [',
+      '  {',
+      '    dependency = "org.typelevel::cats-core:^2.10.0"',
+      '    note = "v3 drops Scala 2.12"',
+      '  }',
+      '  "co.fs2::fs2-core:^3.9.4"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "co.fs2::fs2-core:^3.9.4"',
+      '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
+      ']',
+    ].join("\n"));
+  });
+
+  it("strips hash comments in groups", () => {
     const lines = [
       'my-group = [',
       '  # Core',
@@ -338,9 +352,79 @@ describe("formatDocument", () => {
     const result = formatDocument(lines);
     expect(result).toBe([
       'my-group = [',
-      '  # Testing',
       '  "co.fs2::fs2-core:^3.9.4"',
-      '  # Core',
+      '  "org.typelevel::cats-core:2.10.0"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("converts SBT %% dependency to HOCON format", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.http4s" %% "http4s-dsl" % "0.23.33"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s::http4s-dsl:0.23.33"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("converts SBT % dependency to HOCON format", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.http4s" % "http4s-netty-client_2.13" % "0.5.28"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s:http4s-netty-client_2.13:0.5.28"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("converts SBT dependency with config", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.scalameta" %% "munit" % "1.0.0" % "test"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.scalameta::munit:1.0.0:test"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("strips libraryDependencies prefix from SBT dependency", () => {
+    const lines = [
+      'my-group = [',
+      '  libraryDependencies += "org.http4s" %% "http4s-dsl" % "0.23.33"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s::http4s-dsl:0.23.33"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("converts and sorts SBT deps alongside normal deps", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.typelevel::cats-core:2.10.0"',
+      '  "co.fs2" %% "fs2-core" % "3.9.4"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "co.fs2::fs2-core:3.9.4"',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
     ].join("\n"));
