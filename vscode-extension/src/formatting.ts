@@ -15,12 +15,9 @@ const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
 /** Max line length for single-line object entries. */
 const maxObjectLineLength = 120;
 
-/** A dependency entry with any preceding comment lines. */
+/** A dependency entry ready for sorting and output. */
 interface DependencyEntry {
-  commentLines: string[];
   depLine: string;
-  /** Additional lines for multi-line object entries. */
-  extraLines?: string[];
   /** Composite sort key: config + \0 + org:artifact (lowercased). */
   sortKey: string;
 }
@@ -32,9 +29,7 @@ interface DependencyEntry {
  * - Simple groups: 2-space indent for dependencies
  * - Advanced blocks: 2-space indent for fields, 4-space indent for
  *   dependencies inside `dependencies = [...]`
- * - Comment lines above a dependency stay attached to it after sorting
- * - Trailing comments at the end of a group stay at the bottom
- * - Lines outside groups are output as-is
+ * - All comments are stripped (the SBT plugin never writes them back)
  * - Object entries (`{ dependency = "...", note = "..." }`) are preserved
  */
 export function formatDocument(lines: string[]): string {
@@ -50,20 +45,11 @@ export function formatDocument(lines: string[]): string {
   /** Collected dependency entries in the current array. */
   let entries: DependencyEntry[] = [];
 
-  /** Pending comment lines that will attach to the next dependency. */
-  let pendingComments: string[] = [];
-
   /** Whether the opening bracket line has already been pushed. */
   let headerPushed = false;
 
   /** Whether at least one group has been emitted (for blank-line normalization). */
   let hasEmittedGroup = false;
-
-  /**
-   * Pending "outside" lines (blanks, comments) collected between groups.
-   * Flushed when a new group starts, ensuring exactly one blank line separator.
-   */
-  let outsideBuffer: string[] = [];
 
   /** Accumulated lines for a multi-line object entry. */
   let objectLines: string[] = [];
@@ -114,18 +100,11 @@ export function formatDocument(lines: string[]): string {
       const advancedMatch = !simpleMatch ? advancedGroupStart.exec(effectiveLine) : null;
 
       if (simpleMatch || advancedMatch) {
-        // About to start a new group — flush outside buffer with
-        // exactly one blank line between this group and the previous one.
+        // About to start a new group — insert exactly one blank line
+        // between this group and the previous one. Comments are stripped.
         if (hasEmittedGroup) {
-          // Keep non-blank lines (comments) from the buffer, but
-          // replace any run of blank lines with exactly one.
-          const nonBlank = outsideBuffer.filter(l => l.trim().length > 0);
           output.push("");
-          for (const l of nonBlank) output.push(l);
-        } else {
-          for (const l of outsideBuffer) output.push(l);
         }
-        outsideBuffer = [];
         hasEmittedGroup = true;
 
         if (simpleMatch) {
@@ -136,7 +115,6 @@ export function formatDocument(lines: string[]): string {
             output.push(line);
             headerPushed = true;
             entries = [];
-            pendingComments = [];
             state = "simple_array";
           }
         } else {
@@ -147,8 +125,7 @@ export function formatDocument(lines: string[]): string {
         continue;
       }
 
-      // Not a group start — buffer the line
-      outsideBuffer.push(line);
+      // Not a group start — comments and blanks outside groups are dropped
       continue;
     }
 
@@ -156,14 +133,10 @@ export function formatDocument(lines: string[]): string {
       if (effectiveLine.includes("]")) {
         // Closing bracket line — may contain a last dep on same line
         const entry = extractDependencyEntry(line, depIndent);
-        if (entry) {
-          entries.push({ commentLines: pendingComments, ...entry });
-          pendingComments = [];
-        }
-        flushEntries(output, entries, pendingComments);
+        if (entry) entries.push(entry);
+        flushEntries(output, entries);
         output.push("]");
         entries = [];
-        pendingComments = [];
         headerPushed = false;
         state = "outside";
         continue;
@@ -181,13 +154,8 @@ export function formatDocument(lines: string[]): string {
       }
 
       const entry = extractDependencyEntry(line, depIndent);
-      if (entry) {
-        entries.push({ commentLines: pendingComments, ...entry });
-        pendingComments = [];
-      } else {
-        // Comment or blank line inside the array
-        pendingComments.push(normalizeCommentLine(line, depIndent));
-      }
+      if (entry) entries.push(entry);
+      // Comments and blank lines inside the array are dropped
       continue;
     }
 
@@ -200,7 +168,6 @@ export function formatDocument(lines: string[]): string {
           output.push(`  dependencies = [`);
           headerPushed = true;
           entries = [];
-          pendingComments = [];
           state = "dependencies_array";
         }
         continue;
@@ -220,14 +187,10 @@ export function formatDocument(lines: string[]): string {
     if (state === "dependencies_array") {
       if (effectiveLine.includes("]")) {
         const entry = extractDependencyEntry(line, depIndent);
-        if (entry) {
-          entries.push({ commentLines: pendingComments, ...entry });
-          pendingComments = [];
-        }
-        flushEntries(output, entries, pendingComments);
+        if (entry) entries.push(entry);
+        flushEntries(output, entries);
         output.push("  ]");
         entries = [];
-        pendingComments = [];
         headerPushed = false;
         state = "advanced_block";
         continue;
@@ -245,12 +208,8 @@ export function formatDocument(lines: string[]): string {
       }
 
       const entry = extractDependencyEntry(line, depIndent);
-      if (entry) {
-        entries.push({ commentLines: pendingComments, ...entry });
-        pendingComments = [];
-      } else {
-        pendingComments.push(normalizeCommentLine(line, depIndent));
-      }
+      if (entry) entries.push(entry);
+      // Comments and blank lines inside the array are dropped
       continue;
     }
 
@@ -262,8 +221,7 @@ export function formatDocument(lines: string[]): string {
       if (effectiveLine.includes("}")) {
         // Object closed — reconstruct as a properly indented entry
         const entry = buildObjectEntry(objectLines, depIndent, objectDepString);
-        entries.push({ commentLines: pendingComments, ...entry });
-        pendingComments = [];
+        entries.push(entry);
         objectLines = [];
         objectDepString = undefined;
         state = preObjectState;
@@ -271,9 +229,6 @@ export function formatDocument(lines: string[]): string {
       continue;
     }
   }
-
-  // Flush any remaining outside lines at the end of the document
-  for (const l of outsideBuffer) output.push(l);
 
   return output.join("\n");
 }
@@ -380,13 +335,6 @@ function extractQuotedString(line: string): string | undefined {
   return match?.[1];
 }
 
-/** Normalizes a comment/blank line to use the given indent. */
-function normalizeCommentLine(line: string, indent: string): string {
-  const trimmed = line.trim();
-  if (trimmed.length === 0) return "";
-  return `${indent}${trimmed}`;
-}
-
 /**
  * Builds a composite sort key: config + \0 + org + separator + artifact.
  *
@@ -405,24 +353,17 @@ function buildSortKey(depString: string): string {
   return `${config}\0${org}${separator}${artifact}`;
 }
 
-/** Sorts entries and flushes them (plus trailing comments) to output. */
+/** Sorts entries and flushes them to output. */
 function flushEntries(
   output: string[],
-  entries: DependencyEntry[],
-  trailingComments: string[]
+  entries: DependencyEntry[]
 ): void {
   entries.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   for (const entry of entries) {
-    for (const comment of entry.commentLines) {
-      output.push(comment);
-    }
     // depLine may contain newlines for multi-line objects
     for (const line of entry.depLine.split("\n")) {
       output.push(line);
     }
-  }
-  for (const comment of trailingComments) {
-    output.push(comment);
   }
 }
 
