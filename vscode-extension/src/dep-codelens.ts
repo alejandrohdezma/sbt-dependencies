@@ -15,7 +15,7 @@ const dependenciesArrayStart = /^\s*dependencies\s*=\s*\[/;
 /** Checks if a line is a single-line object entry (with or without note). */
 const singleLineObjectPattern = /\{[^}]*\}/;
 
-type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array";
+type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array" | "dependency_object";
 
 /**
  * Scans lines from a `dependencies.conf` file and returns CodeLens data
@@ -28,6 +28,7 @@ type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies
 export function parsePinnedWithoutNote(lines: string[]): DepCodeLensData[] {
   const results: DepCodeLensData[] = [];
   let state: ParserState = "outside";
+  let preObjectState: "simple_array" | "dependencies_array" = "simple_array";
   let inBlockComment = false;
 
   for (let i = 0; i < lines.length; i++) {
@@ -88,12 +89,24 @@ export function parsePinnedWithoutNote(lines: string[]): DepCodeLensData[] {
       if (effectiveLine.includes("]")) {
         state = "advanced_block";
       }
+    } else if (state === "dependency_object") {
+      if (effectiveLine.includes("}")) {
+        state = preObjectState;
+      }
+      continue;
     }
 
     // Check for pinned deps in dependency array contexts
     if (state === "simple_array" || state === "dependencies_array") {
       // Skip any single-line object entry (valid or not — diagnostics handles errors)
       if (singleLineObjectPattern.test(effectiveLine)) continue;
+
+      // Skip multi-line object start
+      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
+        preObjectState = state;
+        state = "dependency_object";
+        continue;
+      }
 
       const dep = parseDependency(line);
       if (dep && dep.version && /^[=^~]/.test(dep.version)) {
