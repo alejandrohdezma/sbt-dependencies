@@ -260,6 +260,16 @@ describe("parseDiagnostics", () => {
       expect(parseDiagnostics(lines)).toEqual([]);
     });
 
+    it("does not treat {{variable}} in quoted string as object entry", () => {
+      const lines = [
+        'my-group = [',
+        '  "org.typelevel::cats-core:{{catsVersion}}"',
+        '  "co.fs2::fs2-core:{{fs2Version}}"',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
     it("returns error for object entry without dependency field", () => {
       const lines = [
         'my-group = [',

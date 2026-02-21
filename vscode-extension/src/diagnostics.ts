@@ -332,6 +332,10 @@ function processObjectEntries(
     const objectText = objMatch[0];
     const objectStartCol = objMatch.index;
 
+    // Skip {…} matches inside quoted strings (e.g. "org::art:{{var}}")
+    const quotesBefore = (effectiveLine.substring(0, objectStartCol).match(/"/g) || []).length;
+    if (quotesBefore % 2 === 1) continue;
+
     const { diagnostics: objDiags, depKey } = validateObjectEntry(objectText, lineIndex, objectStartCol);
     diagnostics.push(...objDiags);
 
