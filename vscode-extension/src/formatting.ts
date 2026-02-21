@@ -15,6 +15,10 @@ const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
 /** Max line length for single-line object entries. */
 const maxObjectLineLength = 120;
 
+/** Matches SBT-style dependency: "org" %% "art" % "ver" [% "config"] */
+const sbtDependencyPattern =
+  /^\s*(?:libraryDependencies\s*\+[+=]\s*)?"([^"]+)"\s*(%{1,2})\s*"([^"]+)"\s*%\s*"([^"]+)"(?:\s*%\s*"([^"]+)")?\s*,?\s*$/;
+
 /** A dependency entry ready for sorting and output. */
 interface DependencyEntry {
   depLine: string;
@@ -274,6 +278,12 @@ function extractDependencyEntry(
     }
   }
 
+  // SBT format: "org" %% "art" % "ver" [% "config"]
+  const sbtDep = convertSbtDependency(line);
+  if (sbtDep) {
+    return { depLine: `${indent}"${sbtDep}"`, sortKey: buildSortKey(sbtDep) };
+  }
+
   // Plain string entry
   const quoted = extractQuotedString(line);
   if (quoted) {
@@ -333,6 +343,18 @@ function buildObjectEntry(
 function extractQuotedString(line: string): string | undefined {
   const match = /"([^"]*)"/.exec(line);
   return match?.[1];
+}
+
+/** Converts an SBT-style dependency line to the canonical HOCON format, or undefined. */
+function convertSbtDependency(line: string): string | undefined {
+  const m = sbtDependencyPattern.exec(line);
+  if (!m) return undefined;
+  const org = m[1];
+  const sep = m[2] === "%%" ? "::" : ":";
+  const artifact = m[3];
+  const version = m[4];
+  const config = m[5];
+  return `${org}${sep}${artifact}:${version}${config ? `:${config}` : ""}`;
 }
 
 /**

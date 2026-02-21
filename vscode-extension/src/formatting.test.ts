@@ -357,4 +357,76 @@ describe("formatDocument", () => {
       ']',
     ].join("\n"));
   });
+
+  it("converts SBT %% dependency to HOCON format", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.http4s" %% "http4s-dsl" % "0.23.33"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s::http4s-dsl:0.23.33"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("converts SBT % dependency to HOCON format", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.http4s" % "http4s-netty-client_2.13" % "0.5.28"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s:http4s-netty-client_2.13:0.5.28"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("converts SBT dependency with config", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.scalameta" %% "munit" % "1.0.0" % "test"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.scalameta::munit:1.0.0:test"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("strips libraryDependencies prefix from SBT dependency", () => {
+    const lines = [
+      'my-group = [',
+      '  libraryDependencies += "org.http4s" %% "http4s-dsl" % "0.23.33"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s::http4s-dsl:0.23.33"',
+      ']',
+    ].join("\n"));
+  });
+
+  it("converts and sorts SBT deps alongside normal deps", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.typelevel::cats-core:2.10.0"',
+      '  "co.fs2" %% "fs2-core" % "3.9.4"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "co.fs2::fs2-core:3.9.4"',
+      '  "org.typelevel::cats-core:2.10.0"',
+      ']',
+    ].join("\n"));
+  });
 });
