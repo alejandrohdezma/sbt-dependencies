@@ -19,6 +19,9 @@ const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
 /** Checks for the presence of a `note` field in an object entry string. */
 const objectNoteFieldPattern = /note\s*=\s*"/;
 
+/** Checks for the presence of an `intransitive = true` field in an object entry string. */
+const objectIntransitiveFieldPattern = /intransitive\s*=\s*true/;
+
 /** Regex mirroring Scala-side `Dependency.dependencyRegex`. */
 const dependencyValidationPattern =
   /^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$/;
@@ -90,6 +93,7 @@ function validateObjectEntry(
 
   const depMatch = objectDepFieldPattern.exec(objectText);
   const hasNote = objectNoteFieldPattern.test(objectText);
+  const hasIntransitive = objectIntransitiveFieldPattern.test(objectText);
 
   if (!depMatch) {
     diagnostics.push({
@@ -101,9 +105,9 @@ function validateObjectEntry(
     return { diagnostics, depKey };
   }
 
-  if (!hasNote) {
+  if (!hasNote && !hasIntransitive) {
     diagnostics.push({
-      message: "Object entry must have a 'note' field",
+      message: "Object entry must have a 'note' or 'intransitive' field",
       severity: "error",
       source: "sbt-dependencies",
       range: { startLine: lineIndex, startCol: objectStartCol, endLine: lineIndex, endCol: objectStartCol + objectText.length },
@@ -143,6 +147,8 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
   let objectHasDep = false;
   /** Tracks whether a multi-line object has a `note` field. */
   let objectHasNote = false;
+  /** Tracks whether a multi-line object has an `intransitive = true` field. */
+  let objectHasIntransitive = false;
   /** Start line of the current multi-line object. */
   let objectStartLine = 0;
 
@@ -241,6 +247,9 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
       if (objectNoteFieldPattern.test(effectiveLine)) {
         objectHasNote = true;
       }
+      if (objectIntransitiveFieldPattern.test(effectiveLine)) {
+        objectHasIntransitive = true;
+      }
       if (effectiveLine.includes("}")) {
         if (!objectHasDep) {
           diagnostics.push({
@@ -249,9 +258,9 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
             source: "sbt-dependencies",
             range: { startLine: objectStartLine, startCol: 0, endLine: i, endCol: line.length },
           });
-        } else if (!objectHasNote) {
+        } else if (!objectHasNote && !objectHasIntransitive) {
           diagnostics.push({
-            message: "Object entry must have a 'note' field",
+            message: "Object entry must have a 'note' or 'intransitive' field",
             severity: "error",
             source: "sbt-dependencies",
             range: { startLine: objectStartLine, startCol: 0, endLine: i, endCol: line.length },
@@ -274,10 +283,12 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
         preObjectState = validateState;
         objectHasDep = false;
         objectHasNote = false;
+        objectHasIntransitive = false;
         objectStartLine = i;
-        // Check if this line already contains a dependency or note field
+        // Check if this line already contains a dependency, note, or intransitive field
         if (objectDepFieldPattern.test(effectiveLine)) objectHasDep = true;
         if (objectNoteFieldPattern.test(effectiveLine)) objectHasNote = true;
+        if (objectIntransitiveFieldPattern.test(effectiveLine)) objectHasIntransitive = true;
         state = "dependency_object";
         continue;
       }

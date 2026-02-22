@@ -12,6 +12,9 @@ const dependencyPattern =
 /** Extracts the `dependency` field value from an object entry. */
 const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
 
+/** Checks for `intransitive = true` in an object entry. */
+const objectIntransitivePattern = /intransitive\s*=\s*true/;
+
 /** Max line length for single-line object entries. */
 const maxObjectLineLength = 120;
 
@@ -255,24 +258,14 @@ function extractDependencyEntry(
     const depMatch = objectDepFieldPattern.exec(objectText);
     if (depMatch) {
       const depString = depMatch[1];
-      // Extract note if present
       const noteMatch = /note\s*=\s*"([^"]*)"/.exec(objectText);
       const note = noteMatch?.[1];
+      const isIntransitive = objectIntransitivePattern.test(objectText);
 
-      if (note) {
-        // Re-format with proper indent, choosing single vs multi-line based on length
-        const singleLine = `${indent}{ dependency = "${depString}", note = "${note}" }`;
-        if (singleLine.length <= maxObjectLineLength) {
-          return { depLine: singleLine, sortKey: buildSortKey(depString) };
-        } else {
-          // Multi-line format — first line is depLine, extra lines follow
-          return {
-            depLine: `${indent}{\n${indent}  dependency = "${depString}"\n${indent}  note = "${note}"\n${indent}}`,
-            sortKey: buildSortKey(depString),
-          };
-        }
+      if (note || isIntransitive) {
+        return formatObjectFields(depString, note, isIntransitive, indent);
       } else {
-        // Object without note — preserve as-is with normalized indent
+        // Object without note or intransitive — preserve as-is with normalized indent
         return { depLine: `${indent}${objectText.trim()}`, sortKey: buildSortKey(depString) };
       }
     }
@@ -309,34 +302,51 @@ function buildObjectEntry(
     };
   }
 
-  // Extract note from the multi-line object
+  // Extract note and intransitive from the multi-line object
   let note: string | undefined;
+  let isIntransitive = false;
   for (const l of objectLines) {
     const noteMatch = /note\s*=\s*"([^"]*)"/.exec(l);
-    if (noteMatch) {
-      note = noteMatch[1];
-      break;
-    }
+    if (noteMatch) note = noteMatch[1];
+    if (objectIntransitivePattern.test(l)) isIntransitive = true;
   }
 
-  if (note) {
-    // Re-format with threshold-based formatting
-    const singleLine = `${indent}{ dependency = "${depString}", note = "${note}" }`;
-    if (singleLine.length <= maxObjectLineLength) {
-      return { depLine: singleLine, sortKey: buildSortKey(depString) };
-    } else {
-      return {
-        depLine: `${indent}{\n${indent}  dependency = "${depString}"\n${indent}  note = "${note}"\n${indent}}`,
-        sortKey: buildSortKey(depString),
-      };
-    }
+  if (note || isIntransitive) {
+    return formatObjectFields(depString, note, isIntransitive, indent);
   }
 
-  // No note — preserve with normalized indent
+  // No extras — preserve with normalized indent
   return {
     depLine: objectLines.map(l => `${indent}${l.trim()}`).join("\n"),
     sortKey: buildSortKey(depString),
   };
+}
+
+/**
+ * Formats an object entry with dependency, optional note, and optional intransitive fields.
+ * Uses single-line format if it fits within the threshold, multi-line otherwise.
+ */
+function formatObjectFields(
+  depString: string,
+  note: string | undefined,
+  isIntransitive: boolean,
+  indent: string
+): { depLine: string; sortKey: string } {
+  const noteField = note ? `note = "${note}"` : undefined;
+  const intransitiveField = isIntransitive ? "intransitive = true" : undefined;
+  const fields = [noteField, intransitiveField].filter(Boolean).join(", ");
+
+  const singleLine = `${indent}{ dependency = "${depString}", ${fields} }`;
+  if (singleLine.length <= maxObjectLineLength) {
+    return { depLine: singleLine, sortKey: buildSortKey(depString) };
+  } else {
+    const noteSection = note ? `\n${indent}  note = "${note}"` : "";
+    const intransitiveSection = isIntransitive ? `\n${indent}  intransitive = true` : "";
+    return {
+      depLine: `${indent}{\n${indent}  dependency = "${depString}"${noteSection}${intransitiveSection}\n${indent}}`,
+      sortKey: buildSortKey(depString),
+    };
+  }
 }
 
 /** Extracts the content of the first quoted string on a line, or undefined. */

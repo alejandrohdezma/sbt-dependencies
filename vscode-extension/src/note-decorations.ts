@@ -8,9 +8,9 @@ export interface NoteDecorationData {
   noteText: string;
 }
 
-/** Matches a single-line object entry: `{ dependency = "...", note = "..." }` */
+/** Matches a single-line object entry: `{ dependency = "...", note = "..." [, ...] }` */
 const singleLineObjectPattern =
-  /(\{\s*dependency\s*=\s*)"([^"]*)"(\s*,\s*note\s*=\s*"([^"]*)"\s*\})/;
+  /(\{\s*dependency\s*=\s*)"([^"]*)"(\s*,\s*note\s*=\s*"([^"]*)"[^}]*\})/;
 
 /**
  * Scans lines from a `dependencies.conf` file and returns decoration data

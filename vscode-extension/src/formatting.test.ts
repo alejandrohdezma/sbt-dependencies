@@ -429,4 +429,65 @@ describe("formatDocument", () => {
       ']',
     ].join("\n"));
   });
+
+  it("preserves intransitive = true in single-line object", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.http4s::http4s-core:=0.23.3", intransitive = true }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org.http4s::http4s-core:=0.23.3", intransitive = true }',
+      ']',
+    ].join("\n"));
+  });
+
+  it("preserves both note and intransitive = true", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.http4s::http4s-core:=0.23.3", note = "reason", intransitive = true }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org.http4s::http4s-core:=0.23.3", note = "reason", intransitive = true }',
+      ']',
+    ].join("\n"));
+  });
+
+  it("normalizes multi-line intransitive object to single-line when short enough", () => {
+    const lines = [
+      'my-group = [',
+      '  {',
+      '    dependency = "org.http4s::http4s-core:=0.23.3"',
+      '    intransitive = true',
+      '  }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org.http4s::http4s-core:=0.23.3", intransitive = true }',
+      ']',
+    ].join("\n"));
+  });
+
+  it("sorts intransitive object entry alongside other entries", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.typelevel::cats-core:=2.10.0", intransitive = true }',
+      '  "co.fs2::fs2-core:3.9.4"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "co.fs2::fs2-core:3.9.4"',
+      '  { dependency = "org.typelevel::cats-core:=2.10.0", intransitive = true }',
+      ']',
+    ].join("\n"));
+  });
 });

@@ -201,11 +201,37 @@ class GroupConfigSuite extends munit.FunSuite {
     assert(result.left.exists(_.contains("'dependency'")))
   }
 
-  test("parse returns error for object entry without note field") {
+  test("parse returns error for object entry without note or intransitive field") {
     val result = parseGroup("""my-group = [{ dependency = "org::name:1.0" }]""", "my-group")
 
     assert(result.isLeft)
-    assert(result.left.exists(_.contains("'note'")))
+    assert(result.left.exists(_.contains("'note' or 'intransitive'")))
+  }
+
+  // --- parse() tests: Object format with intransitive ---
+
+  test("parse simple format with object entry containing intransitive flag") {
+    val result = parseGroup(
+      """my-group = [{ dependency = "org::name:=1.0.0", intransitive = true }]""",
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(GroupConfig.Simple(List(AnnotatedDependency("org::name:=1.0.0", None, intransitive = true))))
+    )
+  }
+
+  test("parse simple format with object entry containing both note and intransitive") {
+    val result = parseGroup(
+      """my-group = [{ dependency = "org::name:=1.0.0", note = "reason", intransitive = true }]""",
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(GroupConfig.Simple(List(AnnotatedDependency("org::name:=1.0.0", Some("reason"), intransitive = true))))
+    )
   }
 
   // --- format() tests: Simple format ---
@@ -377,7 +403,66 @@ class GroupConfigSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  // --- format() tests: Object format with intransitive ---
+
+  test("format Simple with intransitive only uses single-line object") {
+    val config = GroupConfig.Simple(List(AnnotatedDependency("org::name:=1.0.0", None, intransitive = true)))
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org::name:=1.0.0", intransitive = true }
+         |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Simple with note and intransitive uses single-line object") {
+    val config =
+      GroupConfig.Simple(List(AnnotatedDependency("org::name:=1.0.0", Some("reason"), intransitive = true)))
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org::name:=1.0.0", note = "reason", intransitive = true }
+         |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Simple with long note and intransitive uses multi-line object") {
+    val longNote =
+      "This dependency is pinned because the next major version drops support for Scala 2.12 and we still need cross-building"
+    val config =
+      GroupConfig.Simple(List(AnnotatedDependency("org.typelevel::cats-core:^2.10.0", Some(longNote), true)))
+    val result = config.format("my-project")
+
+    val expected =
+      s"""|my-project = [
+          |  {
+          |    dependency = "org.typelevel::cats-core:^2.10.0"
+          |    note = "$longNote"
+          |    intransitive = true
+          |  }
+          |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
   // --- parse/format round-trip tests ---
+
+  test("parse then format round-trips simple format with intransitive") {
+    val hocon =
+      """|my-group = [
+         |  { dependency = "org::name:=1.0.0", intransitive = true }
+         |  "org2::name2:2.0.0"
+         |]""".stripMargin
+
+    val parsed    = parseGroup(hocon, "my-group")
+    val formatted = parsed.map(_.format("my-group"))
+
+    assertEquals(formatted, Right(hocon))
+  }
 
   test("parse then format round-trips simple format with notes") {
     val hocon =

@@ -116,10 +116,17 @@ class Settings {
     val sbtV   = (pluginCrossBuild / sbtBinaryVersion).value
     val scalaV = (update / scalaBinaryVersion).value
 
-    val dependencies =
-      Keys.dependenciesFromFile.value
-        .filter(_.matchesScalaVersion(scalaV))
-        .map(_.toModuleID(sbtV, scalaV))
+    val dependencies = {
+      implicit val logger: Logger = sLog.value
+
+      dependenciesFile.value
+        .readAnnotated(currentGroup.value, Keys.dependencyVersionVariables.value)
+        .filter(_._1.matchesScalaVersion(scalaV))
+        .map {
+          case (dep, true)  => dep.toModuleID(sbtV, scalaV).intransitive()
+          case (dep, false) => dep.toModuleID(sbtV, scalaV)
+        }
+    }
 
     lazy val self =
       sbtPluginExtra("com.alejandrohdezma" % "sbt-dependencies" % BuildInfo.version, sbtV, scalaV)
