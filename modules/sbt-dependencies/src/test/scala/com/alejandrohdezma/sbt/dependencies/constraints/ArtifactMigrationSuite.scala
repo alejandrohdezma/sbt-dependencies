@@ -21,7 +21,6 @@ import java.net.URL
 import java.nio.file.Files
 
 import sbt.IO
-import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
@@ -29,11 +28,11 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 
 class ArtifactMigrationSuite extends munit.FunSuite {
 
-  implicit val logger: Logger = TestLogger()
+  implicit val logger: TestLogger = TestLogger()
 
   private val tempCacheDir = Files.createTempDirectory("config-cache")
 
-  override def beforeAll(): Unit = ConfigCache.withCacheDir(tempCacheDir.toFile())
+  implicit val configCache: ConfigCache = ConfigCache(tempCacheDir.toFile())
 
   override def afterAll(): Unit = IO.delete(tempCacheDir.toFile())
 
@@ -210,7 +209,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
 
   withMigrationFile("not valid hocon {{{").test("loadFromUrls fails for invalid HOCON") { urls =>
     val expectedMessage =
-      s"Failed to parse migration file ${urls.head}: ${urls.head.toExternalForm().stripPrefix("file:")}: 1: expecting a close parentheses ')' here, not: '{'"
+      s"Failed to parse migration file ${urls.head}: Failed to parse config from ${urls.head}: ${urls.head.toExternalForm().stripPrefix("file:")}: 1: expecting a close parentheses ')' here, not: '{'"
 
     interceptMessage[RuntimeException](expectedMessage) {
       ArtifactMigration.loadFromUrls(urls)

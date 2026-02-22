@@ -166,7 +166,8 @@ class Commands {
 
     val project = Project.extract(state)
 
-    ConfigCache.withCacheDir(project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / "config-cache")
+    implicit val configCache: ConfigCache =
+      ConfigCache(project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / "config-cache")
 
     val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
@@ -315,7 +316,8 @@ class Commands {
 
     val base = project.get(ThisBuild / baseDirectory)
 
-    ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
+    implicit val configCache: ConfigCache =
+      ConfigCache(base / "target" / "sbt-dependencies" / "config-cache")
 
     logger.info("\n↻ Checking for new versions of Scalafmt\n")
 
@@ -339,7 +341,8 @@ class Commands {
 
     val base = project.get(ThisBuild / baseDirectory)
 
-    ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
+    implicit val configCache: ConfigCache =
+      ConfigCache(base / "target" / "sbt-dependencies" / "config-cache")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -638,7 +641,10 @@ class Commands {
     snapshot
   }
 
-  def getVersionFinder(state: State, scalaBinaryVersion: String)(implicit logger: Logger): VersionFinder = {
+  def getVersionFinder(state: State, scalaBinaryVersion: String)(implicit
+      logger: Logger,
+      configCache: ConfigCache
+  ): VersionFinder = {
     val project = Project.extract(state)
 
     VersionFinder
@@ -661,7 +667,8 @@ class Commands {
 
     if (!file.exists() || !dependenciesFile.hasGroup(`sbt-build`)) state
     else {
-      ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
+      implicit val configCache: ConfigCache =
+        ConfigCache(base / "target" / "sbt-dependencies" / "config-cache")
 
       val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 

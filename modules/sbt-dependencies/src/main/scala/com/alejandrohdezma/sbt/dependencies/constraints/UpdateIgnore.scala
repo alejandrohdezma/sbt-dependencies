@@ -79,46 +79,62 @@ object UpdateIgnore {
     * @return
     *   Combined list of all ignore entries from all URLs.
     */
-  def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[UpdateIgnore] = urls.flatMap { url =>
-    cache.computeIfAbsent(url, _ => {
-      logger.debug(s"↻ Loading update ignores from $CYAN$url$RESET")
+  def loadFromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): List[UpdateIgnore] =
+    urls.flatMap { url =>
+      cache.computeIfAbsent(
+        url,
+        _ => {
+          logger.debug(s"↻ Loading update ignores from $CYAN$url$RESET")
 
-      Try {
-        val config = ConfigCache.get(url)
-
-        if (!config.hasPath("updates.ignore")) Nil
-        else
-          config.getConfigList("updates.ignore").asScala.toList.zipWithIndex.flatMap { case (entry, index) =>
-            Try {
-              if (!entry.hasPath("groupId"))
-                Utils.fail(s"entry at index $index must have a 'groupId'")
-
-              val groupId    = entry.get("groupId").get
-              val artifactId = entry.get("artifactId")
-
-              val version =
-                if (!entry.hasPath("version")) None
+          configCache
+            .get(url)
+            .fold(
+              err => {
+                logger.warn(s"⚠ Failed to load update ignores from $CYAN$url$RESET: $err")
+                Nil
+              },
+              config =>
+                if (!config.hasPath("updates.ignore")) Nil
                 else
-                  entry.getValue("version").valueType() match {
-                    case ConfigValueType.STRING =>
-                      Some(VersionPattern(prefix = entry.get("version")))
+                  config.getConfigList("updates.ignore").asScala.toList.zipWithIndex.flatMap { case (entry, index) =>
+                    Try {
+                      if (!entry.hasPath("groupId"))
+                        Utils.fail(s"entry at index $index must have a 'groupId'")
 
-                    case ConfigValueType.OBJECT =>
-                      val obj = entry.getValue("version").asInstanceOf[ConfigObject].toConfig
+                      val groupId    = entry.get("groupId").get
+                      val artifactId = entry.get("artifactId")
 
-                      Some(VersionPattern(obj.get("prefix"), obj.get("suffix"), obj.get("exact"), obj.get("contains")))
+                      val version =
+                        if (!entry.hasPath("version")) None
+                        else
+                          entry.getValue("version").valueType() match {
+                            case ConfigValueType.STRING =>
+                              Some(VersionPattern(prefix = entry.get("version")))
 
-                    case other =>
-                      Utils.fail(s"entry at index $index has unsupported version type: $other")
+                            case ConfigValueType.OBJECT =>
+                              val obj = entry.getValue("version").asInstanceOf[ConfigObject].toConfig
+
+                              Some(
+                                VersionPattern(
+                                  obj.get("prefix"),
+                                  obj.get("suffix"),
+                                  obj.get("exact"),
+                                  obj.get("contains")
+                                )
+                              )
+
+                            case other =>
+                              Utils.fail(s"entry at index $index has unsupported version type: $other")
+                          }
+
+                      List(UpdateIgnore(groupId, artifactId, version))
+                    }.onError { case e =>
+                      logger.warn(s"⚠ Skipping malformed update-ignore entry from $CYAN$url$RESET: $e")
+                    }.getOrElse(Nil)
                   }
-
-              List(UpdateIgnore(groupId, artifactId, version))
-            }.onError { case e => logger.warn(s"⚠ Skipping malformed update-ignore entry from $CYAN$url$RESET: $e") }
-              .getOrElse(Nil)
-          }
-      }.onError { case e => logger.warn(s"⚠ Failed to load update ignores from $CYAN$url$RESET: $e") }
-        .getOrElse(Nil)
-    })
-  }
+            )
+        }
+      )
+    }
 
 }

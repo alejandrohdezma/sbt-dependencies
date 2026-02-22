@@ -22,6 +22,7 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 import scala.Console._
+import scala.util.Try
 
 import sbt.IO
 import sbt.util.Logger
@@ -37,25 +38,14 @@ import com.typesafe.config.ConfigRenderOptions
   *
   * Two cache layers:
   *   - In-memory `ConcurrentHashMap` (fast, lost on `reload`)
-  *   - File-based in `target/sbt-dependencies/config-cache/` (survives `reload`, cleared by `sbt clean`)
-  *
-  * Call [[withCacheDir]] before [[get]] to set the file cache directory.
+  *   - File-based in `cacheDir` (survives `reload`, cleared by `sbt clean`)
   */
-object ConfigCache {
+final case class ConfigCache(cacheDir: File) {
 
   private val cache = new ConcurrentHashMap[URL, Config]()
 
-  @volatile private var _cacheDir: File = _ // scalafix:ok
-
-  /** Sets the directory for the file-based cache. Must be called before [[get]]. */
-  def withCacheDir(dir: File): Unit = _cacheDir = dir
-
   /** Returns the parsed `Config` for the given URL, fetching it at most once. */
-  @SuppressWarnings(Array("scalafix:DisableSyntax.throw"))
-  def get(url: URL)(implicit logger: Logger): Config = {
-    if (_cacheDir == null) // scalafix:ok
-      throw new IllegalStateException("ConfigCache.withCacheDir must be called before ConfigCache.get")
-
+  def get(url: URL)(implicit logger: Logger): Either[String, Config] = Try {
     cache.computeIfAbsent(
       url,
       { url =>
@@ -74,7 +64,7 @@ object ConfigCache {
         }
       }
     )
-  }
+  }.fold(e => Left(s"Failed to parse config from $url: ${e.getMessage}"), Right(_))
 
   private def fileFor(url: URL): File = {
     val hash = MessageDigest
@@ -83,7 +73,7 @@ object ConfigCache {
       .map("%02x".format(_))
       .mkString
 
-    new File(_cacheDir, s"$hash.conf")
+    new File(cacheDir, s"$hash.conf")
   }
 
 }

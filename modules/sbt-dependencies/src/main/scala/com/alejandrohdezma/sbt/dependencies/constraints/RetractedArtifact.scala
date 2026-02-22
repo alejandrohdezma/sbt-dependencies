@@ -90,68 +90,81 @@ object RetractedArtifact {
     * @return
     *   Combined list of all retraction entries from all URLs.
     */
-  def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[RetractedArtifact] = urls.flatMap { url =>
-    cache.computeIfAbsent(url, _ => {
-      logger.debug(s"↻ Loading retracted versions from $CYAN$url$RESET")
+  def loadFromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): List[RetractedArtifact] =
+    urls.flatMap { url =>
+      cache.computeIfAbsent(
+        url,
+        _ => {
+          logger.debug(s"↻ Loading retracted versions from $CYAN$url$RESET")
 
-      Try {
-        val config = ConfigCache.get(url)
-
-        if (!config.hasPath("updates.retracted")) Nil
-        else
-          config.getConfigList("updates.retracted").asScala.toList.zipWithIndex.flatMap { case (entry, index) =>
-            Try {
-              val reason = entry.get("reason").getOrElse {
-                Utils.fail(s"entry at index $index must have a 'reason'")
-              }
-
-              val doc = entry.get("doc").getOrElse {
-                Utils.fail(s"entry at index $index must have a 'doc'")
-              }
-
-              if (!entry.hasPath("artifacts"))
-                Utils.fail(s"entry at index $index must have an 'artifacts' list")
-
-              entry.getConfigList("artifacts").asScala.toList.zipWithIndex.flatMap { case (artifact, artIndex) =>
-                Try {
-                  if (!artifact.hasPath("groupId"))
-                    Utils.fail(s"artifact at index $artIndex in entry $index must have a 'groupId'")
-
-                  val groupId    = artifact.get("groupId").get
-                  val artifactId = artifact.get("artifactId")
-
-                  val version =
-                    if (!artifact.hasPath("version")) None
-                    else
-                      artifact.getValue("version").valueType() match {
-                        case ConfigValueType.STRING =>
-                          Some(VersionPattern(prefix = artifact.get("version")))
-
-                        case ConfigValueType.OBJECT =>
-                          val obj = artifact.getValue("version").asInstanceOf[ConfigObject].toConfig
-
-                          Some(
-                            VersionPattern(obj.get("prefix"), obj.get("suffix"), obj.get("exact"), obj.get("contains"))
-                          )
-
-                        case other =>
-                          Utils.fail(
-                            s"artifact at index $artIndex in entry $index has unsupported version type: $other"
-                          )
+          configCache
+            .get(url)
+            .fold(
+              err => {
+                logger.warn(s"⚠ Failed to load retracted versions from $CYAN$url$RESET: $err")
+                Nil
+              },
+              config =>
+                if (!config.hasPath("updates.retracted")) Nil
+                else
+                  config.getConfigList("updates.retracted").asScala.toList.zipWithIndex.flatMap { case (entry, index) =>
+                    Try {
+                      val reason = entry.get("reason").getOrElse {
+                        Utils.fail(s"entry at index $index must have a 'reason'")
                       }
 
-                  List(RetractedArtifact(reason, doc, groupId, artifactId, version))
-                }.onError { case e =>
-                  logger.warn(s"⚠ Skipping malformed retracted-artifact entry from $CYAN$url$RESET: $e")
-                }.getOrElse(Nil)
-              }
-            }.onError { case e =>
-              logger.warn(s"⚠ Skipping malformed retracted entry from $CYAN$url$RESET: $e")
-            }.getOrElse(Nil)
-          }
-      }.onError { case e => logger.warn(s"⚠ Failed to load retracted versions from $CYAN$url$RESET: $e") }
-        .getOrElse(Nil)
-    })
-  }
+                      val doc = entry.get("doc").getOrElse {
+                        Utils.fail(s"entry at index $index must have a 'doc'")
+                      }
+
+                      if (!entry.hasPath("artifacts"))
+                        Utils.fail(s"entry at index $index must have an 'artifacts' list")
+
+                      entry.getConfigList("artifacts").asScala.toList.zipWithIndex.flatMap { case (artifact, artIndex) =>
+                        Try {
+                          if (!artifact.hasPath("groupId"))
+                            Utils.fail(s"artifact at index $artIndex in entry $index must have a 'groupId'")
+
+                          val groupId    = artifact.get("groupId").get
+                          val artifactId = artifact.get("artifactId")
+
+                          val version =
+                            if (!artifact.hasPath("version")) None
+                            else
+                              artifact.getValue("version").valueType() match {
+                                case ConfigValueType.STRING =>
+                                  Some(VersionPattern(prefix = artifact.get("version")))
+
+                                case ConfigValueType.OBJECT =>
+                                  val obj = artifact.getValue("version").asInstanceOf[ConfigObject].toConfig
+
+                                  Some(
+                                    VersionPattern(
+                                      obj.get("prefix"),
+                                      obj.get("suffix"),
+                                      obj.get("exact"),
+                                      obj.get("contains")
+                                    )
+                                  )
+
+                                case other =>
+                                  Utils.fail(
+                                    s"artifact at index $artIndex in entry $index has unsupported version type: $other"
+                                  )
+                              }
+
+                          List(RetractedArtifact(reason, doc, groupId, artifactId, version))
+                        }.onError { case e =>
+                          logger.warn(s"⚠ Skipping malformed retracted-artifact entry from $CYAN$url$RESET: $e")
+                        }.getOrElse(Nil)
+                      }
+                    }.onError { case e =>
+                      logger.warn(s"⚠ Skipping malformed retracted entry from $CYAN$url$RESET: $e")
+                    }.getOrElse(Nil)
+                  }
+            )
+        }
+      )
+    }
 
 }

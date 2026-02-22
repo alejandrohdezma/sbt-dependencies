@@ -21,6 +21,7 @@ import java.net.URL
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
+import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 
 /** Abstraction for finding artifact migrations for a dependency. */
@@ -40,7 +41,7 @@ trait MigrationFinder {
 object MigrationFinder {
 
   /** Creates a MigrationFinder that loads migrations from the given URLs. */
-  def fromUrls(urls: List[URL])(implicit logger: Logger): MigrationFinder = {
+  def fromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): MigrationFinder = {
     val migrations = ArtifactMigration.loadFromUrls(urls)
 
     dep => migrations.find(_.matches(dep))

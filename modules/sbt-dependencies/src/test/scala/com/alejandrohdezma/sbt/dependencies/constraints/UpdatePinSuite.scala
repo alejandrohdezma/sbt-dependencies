@@ -31,7 +31,7 @@ class UpdatePinSuite extends munit.FunSuite {
 
   private val tempCacheDir = Files.createTempDirectory("config-cache")
 
-  override def beforeAll(): Unit = ConfigCache.withCacheDir(tempCacheDir.toFile())
+  implicit val configCache: ConfigCache = ConfigCache(tempCacheDir.toFile())
 
   override def afterAll(): Unit = IO.delete(tempCacheDir.toFile())
 

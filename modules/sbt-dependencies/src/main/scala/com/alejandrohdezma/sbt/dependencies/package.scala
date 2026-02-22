@@ -35,6 +35,19 @@ package object dependencies {
 
   }
 
+  implicit class EitherStringOps[A](either: Either[String, A]) {
+
+    /** Runs a side effect when the value inside the `Either` is a left. */
+    def onLeft(f: String => Unit): Either[String, A] = either match {
+      case Left(value) =>
+        f(value)
+        either
+      case Right(_) =>
+        either
+    }
+
+  }
+
   implicit class TryOps[A](tryA: Try[A]) {
 
     /** Runs a side effect When the value inside the `Try` is a failure. */

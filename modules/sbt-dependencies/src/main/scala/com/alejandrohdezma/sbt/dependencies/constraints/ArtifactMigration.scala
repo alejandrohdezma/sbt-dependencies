@@ -21,12 +21,11 @@ import java.util.concurrent.ConcurrentHashMap
 
 import scala.Console._
 import scala.jdk.CollectionConverters._
-import scala.util.Try
 
 import sbt.url
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.ConfigOps
+import com.alejandrohdezma.sbt.dependencies._
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -90,35 +89,45 @@ object ArtifactMigration {
     * @return
     *   Combined list of all migrations from all URLs
     */
-  def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[ArtifactMigration] = urls.flatMap { url =>
-    cache.computeIfAbsent(url, _ => {
-      logger.debug(s"↻ Loading migrations from $CYAN$url$RESET")
+  def loadFromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): List[ArtifactMigration] =
+    urls.flatMap { url =>
+      cache.computeIfAbsent(
+        url,
+        _ => {
+          logger.debug(s"↻ Loading migrations from $CYAN$url$RESET")
 
-      val config = Try(ConfigCache.get(url)).recover { case e =>
-        Utils.fail(s"Failed to parse migration file $url: ${e.getMessage}")
-      }.get
+          val config = configCache
+            .get(url)
+            .onLeft { e =>
+              Utils.fail(s"Failed to parse migration file $url: $e")
+            }
+            .right
+            .get
 
-      if (!config.hasPath("changes"))
-        Utils.fail("Migration file must contain a 'changes' array")
+          if (!config.hasPath("changes"))
+            Utils.fail("Migration file must contain a 'changes' array")
 
-      config.getConfigList("changes").asScala.toList.zipWithIndex.map { case (change, index) =>
-        if (!change.hasPath("groupIdBefore") && !change.hasPath("artifactIdBefore"))
-          Utils.fail(s"Migration entry at index $index must have at least one of 'groupIdBefore' or 'artifactIdBefore'")
+          config.getConfigList("changes").asScala.toList.zipWithIndex.map { case (change, index) =>
+            if (!change.hasPath("groupIdBefore") && !change.hasPath("artifactIdBefore"))
+              Utils.fail(
+                s"Migration entry at index $index must have at least one of 'groupIdBefore' or 'artifactIdBefore'"
+              )
 
-        if (!change.hasPath("groupIdAfter"))
-          Utils.fail(s"Migration entry at index $index must have a 'groupIdAfter'")
+            if (!change.hasPath("groupIdAfter"))
+              Utils.fail(s"Migration entry at index $index must have a 'groupIdAfter'")
 
-        if (!change.hasPath("artifactIdAfter"))
-          Utils.fail(s"Migration entry at index $index must have a 'artifactIdAfter'")
+            if (!change.hasPath("artifactIdAfter"))
+              Utils.fail(s"Migration entry at index $index must have a 'artifactIdAfter'")
 
-        ArtifactMigration(
-          groupIdBefore = change.get("groupIdBefore"),
-          groupIdAfter = change.get("groupIdAfter").get,
-          artifactIdBefore = change.get("artifactIdBefore"),
-          artifactIdAfter = change.get("artifactIdAfter").get
-        )
-      }
-    })
-  }
+            ArtifactMigration(
+              groupIdBefore = change.get("groupIdBefore"),
+              groupIdAfter = change.get("groupIdAfter").get,
+              artifactIdBefore = change.get("artifactIdBefore"),
+              artifactIdAfter = change.get("artifactIdAfter").get
+            )
+          }
+        }
+      )
+    }
 
 }

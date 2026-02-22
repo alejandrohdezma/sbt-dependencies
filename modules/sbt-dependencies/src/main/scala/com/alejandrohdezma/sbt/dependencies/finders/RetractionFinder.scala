@@ -22,6 +22,7 @@ import scala.Console._
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.RetractedArtifact
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.string.box._
@@ -55,7 +56,7 @@ trait RetractionFinder {
 object RetractionFinder {
 
   /** Creates a RetractionFinder that loads retraction entries from the given URLs. */
-  def fromUrls(urls: List[URL])(implicit logger: Logger): RetractionFinder = {
+  def fromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): RetractionFinder = {
     val retractions = RetractedArtifact.loadFromUrls(urls)
 
     new RetractionFinder {

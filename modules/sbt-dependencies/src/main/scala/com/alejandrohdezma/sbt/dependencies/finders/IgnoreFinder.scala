@@ -20,6 +20,7 @@ import java.net.URL
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdateIgnore
 
 /** Abstraction for checking if a dependency version should be ignored. */
@@ -43,7 +44,7 @@ trait IgnoreFinder {
 object IgnoreFinder {
 
   /** Creates an IgnoreFinder that loads ignore patterns from the given URLs. */
-  def fromUrls(urls: List[URL])(implicit logger: Logger): IgnoreFinder = {
+  def fromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): IgnoreFinder = {
     val ignores = UpdateIgnore.loadFromUrls(urls)
 
     (organization, name, version) => ignores.exists(_.matches(organization, name, version))
