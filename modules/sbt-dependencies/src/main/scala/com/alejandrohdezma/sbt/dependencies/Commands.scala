@@ -168,19 +168,9 @@ class Commands {
 
     ConfigCache.withCacheDir(project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / "config-cache")
 
-    val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
-
     val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-    val pinFinder = PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins))
-
-    implicit val versionFinder: VersionFinder =
-      VersionFinder
-        .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
-        .cached
-        .ignoringVersions(ignoreFinder)
-        .excludingRetracted(retractionFinder)
-        .pinningVersions(pinFinder)
+    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -329,19 +319,9 @@ class Commands {
 
     logger.info("\n↻ Checking for new versions of Scalafmt\n")
 
-    val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
-
     implicit val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-    val pinFinder = PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins))
-
-    implicit val versionFinder: VersionFinder =
-      VersionFinder
-        .fromCoursier("2.13", project.get(ThisBuild / Keys.dependencyResolverTimeout))
-        .cached
-        .ignoringVersions(ignoreFinder)
-        .excludingRetracted(retractionFinder)
-        .pinningVersions(pinFinder)
+    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.13")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -380,19 +360,9 @@ class Commands {
       } else {
         logger.info("\n↻ Checking for new versions of SBT\n")
 
-        val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
-
         val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-        val pinFinder = PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins))
-
-        implicit val versionFinder: VersionFinder =
-          VersionFinder
-            .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
-            .cached
-            .ignoringVersions(ignoreFinder)
-            .excludingRetracted(retractionFinder)
-            .pinningVersions(pinFinder)
+        implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
@@ -668,6 +638,17 @@ class Commands {
     snapshot
   }
 
+  def getVersionFinder(state: State, scalaBinaryVersion: String)(implicit logger: Logger): VersionFinder = {
+    val project = Project.extract(state)
+
+    VersionFinder
+      .fromCoursier(scalaBinaryVersion, project.get(ThisBuild / Keys.dependencyResolverTimeout))
+      .cached
+      .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
+      .excludingRetracted(RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions)))
+      .pinningVersions(PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins)))
+  }
+
   private def withSbtBuild(state: State)(
       f: VersionFinder => MigrationFinder => RetractionFinder => (Extracted, DependenciesFile) => State
   ): State = {
@@ -684,12 +665,7 @@ class Commands {
 
       val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-      val versionFinder = VersionFinder
-        .fromCoursier("2.12", project.get(ThisBuild / Keys.dependencyResolverTimeout))
-        .cached
-        .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
-        .excludingRetracted(retractionFinder)
-        .pinningVersions(PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins)))
+      val versionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
 
       val migrationFinder = MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 
