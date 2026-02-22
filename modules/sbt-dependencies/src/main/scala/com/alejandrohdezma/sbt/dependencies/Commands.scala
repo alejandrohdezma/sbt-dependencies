@@ -43,7 +43,8 @@ class Commands {
   /** All commands provided by this plugin. */
   val all = Seq(initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies,
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
-    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, computeDependencyDiff)
+    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, snapshotSbtPlugin, snapshotSbtVersion,
+    computeDependencyDiff)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -125,7 +126,10 @@ class Commands {
 
     if (isSbtBuild) state
     else if (!isPluginInMetaBuild(state)) state
-    else queueInMetaBuild(s"initDependenciesFile $flagsString")(state)
+    else {
+      val composite = ("reload plugins" +: s"initDependenciesFile $flagsString" :+ "reload return").mkString("; ")
+      state.copy(remainingCommands = Exec(composite, None) +: state.remainingCommands)
+    }
   }
 
   /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */
@@ -136,6 +140,7 @@ class Commands {
       "disableEvictionWarnings",   // Lower eviction errors so snapshots can resolve
       "snapshotDependencies",      // Record resolved main-build deps before changes
       "snapshotBuildDependencies", // Record declared meta-build deps before changes
+      "snapshotSbtPlugin",         // Record plugin version before changes
       "updateSbtPlugin",           // Update sbt-dependencies (or wrapper) plugin version
       "updateBuildScalaVersions",  // Update Scala versions in project/dependencies.conf
       "updateBuildDependencies",   // Update dependencies in project/dependencies.conf
@@ -143,6 +148,7 @@ class Commands {
       "updateScalaVersions",       // Update Scala versions in main build
       "updateDependencies",        // Update dependencies in main build
       "reload",                    // Reload build (resets session settings)
+      "snapshotSbtVersion",        // Record sbt version before changes
       "updateSbt",                 // Update sbt version in build.properties
       "disableEvictionWarnings",   // Re-lower eviction errors (lost after reload)
       "computeDependencyDiff",     // Compute main diff and merge sbt-build diff
@@ -162,19 +168,9 @@ class Commands {
 
     ConfigCache.withCacheDir(project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / "config-cache")
 
-    val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
-
     val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-    val pinFinder = PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins))
-
-    implicit val versionFinder: VersionFinder =
-      VersionFinder
-        .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
-        .cached
-        .ignoringVersions(ignoreFinder)
-        .excludingRetracted(retractionFinder)
-        .pinningVersions(pinFinder)
+    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -218,8 +214,7 @@ class Commands {
 
         IO.writeLines(file, updatedLines.map(_._1))
 
-        if (updatedLines.exists(_._2)) Some(Command.process("reload", state))
-        else Some(state)
+        Some(state)
       }
     }
 
@@ -233,8 +228,8 @@ class Commands {
 
   /** Resolves latest versions for dependencies in the `sbt-build` group of `project/dependencies.conf`.
     *
-    * Reads the file directly from the main build (no `reload plugins` needed), resolves each dependency to its latest
-    * version using Coursier, and writes the updated versions back. Retracted versions are warned about but not applied.
+    * Reads the file directly from the main build, resolves each dependency to its latest version using Coursier, and
+    * writes the updated versions back. Retracted versions are warned about but not applied.
     */
   lazy val updateBuildDependencies = Command.command("updateBuildDependencies") { state =>
     withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
@@ -258,8 +253,8 @@ class Commands {
 
   /** Resolves latest Scala patch versions in the `sbt-build` group of `project/dependencies.conf`.
     *
-    * Reads the file directly from the main build (no `reload plugins` needed) and updates each Scala version to the
-    * latest patch release within the same minor series (e.g. 2.12.x, 3.3.x).
+    * Reads the file directly from the main build, and updates each Scala version to the latest patch release within the
+    * same minor series (e.g. 2.12.x, 3.3.x).
     */
   lazy val updateBuildScalaVersions = Command.command("updateBuildScalaVersions") { state =>
     withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => _ => (_, file) =>
@@ -324,19 +319,9 @@ class Commands {
 
     logger.info("\n↻ Checking for new versions of Scalafmt\n")
 
-    val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
-
     implicit val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-    val pinFinder = PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins))
-
-    implicit val versionFinder: VersionFinder =
-      VersionFinder
-        .fromCoursier("2.13", project.get(ThisBuild / Keys.dependencyResolverTimeout))
-        .cached
-        .ignoringVersions(ignoreFinder)
-        .excludingRetracted(retractionFinder)
-        .pinningVersions(pinFinder)
+    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.13")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -375,19 +360,9 @@ class Commands {
       } else {
         logger.info("\n↻ Checking for new versions of SBT\n")
 
-        val ignoreFinder = IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
-
         val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-        val pinFinder = PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins))
-
-        implicit val versionFinder: VersionFinder =
-          VersionFinder
-            .fromCoursier("not-relevant", project.get(ThisBuild / Keys.dependencyResolverTimeout))
-            .cached
-            .ignoringVersions(ignoreFinder)
-            .excludingRetracted(retractionFinder)
-            .pinningVersions(pinFinder)
+        implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
@@ -476,6 +451,52 @@ class Commands {
     state
   }
 
+  /** Snapshots the current SBT plugin version for later diff computation.
+    *
+    * Reads the plugin version from `project/project/plugins.sbt` or `project/plugins.sbt` and writes it to
+    * `target/sbt-dependencies/.sbt-plugin-snapshot`. This snapshot is later consumed by `computeDependencyDiff` to
+    * detect plugin version changes.
+    */
+  lazy val snapshotSbtPlugin = Command.command("snapshotSbtPlugin") { state =>
+    Try {
+      readPluginVersion(state).foreach { pluginDep =>
+        val outputFile =
+          Project.extract(state).get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-plugin-snapshot"
+
+        DependencyDiff.writeSnapshot(outputFile, Map(`sbt-build` -> Set(pluginDep)))
+      }
+    }.onError { case e =>
+      state.log.trace(e)
+      state.log.error("Unable to generate plugin snapshot")
+    }
+
+    state
+  }
+
+  /** Snapshots the current SBT version for later diff computation.
+    *
+    * Reads the SBT version from `project/build.properties` and writes it to
+    * `target/sbt-dependencies/.sbt-version-snapshot`. This snapshot is later consumed by `computeDependencyDiff` to
+    * detect SBT version changes.
+    */
+  lazy val snapshotSbtVersion = Command.command("snapshotSbtVersion") { state =>
+    Try {
+      readSbtVersion(state).foreach { sbtDep =>
+        val outputFile =
+          Project
+            .extract(state)
+            .get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-version-snapshot"
+
+        DependencyDiff.writeSnapshot(outputFile, Map(`sbt-build` -> Set(sbtDep)))
+      }
+    }.onError { case e =>
+      state.log.trace(e)
+      state.log.error("Unable to generate SBT version snapshot")
+    }
+
+    state
+  }
+
   /** Computes a unified dependency diff by merging main-build and meta-build changes.
     *
     * Compares the current resolved dependencies against the snapshots taken before updates, merges the `sbt-build`
@@ -495,17 +516,30 @@ class Commands {
       val snapshotFile = outputDir / ".sbt-dependency-snapshot"
 
       // Merge sbt-build snapshot from project/dependencies.conf
-      val buildSnapshotFile = outputDir / ".sbt-build-snapshot"
-
       val (buildBefore, buildAfter) = {
         val file = DependenciesFile(base / "project" / "dependencies.conf")
 
-        val before = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
-        val after  = file.read(`sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
+        val buildSnapshotFile = outputDir / ".sbt-build-snapshot"
+        val before            = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
+        val after             = file.read(`sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
 
         IO.delete(buildSnapshotFile)
 
-        (before, after)
+        // Merge plugin snapshot (before) and current plugin version (after)
+        val pluginSnapshotFile = outputDir / ".sbt-plugin-snapshot"
+        val pluginBefore       = DependencyDiff.readSnapshot(pluginSnapshotFile).getOrElse(`sbt-build`, Set.empty)
+        val pluginAfter        = readPluginVersion(state).toList.toSet
+
+        IO.delete(pluginSnapshotFile)
+
+        // Merge sbt version snapshot (before) and current sbt version (after)
+        val sbtVersionSnapshotFile = outputDir / ".sbt-version-snapshot"
+        val sbtBefore              = DependencyDiff.readSnapshot(sbtVersionSnapshotFile).getOrElse(`sbt-build`, Set.empty)
+        val sbtAfter               = readSbtVersion(state).toList.toSet
+
+        IO.delete(sbtVersionSnapshotFile)
+
+        (before ++ pluginBefore ++ sbtBefore, after ++ pluginAfter ++ sbtAfter)
       }
 
       val before = DependencyDiff.readSnapshot(snapshotFile)
@@ -537,6 +571,55 @@ class Commands {
     metaBuild.exists() && IO.readLines(metaBuild).exists(pluginRegex.findFirstIn(_).isDefined)
   }
 
+  /** Reads the current plugin version from `project/project/plugins.sbt` or `project/plugins.sbt`.
+    *
+    * Returns the plugin as a [[DependencyDiff.ResolvedDep]] if found, or `None` if neither file contains a matching
+    * `addSbtPlugin` line.
+    */
+  private def readPluginVersion(state: State): Option[DependencyDiff.ResolvedDep] = {
+    val project = Project.extract(state)
+
+    val base       = project.get(ThisBuild / baseDirectory)
+    val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
+    val pluginName = project.get(Keys.sbtDependenciesPluginName)
+
+    val escapedOrg = pluginOrg.replace(".", """\.""")
+
+    val pluginRegex =
+      s"""addSbtPlugin\\s*\\(\\s*"$escapedOrg"\\s*%\\s*"$pluginName"\\s*%\\s*"([^"]+)"\\s*\\).*""".r
+
+    val metaBuild    = base / "project" / "project" / "plugins.sbt"
+    val regularBuild = base / "project" / "plugins.sbt"
+
+    def extractFrom(file: File): Option[DependencyDiff.ResolvedDep] =
+      if (!file.exists()) None
+      else
+        IO.readLines(file).collectFirst { case pluginRegex(version) =>
+          DependencyDiff.ResolvedDep(pluginOrg, pluginName, version)
+        }
+
+    extractFrom(metaBuild).orElse(extractFrom(regularBuild))
+  }
+
+  /** Reads the current SBT version from `project/build.properties`.
+    *
+    * Returns the SBT version as a [[DependencyDiff.ResolvedDep]] if found, or `None` if the file does not exist or does
+    * not contain a `sbt.version` entry.
+    */
+  private def readSbtVersion(state: State): Option[DependencyDiff.ResolvedDep] = {
+    val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+    val buildProperties = base / "project" / "build.properties"
+
+    val sbtVersionRegex = """sbt\.version\s*=\s*(.+)""".r
+
+    if (!buildProperties.exists()) None
+    else
+      IO.readLines(buildProperties).collectFirst { case sbtVersionRegex(version) =>
+        DependencyDiff.ResolvedDep("org.scala-sbt", "sbt", version.trim)
+      }
+  }
+
   private def generateSnapshot(state: State): Map[String, Set[DependencyDiff.ResolvedDep]] = {
     val project = Project.extract(state)
 
@@ -555,6 +638,17 @@ class Commands {
     snapshot
   }
 
+  def getVersionFinder(state: State, scalaBinaryVersion: String)(implicit logger: Logger): VersionFinder = {
+    val project = Project.extract(state)
+
+    VersionFinder
+      .fromCoursier(scalaBinaryVersion, project.get(ThisBuild / Keys.dependencyResolverTimeout))
+      .cached
+      .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
+      .excludingRetracted(RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions)))
+      .pinningVersions(PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins)))
+  }
+
   private def withSbtBuild(state: State)(
       f: VersionFinder => MigrationFinder => RetractionFinder => (Extracted, DependenciesFile) => State
   ): State = {
@@ -571,12 +665,7 @@ class Commands {
 
       val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-      val versionFinder = VersionFinder
-        .fromCoursier("2.12", project.get(ThisBuild / Keys.dependencyResolverTimeout))
-        .cached
-        .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
-        .excludingRetracted(retractionFinder)
-        .pinningVersions(PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins)))
+      val versionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
 
       val migrationFinder = MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 
@@ -586,11 +675,6 @@ class Commands {
 
   val `sbt-build` = "sbt-build"
 
-  private def queueInMetaBuild(commands: String*)(state: State): State = {
-    val composite = ("reload plugins" +: commands :+ "reload return").mkString("; ")
-    state.copy(remainingCommands = Exec(composite, None) +: state.remainingCommands)
-  }
-
   private def runStepsSafely(steps: String*)(state: State, outputDir: File): State = {
     implicit val logger: Logger = state.log
 
@@ -598,6 +682,8 @@ class Commands {
     IO.delete(outputDir / ".sbt-dependency-snapshot")
     IO.delete(outputDir / ".sbt-dependency-diff")
     IO.delete(outputDir / ".sbt-build-snapshot")
+    IO.delete(outputDir / ".sbt-plugin-snapshot")
+    IO.delete(outputDir / ".sbt-version-snapshot")
 
     val remaining = ListBuffer(steps: _*)
 

@@ -1,7 +1,7 @@
 > [!WARNING]
 > `updateAllDependencies` failed at the `updateScalaVersions` step.
 >
-> Skipped steps: `updateDependencies`, `reload`, `updateSbt`, `disableEvictionWarnings`, `computeDependencyDiff`, `enableEvictionWarnings`.
+> Skipped steps: `updateDependencies`, `reload`, `snapshotSbtVersion`, `updateSbt`, `disableEvictionWarnings`, `computeDependencyDiff`, `enableEvictionWarnings`.
 >
 > To fix this:
 > 1. Clone this branch locally.
