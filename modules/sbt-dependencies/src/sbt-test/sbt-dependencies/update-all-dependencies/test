@@ -1,9 +1,11 @@
-# Run the full update flow (http4s-core 0.21.0 -> 0.21.34)
+# Run the full update flow (http4s-core 0.21.0 -> 0.21.34, sbt 1.9.0 -> 1.9.9)
 > updateAllDependencies
 
 # Verify snapshots were cleaned up
 -$ exists target/sbt-dependencies/.sbt-dependency-snapshot
 -$ exists target/sbt-dependencies/.sbt-build-snapshot
+-$ exists target/sbt-dependencies/.sbt-plugin-snapshot
+-$ exists target/sbt-dependencies/.sbt-version-snapshot
 
 # Validate the diff file matches expected output
 $ must-mirror target/sbt-dependencies/.sbt-dependency-diff expected-diff

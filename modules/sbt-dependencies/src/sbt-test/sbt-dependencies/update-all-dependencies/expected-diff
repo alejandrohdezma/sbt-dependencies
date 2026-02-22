@@ -94,3 +94,15 @@ myproject {
         }
     ]
 }
+sbt-build {
+    added=[]
+    removed=[]
+    updated=[
+        {
+            from="1.9.0"
+            name=sbt
+            organization="org.scala-sbt"
+            to="1.9.9"
+        }
+    ]
+}
