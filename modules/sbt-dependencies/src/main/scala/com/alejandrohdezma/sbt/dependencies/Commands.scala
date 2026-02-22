@@ -125,7 +125,10 @@ class Commands {
 
     if (isSbtBuild) state
     else if (!isPluginInMetaBuild(state)) state
-    else queueInMetaBuild(s"initDependenciesFile $flagsString")(state)
+    else {
+      val composite = ("reload plugins" +: s"initDependenciesFile $flagsString" :+ "reload return").mkString("; ")
+      state.copy(remainingCommands = Exec(composite, None) +: state.remainingCommands)
+    }
   }
 
   /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */
@@ -219,8 +222,7 @@ class Commands {
 
         IO.writeLines(file, updatedLines.map(_._1))
 
-        if (updatedLines.exists(_._2)) Some(Command.process("reload", state))
-        else Some(state)
+        Some(state)
       }
     }
 
@@ -234,8 +236,8 @@ class Commands {
 
   /** Resolves latest versions for dependencies in the `sbt-build` group of `project/dependencies.conf`.
     *
-    * Reads the file directly from the main build (no `reload plugins` needed), resolves each dependency to its latest
-    * version using Coursier, and writes the updated versions back. Retracted versions are warned about but not applied.
+    * Reads the file directly from the main build, resolves each dependency to its latest version using Coursier, and
+    * writes the updated versions back. Retracted versions are warned about but not applied.
     */
   lazy val updateBuildDependencies = Command.command("updateBuildDependencies") { state =>
     withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
@@ -259,8 +261,8 @@ class Commands {
 
   /** Resolves latest Scala patch versions in the `sbt-build` group of `project/dependencies.conf`.
     *
-    * Reads the file directly from the main build (no `reload plugins` needed) and updates each Scala version to the
-    * latest patch release within the same minor series (e.g. 2.12.x, 3.3.x).
+    * Reads the file directly from the main build, and updates each Scala version to the latest patch release within the
+    * same minor series (e.g. 2.12.x, 3.3.x).
     */
   lazy val updateBuildScalaVersions = Command.command("updateBuildScalaVersions") { state =>
     withSbtBuild(state) { implicit versionFinder => implicit migrationFinder => _ => (_, file) =>
@@ -644,11 +646,6 @@ class Commands {
   }
 
   val `sbt-build` = "sbt-build"
-
-  private def queueInMetaBuild(commands: String*)(state: State): State = {
-    val composite = ("reload plugins" +: commands :+ "reload return").mkString("; ")
-    state.copy(remainingCommands = Exec(composite, None) +: state.remainingCommands)
-  }
 
   private def runStepsSafely(steps: String*)(state: State, outputDir: File): State = {
     implicit val logger: Logger = state.log
