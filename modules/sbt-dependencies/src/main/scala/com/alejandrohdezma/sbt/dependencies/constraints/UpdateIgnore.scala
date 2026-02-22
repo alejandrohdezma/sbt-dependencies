@@ -28,6 +28,7 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.ConfigOps
 import com.alejandrohdezma.sbt.dependencies.TryOps
+import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType
@@ -78,12 +79,11 @@ object UpdateIgnore {
     * @return
     *   Combined list of all ignore entries from all URLs.
     */
-  @SuppressWarnings(Array("scalafix:DisableSyntax.throw"))
   def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[UpdateIgnore] = urls.flatMap { url =>
-    Option(cache.get(url)).getOrElse {
+    cache.computeIfAbsent(url, _ => {
       logger.debug(s"↻ Loading update ignores from $CYAN$url$RESET")
 
-      val ignores = Try {
+      Try {
         val config = ConfigCache.get(url)
 
         if (!config.hasPath("updates.ignore")) Nil
@@ -91,7 +91,7 @@ object UpdateIgnore {
           config.getConfigList("updates.ignore").asScala.toList.zipWithIndex.flatMap { case (entry, index) =>
             Try {
               if (!entry.hasPath("groupId"))
-                throw new IllegalArgumentException(s"entry at index $index must have a 'groupId'")
+                Utils.fail(s"entry at index $index must have a 'groupId'")
 
               val groupId    = entry.get("groupId").get
               val artifactId = entry.get("artifactId")
@@ -109,7 +109,7 @@ object UpdateIgnore {
                       Some(VersionPattern(obj.get("prefix"), obj.get("suffix"), obj.get("exact"), obj.get("contains")))
 
                     case other =>
-                      throw new IllegalArgumentException(s"entry at index $index has unsupported version type: $other")
+                      Utils.fail(s"entry at index $index has unsupported version type: $other")
                   }
 
               List(UpdateIgnore(groupId, artifactId, version))
@@ -118,11 +118,7 @@ object UpdateIgnore {
           }
       }.onError { case e => logger.warn(s"⚠ Failed to load update ignores from $CYAN$url$RESET: $e") }
         .getOrElse(Nil)
-
-      cache.put(url, ignores)
-
-      ignores
-    }
+    })
   }
 
 }

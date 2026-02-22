@@ -91,7 +91,7 @@ object ArtifactMigration {
     *   Combined list of all migrations from all URLs
     */
   def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[ArtifactMigration] = urls.flatMap { url =>
-    Option(cache.get(url)).getOrElse {
+    cache.computeIfAbsent(url, _ => {
       logger.debug(s"↻ Loading migrations from $CYAN$url$RESET")
 
       val config = Try(ConfigCache.get(url)).recover { case e =>
@@ -101,7 +101,7 @@ object ArtifactMigration {
       if (!config.hasPath("changes"))
         Utils.fail("Migration file must contain a 'changes' array")
 
-      val migrations = config.getConfigList("changes").asScala.toList.zipWithIndex.map { case (change, index) =>
+      config.getConfigList("changes").asScala.toList.zipWithIndex.map { case (change, index) =>
         if (!change.hasPath("groupIdBefore") && !change.hasPath("artifactIdBefore"))
           Utils.fail(s"Migration entry at index $index must have at least one of 'groupIdBefore' or 'artifactIdBefore'")
 
@@ -118,10 +118,7 @@ object ArtifactMigration {
           artifactIdAfter = change.get("artifactIdAfter").get
         )
       }
-
-      cache.put(url, migrations)
-      migrations
-    }
+    })
   }
 
 }

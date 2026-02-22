@@ -28,6 +28,7 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.ConfigOps
 import com.alejandrohdezma.sbt.dependencies.TryOps
+import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType
@@ -89,12 +90,11 @@ object RetractedArtifact {
     * @return
     *   Combined list of all retraction entries from all URLs.
     */
-  @SuppressWarnings(Array("scalafix:DisableSyntax.throw"))
   def loadFromUrls(urls: List[URL])(implicit logger: Logger): List[RetractedArtifact] = urls.flatMap { url =>
-    Option(cache.get(url)).getOrElse {
+    cache.computeIfAbsent(url, _ => {
       logger.debug(s"↻ Loading retracted versions from $CYAN$url$RESET")
 
-      val retractions = Try {
+      Try {
         val config = ConfigCache.get(url)
 
         if (!config.hasPath("updates.retracted")) Nil
@@ -102,22 +102,20 @@ object RetractedArtifact {
           config.getConfigList("updates.retracted").asScala.toList.zipWithIndex.flatMap { case (entry, index) =>
             Try {
               val reason = entry.get("reason").getOrElse {
-                throw new IllegalArgumentException(s"entry at index $index must have a 'reason'")
+                Utils.fail(s"entry at index $index must have a 'reason'")
               }
 
               val doc = entry.get("doc").getOrElse {
-                throw new IllegalArgumentException(s"entry at index $index must have a 'doc'")
+                Utils.fail(s"entry at index $index must have a 'doc'")
               }
 
               if (!entry.hasPath("artifacts"))
-                throw new IllegalArgumentException(s"entry at index $index must have an 'artifacts' list")
+                Utils.fail(s"entry at index $index must have an 'artifacts' list")
 
               entry.getConfigList("artifacts").asScala.toList.zipWithIndex.flatMap { case (artifact, artIndex) =>
                 Try {
                   if (!artifact.hasPath("groupId"))
-                    throw new IllegalArgumentException(
-                      s"artifact at index $artIndex in entry $index must have a 'groupId'"
-                    )
+                    Utils.fail(s"artifact at index $artIndex in entry $index must have a 'groupId'")
 
                   val groupId    = artifact.get("groupId").get
                   val artifactId = artifact.get("artifactId")
@@ -137,7 +135,7 @@ object RetractedArtifact {
                           )
 
                         case other =>
-                          throw new IllegalArgumentException(
+                          Utils.fail(
                             s"artifact at index $artIndex in entry $index has unsupported version type: $other"
                           )
                       }
@@ -153,11 +151,7 @@ object RetractedArtifact {
           }
       }.onError { case e => logger.warn(s"⚠ Failed to load retracted versions from $CYAN$url$RESET: $e") }
         .getOrElse(Nil)
-
-      cache.put(url, retractions)
-
-      retractions
-    }
+    })
   }
 
 }

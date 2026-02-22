@@ -281,7 +281,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
     assertEquals(retractions, Nil)
     assertEquals(
       logger.getLogs(Level.Warn),
-      List(s"⚠ Skipping malformed retracted entry from $CYAN${urls.head}$RESET: java.lang.IllegalArgumentException: entry at index 0 must have a 'reason'")
+      List(s"⚠ Skipping malformed retracted entry from $CYAN${urls.head}$RESET: java.lang.RuntimeException: entry at index 0 must have a 'reason'")
     )
   }
 
@@ -301,7 +301,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
     assertEquals(retractions, Nil)
     assertEquals(
       logger.getLogs(Level.Warn),
-      List(s"⚠ Skipping malformed retracted entry from $CYAN${urls.head}$RESET: java.lang.IllegalArgumentException: entry at index 0 must have a 'doc'")
+      List(s"⚠ Skipping malformed retracted entry from $CYAN${urls.head}$RESET: java.lang.RuntimeException: entry at index 0 must have a 'doc'")
     )
   }
 
@@ -319,7 +319,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
     assertEquals(retractions, Nil)
     assertEquals(
       logger.getLogs(Level.Warn),
-      List(s"⚠ Skipping malformed retracted entry from $CYAN${urls.head}$RESET: java.lang.IllegalArgumentException: entry at index 0 must have an 'artifacts' list")
+      List(s"⚠ Skipping malformed retracted entry from $CYAN${urls.head}$RESET: java.lang.RuntimeException: entry at index 0 must have an 'artifacts' list")
     )
   }
 
@@ -340,7 +340,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
     assertEquals(retractions, Nil)
     assertEquals(
       logger.getLogs(Level.Warn),
-      List(s"⚠ Skipping malformed retracted-artifact entry from $CYAN${urls.head}$RESET: java.lang.IllegalArgumentException: artifact at index 0 in entry 0 must have a 'groupId'")
+      List(s"⚠ Skipping malformed retracted-artifact entry from $CYAN${urls.head}$RESET: java.lang.RuntimeException: artifact at index 0 in entry 0 must have a 'groupId'")
     )
   }
 
