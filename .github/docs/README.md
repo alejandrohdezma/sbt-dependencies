@@ -6,6 +6,7 @@
 - [Update dependencies](#user-content-update-project-dependencies) to their latest versions with a single command.
 - Control updates with [version markers](#user-content-pin-a-dependency): pin, restrict to major, or restrict to minor.
 - Document pinning decisions with [dependency notes](#user-content-add-a-note-to-a-pinned-dependency).
+- [Mark dependencies as intransitive](#user-content-mark-a-dependency-as-intransitive) to exclude transitive dependencies.
 - Automatically [migrate renamed artifacts](#user-content-configure-artifact-migrations) using Scala Steward's migration list.
 - [Exclude known-bad versions](#user-content-configure-update-ignores) from updates using Scala Steward's ignore list.
 - Automatically exclude [retracted versions](#user-content-configure-retracted-versions) from updates using Scala Steward's retraction list.
@@ -54,6 +55,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Filter dependencies by Scala version](#user-content-filter-by-scala-version)
   + [Pin a dependency to a specific version](#user-content-pin-a-dependency)
   + [Add a note to a pinned dependency](#user-content-add-a-note-to-a-pinned-dependency)
+  + [Mark a dependency as intransitive](#user-content-mark-a-dependency-as-intransitive)
   + [Use shared version variables](#user-content-use-shared-version-variables)
   + [Configure Scala versions](#user-content-configure-scala-versions)
   + [Use the advanced group format](#user-content-use-advanced-group-format)
@@ -191,7 +193,7 @@ my-project = [
 ]
 ```
 
-The `note` field is required when using object format — it exists specifically to document pinning decisions. Long notes are automatically formatted across multiple lines:
+Long notes are automatically formatted across multiple lines:
 
 ```hocon
 my-project = [
@@ -203,6 +205,44 @@ my-project = [
 ```
 
 Both formats (plain strings and objects with notes) can coexist in the same dependency list. Notes are preserved through `updateDependencies` — only the version is updated while the note remains unchanged.
+
+---
+
+</details>
+
+<details><summary><b id="mark-a-dependency-as-intransitive">Mark a dependency as intransitive</b></summary><br/>
+
+Use the object format with `intransitive = true` to exclude transitive dependencies:
+
+```hocon
+my-project = [
+  { dependency = "org.http4s::http4s-core:0.23.3", intransitive = true }
+]
+```
+
+This applies `.intransitive()` to the `ModuleID`, preventing SBT from pulling in its transitive dependencies.
+
+You can combine `intransitive` with a `note` to document why:
+
+```hocon
+my-project = [
+  { dependency = "org.http4s::http4s-core:0.23.3", intransitive = true, note = "We only need the core types" }
+]
+```
+
+Both single-line and multi-line formats are supported. Long entries are automatically formatted across multiple lines:
+
+```hocon
+my-project = [
+  {
+    dependency = "org.http4s::http4s-core:0.23.3"
+    note = "We only need the core types, transitive deps conflict with our custom HTTP layer"
+    intransitive = true
+  }
+]
+```
+
+The `intransitive` flag is preserved through `updateDependencies` — only the version is updated.
 
 ---
 

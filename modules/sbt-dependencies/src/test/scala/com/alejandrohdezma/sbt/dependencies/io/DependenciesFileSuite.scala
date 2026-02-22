@@ -1312,6 +1312,73 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertNoDiff(content, expected)
   }
 
+  // --- intransitive preservation tests ---
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.http4s::http4s-core:=0.23.3", intransitive = true }
+       |  "org.scalameta::munit:1.2.1:test"
+       |]
+       |""".stripMargin
+  }.test("write preserves intransitive flag through version update") { file =>
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.http4s",
+        "http4s-core",
+        Version.Numeric(List(0, 23, 4), None, Version.Numeric.Marker.Exact),
+        isCross = true
+      ),
+      Dependency.WithNumericVersion(
+        "org.scalameta",
+        "munit",
+        Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "test"
+      )
+    )
+
+    DependenciesFile(file).write("my-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org.http4s::http4s-core:=0.23.4", intransitive = true }
+         |  "org.scalameta::munit:1.3.0:test"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.http4s::http4s-core:=0.23.3", note = "Uses internal API", intransitive = true }
+       |]
+       |""".stripMargin
+  }.test("write preserves both note and intransitive flag through version update") { file =>
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.http4s",
+        "http4s-core",
+        Version.Numeric(List(0, 23, 4), None, Version.Numeric.Marker.Exact),
+        isCross = true
+      )
+    )
+
+    DependenciesFile(file).write("my-project", newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org.http4s::http4s-core:=0.23.4", note = "Uses internal API", intransitive = true }
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
   // --- hasGroup tests ---
 
   withDependenciesFile {

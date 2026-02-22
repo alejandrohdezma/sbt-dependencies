@@ -14,6 +14,7 @@ describe("parsePinnedWithoutNote", () => {
     expect(results[0].org).toBe("org.typelevel");
     expect(results[0].artifact).toBe("cats-core");
     expect(results[0].version).toBe("=2.10.0");
+    expect(results[0].reason).toBe("pinned");
   });
 
   it("returns pinned dep with ^ marker", () => {
@@ -25,6 +26,7 @@ describe("parsePinnedWithoutNote", () => {
     const results = parsePinnedWithoutNote(lines);
     expect(results).toHaveLength(1);
     expect(results[0].version).toBe("^2.10.0");
+    expect(results[0].reason).toBe("pinned");
   });
 
   it("returns pinned dep with ~ marker", () => {
@@ -36,6 +38,7 @@ describe("parsePinnedWithoutNote", () => {
     const results = parsePinnedWithoutNote(lines);
     expect(results).toHaveLength(1);
     expect(results[0].version).toBe("~0.23.25");
+    expect(results[0].reason).toBe("pinned");
   });
 
   it("skips deps without version markers", () => {
@@ -164,6 +167,60 @@ describe("parsePinnedWithoutNote", () => {
 
   it("handles empty arrays", () => {
     const lines = ['my-group = []'];
+    const results = parsePinnedWithoutNote(lines);
+    expect(results).toHaveLength(0);
+  });
+
+  it("emits CodeLens for single-line intransitive object without note", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.http4s::http4s-core:=0.23.3", intransitive = true }',
+      ']',
+    ];
+    const results = parsePinnedWithoutNote(lines);
+    expect(results).toHaveLength(1);
+    expect(results[0].line).toBe(1);
+    expect(results[0].org).toBe("org.http4s");
+    expect(results[0].artifact).toBe("http4s-core");
+    expect(results[0].reason).toBe("intransitive");
+  });
+
+  it("skips single-line intransitive object with note", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.http4s::http4s-core:=0.23.3", note = "reason", intransitive = true }',
+      ']',
+    ];
+    const results = parsePinnedWithoutNote(lines);
+    expect(results).toHaveLength(0);
+  });
+
+  it("emits CodeLens for multi-line intransitive object without note", () => {
+    const lines = [
+      'my-group = [',
+      '  {',
+      '    dependency = "org.http4s::http4s-core:=0.23.3"',
+      '    intransitive = true',
+      '  }',
+      ']',
+    ];
+    const results = parsePinnedWithoutNote(lines);
+    expect(results).toHaveLength(1);
+    expect(results[0].line).toBe(1);
+    expect(results[0].org).toBe("org.http4s");
+    expect(results[0].reason).toBe("intransitive");
+  });
+
+  it("skips multi-line object with both intransitive and note", () => {
+    const lines = [
+      'my-group = [',
+      '  {',
+      '    dependency = "org.http4s::http4s-core:=0.23.3"',
+      '    note = "reason"',
+      '    intransitive = true',
+      '  }',
+      ']',
+    ];
     const results = parsePinnedWithoutNote(lines);
     expect(results).toHaveLength(0);
   });

@@ -139,4 +139,26 @@ describe("parseNoteDecorations", () => {
     const suffix = line.slice(r.suffixRange.startCol, r.suffixRange.endCol);
     expect(suffix).toBe(', note = "waiting" }');
   });
+
+  it("returns decoration data for object with both note and intransitive fields", () => {
+    const line = '  { dependency = "org.http4s::http4s-core:=0.23.3", note = "reason", intransitive = true }';
+    const lines = ['my-group = [', line, ']'];
+    const results = parseNoteDecorations(lines);
+    expect(results).toHaveLength(1);
+    expect(results[0].noteText).toBe("reason");
+
+    const r = results[0];
+    const visiblePart = line.slice(r.prefixRange.endCol, r.suffixRange.startCol);
+    expect(visiblePart).toBe('"org.http4s::http4s-core:=0.23.3"');
+  });
+
+  it("does not return decoration for intransitive-only object (no note)", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.http4s::http4s-core:=0.23.3", intransitive = true }',
+      ']',
+    ];
+    const results = parseNoteDecorations(lines);
+    expect(results).toHaveLength(0);
+  });
 });

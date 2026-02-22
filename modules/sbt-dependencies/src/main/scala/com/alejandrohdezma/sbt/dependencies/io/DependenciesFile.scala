@@ -66,6 +66,17 @@ final case class DependenciesFile(file: File) {
   ): List[Dependency] =
     readRaw(file).get(group).map(_.dependencyLines).toList.flatten.map(Dependency.parse(_, variableResolvers))
 
+  /** Reads annotated dependencies for a specific group, returning each dependency paired with its intransitive flag.
+    *
+    * This is used by Settings to apply `.intransitive()` on the resulting ModuleID when the flag is set.
+    */
+  def readAnnotated(group: String, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
+      logger: Logger
+  ): List[(Dependency, Boolean)] =
+    readRaw(file).get(group).toList.flatMap(_.dependencies).map { ad =>
+      Dependency.parse(ad.line, variableResolvers) -> ad.intransitive
+    }
+
   /** Writes dependencies for a specific group to the given HOCON file.
     *
     * Other groups in the file are preserved. The format (simple vs advanced) of existing groups is preserved, unless
@@ -84,14 +95,17 @@ final case class DependenciesFile(file: File) {
     if (dependencies.nonEmpty || scalaVersions.nonEmpty) {
       val existingConfigs = readRaw(file)
 
-      val notes = existingConfigs
+      val annotations = existingConfigs
         .get(group)
         .toList
         .flatMap(_.dependencies)
-        .flatMap(ad => ad.note.map(note => ad.line -> note).toList)
+        .collect {
+          case ad if ad.note.isDefined || ad.intransitive =>
+            ad.line -> AnnotatedDependency.AnnotationData(ad.note, ad.intransitive)
+        }
         .toMap
-        .collect { case (Dependency.dependencyRegex(org, _, name, _, config), note) =>
-          AnnotatedDependency.NoteKey(org, name, Option(config).getOrElse("compile")) -> note
+        .collect { case (Dependency.dependencyRegex(org, _, name, _, config), data) =>
+          AnnotatedDependency.NoteKey(org, name, Option(config).getOrElse("compile")) -> data
         }
 
       val dependencyLines = dependencies
@@ -99,7 +113,7 @@ final case class DependenciesFile(file: File) {
           if (acc.exists(_.isSameArtifact(dep))) acc else acc :+ dep
         }
         .sorted
-        .map(AnnotatedDependency.from(notes))
+        .map(AnnotatedDependency.from(annotations))
 
       val newConfig =
         if (scalaVersions.nonEmpty) GroupConfig.Advanced(dependencyLines, scalaVersions)

@@ -1,6 +1,6 @@
 .vscode/**
 node_modules/**
-examples/**
+example/**
 tests/**
 src/**
 out/**

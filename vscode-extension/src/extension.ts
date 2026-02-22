@@ -669,28 +669,76 @@ async function openBuildProject(
 /**
  * Converts a plain pinned dependency string into object form with an empty
  * note, then places the cursor inside the note quotes.
+ *
+ * For single-line object entries (e.g. intransitive), inserts a `note = ""`
+ * field after `dependency` and places the cursor inside the quotes.
+ *
+ * For multi-line object entries, inserts a `note = ""` line after the
+ * `dependency` line and places the cursor inside the quotes.
  */
 async function addDependencyNote(line: number): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return;
 
   const lineText = editor.document.lineAt(line).text;
-  const match = /^(\s*)"(.*)"(\s*)$/.exec(lineText);
-  if (!match) return;
 
-  const indent = match[1];
-  const depString = match[2];
-  const replacement = `${indent}{ dependency = "${depString}", note = "" }`;
+  // Case 1: Plain string entry — wrap in object form
+  const plainMatch = /^(\s*)"(.*)"(\s*)$/.exec(lineText);
+  if (plainMatch) {
+    const indent = plainMatch[1];
+    const depString = plainMatch[2];
+    const replacement = `${indent}{ dependency = "${depString}", note = "" }`;
 
-  const fullLineRange = editor.document.lineAt(line).range;
-  await editor.edit((editBuilder) => {
-    editBuilder.replace(fullLineRange, replacement);
-  });
+    const fullLineRange = editor.document.lineAt(line).range;
+    await editor.edit((editBuilder) => {
+      editBuilder.replace(fullLineRange, replacement);
+    });
 
-  // Place cursor between the empty note quotes
-  const cursorCol = replacement.indexOf('note = "') + 'note = "'.length;
-  const cursorPos = new vscode.Position(line, cursorCol);
-  editor.selection = new vscode.Selection(cursorPos, cursorPos);
+    const cursorCol = replacement.indexOf('note = "') + 'note = "'.length;
+    const cursorPos = new vscode.Position(line, cursorCol);
+    editor.selection = new vscode.Selection(cursorPos, cursorPos);
+    return;
+  }
+
+  // Case 2: Single-line object entry — insert note field after dependency
+  const singleLineObjMatch = /^(\s*)\{(.*dependency\s*=\s*"[^"]*")(.*)(\})/.exec(lineText);
+  if (singleLineObjMatch) {
+    const indent = singleLineObjMatch[1];
+    const depPart = singleLineObjMatch[2];
+    const rest = singleLineObjMatch[3];
+    const replacement = `${indent}{${depPart}, note = ""${rest}}`;
+
+    const fullLineRange = editor.document.lineAt(line).range;
+    await editor.edit((editBuilder) => {
+      editBuilder.replace(fullLineRange, replacement);
+    });
+
+    const cursorCol = replacement.indexOf('note = "') + 'note = "'.length;
+    const cursorPos = new vscode.Position(line, cursorCol);
+    editor.selection = new vscode.Selection(cursorPos, cursorPos);
+    return;
+  }
+
+  // Case 3: Multi-line object — find the dependency line and insert note after it
+  for (let i = line; i < editor.document.lineCount; i++) {
+    const currentLine = editor.document.lineAt(i).text;
+    const depFieldMatch = /^(\s*)dependency\s*=\s*"[^"]*"/.exec(currentLine);
+    if (depFieldMatch) {
+      const fieldIndent = depFieldMatch[1];
+      const noteLineText = `${fieldIndent}note = ""`;
+      const insertPos = new vscode.Position(i + 1, 0);
+      await editor.edit((editBuilder) => {
+        editBuilder.insert(insertPos, noteLineText + "\n");
+      });
+
+      const cursorCol = noteLineText.indexOf('note = "') + 'note = "'.length;
+      const cursorPos = new vscode.Position(i + 1, cursorCol);
+      editor.selection = new vscode.Selection(cursorPos, cursorPos);
+      return;
+    }
+    // Stop if we hit the closing brace without finding dependency
+    if (currentLine.includes("}")) break;
+  }
 }
 
 /**
@@ -706,8 +754,12 @@ class PinnedDepCodeLensProvider implements vscode.CodeLensProvider {
 
     return parsePinnedWithoutNote(lines).map((data) => {
       const range = new vscode.Range(data.line, 0, data.line, 0);
+      const title =
+        data.reason === "intransitive"
+          ? '$(info) Intransitive without note — consider adding note = "..."'
+          : '$(info) Pinned without note — consider adding { dependency = "...", note = "..." }';
       return new vscode.CodeLens(range, {
-        title: "$(info) Pinned without note — consider adding { dependency = \"...\", note = \"...\" }",
+        title,
         command: "sbt-dependencies.addDependencyNote",
         arguments: [data.line],
       });
