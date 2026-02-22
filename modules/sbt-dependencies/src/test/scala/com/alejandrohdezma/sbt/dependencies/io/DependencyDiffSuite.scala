@@ -397,6 +397,27 @@ class DependencyDiffSuite extends munit.FunSuite {
     assertEquals(result, Map.empty[String, ProjectDiff])
   }
 
+  test("compute detects sbt version update when merged into sbt-build group") {
+    val buildDeps  = Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0"))
+    val sbtDep     = ResolvedDep("org.scala-sbt", "sbt", "1.9.0")
+    val updatedSbt = ResolvedDep("org.scala-sbt", "sbt", "1.10.0")
+
+    val before = Map("sbt-build" -> (buildDeps + sbtDep))
+    val after  = Map("sbt-build" -> (buildDeps + updatedSbt))
+
+    val result = compute(before, after)
+
+    val expected = Map(
+      "sbt-build" -> ProjectDiff(
+        updated = List(UpdatedDep("org.scala-sbt", "sbt", "1.9.0", "1.10.0")),
+        added = Nil,
+        removed = Nil
+      )
+    )
+
+    assertEquals(result, expected)
+  }
+
   test("compute detects plugin as added when only in after") {
     val before = Map("sbt-build" -> Set.empty[ResolvedDep])
     val after  = Map("sbt-build" -> Set(ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0")))

@@ -43,7 +43,8 @@ class Commands {
   /** All commands provided by this plugin. */
   val all = Seq(initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies,
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
-    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, snapshotSbtPlugin, computeDependencyDiff)
+    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, snapshotSbtPlugin, snapshotSbtVersion,
+    computeDependencyDiff)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -147,6 +148,7 @@ class Commands {
       "updateScalaVersions",       // Update Scala versions in main build
       "updateDependencies",        // Update dependencies in main build
       "reload",                    // Reload build (resets session settings)
+      "snapshotSbtVersion",        // Record sbt version before changes
       "updateSbt",                 // Update sbt version in build.properties
       "disableEvictionWarnings",   // Re-lower eviction errors (lost after reload)
       "computeDependencyDiff",     // Compute main diff and merge sbt-build diff
@@ -501,6 +503,30 @@ class Commands {
     state
   }
 
+  /** Snapshots the current SBT version for later diff computation.
+    *
+    * Reads the SBT version from `project/build.properties` and writes it to
+    * `target/sbt-dependencies/.sbt-version-snapshot`. This snapshot is later consumed by `computeDependencyDiff` to
+    * detect SBT version changes.
+    */
+  lazy val snapshotSbtVersion = Command.command("snapshotSbtVersion") { state =>
+    Try {
+      readSbtVersion(state).foreach { sbtDep =>
+        val outputFile =
+          Project
+            .extract(state)
+            .get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-version-snapshot"
+
+        DependencyDiff.writeSnapshot(outputFile, Map(`sbt-build` -> Set(sbtDep)))
+      }
+    }.onError { case e =>
+      state.log.trace(e)
+      state.log.error("Unable to generate SBT version snapshot")
+    }
+
+    state
+  }
+
   /** Computes a unified dependency diff by merging main-build and meta-build changes.
     *
     * Compares the current resolved dependencies against the snapshots taken before updates, merges the `sbt-build`
@@ -536,7 +562,14 @@ class Commands {
 
         IO.delete(pluginSnapshotFile)
 
-        (before ++ pluginBefore, after ++ pluginAfter)
+        // Merge sbt version snapshot (before) and current sbt version (after)
+        val sbtVersionSnapshotFile = outputDir / ".sbt-version-snapshot"
+        val sbtBefore              = DependencyDiff.readSnapshot(sbtVersionSnapshotFile).getOrElse(`sbt-build`, Set.empty)
+        val sbtAfter               = readSbtVersion(state).toList.toSet
+
+        IO.delete(sbtVersionSnapshotFile)
+
+        (before ++ pluginBefore ++ sbtBefore, after ++ pluginAfter ++ sbtAfter)
       }
 
       val before = DependencyDiff.readSnapshot(snapshotFile)
@@ -598,6 +631,25 @@ class Commands {
     extractFrom(metaBuild).orElse(extractFrom(regularBuild))
   }
 
+  /** Reads the current SBT version from `project/build.properties`.
+    *
+    * Returns the SBT version as a [[DependencyDiff.ResolvedDep]] if found, or `None` if the file does not exist or does
+    * not contain a `sbt.version` entry.
+    */
+  private def readSbtVersion(state: State): Option[DependencyDiff.ResolvedDep] = {
+    val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+    val buildProperties = base / "project" / "build.properties"
+
+    val sbtVersionRegex = """sbt\.version\s*=\s*(.+)""".r
+
+    if (!buildProperties.exists()) None
+    else
+      IO.readLines(buildProperties).collectFirst { case sbtVersionRegex(version) =>
+        DependencyDiff.ResolvedDep("org.scala-sbt", "sbt", version.trim)
+      }
+  }
+
   private def generateSnapshot(state: State): Map[String, Set[DependencyDiff.ResolvedDep]] = {
     val project = Project.extract(state)
 
@@ -655,6 +707,7 @@ class Commands {
     IO.delete(outputDir / ".sbt-dependency-diff")
     IO.delete(outputDir / ".sbt-build-snapshot")
     IO.delete(outputDir / ".sbt-plugin-snapshot")
+    IO.delete(outputDir / ".sbt-version-snapshot")
 
     val remaining = ListBuffer(steps: _*)
 
