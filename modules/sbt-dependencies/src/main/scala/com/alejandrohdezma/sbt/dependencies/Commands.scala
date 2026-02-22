@@ -43,7 +43,7 @@ class Commands {
   /** All commands provided by this plugin. */
   val all = Seq(initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies,
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
-    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, computeDependencyDiff)
+    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, snapshotSbtPlugin, computeDependencyDiff)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -136,6 +136,7 @@ class Commands {
       "disableEvictionWarnings",   // Lower eviction errors so snapshots can resolve
       "snapshotDependencies",      // Record resolved main-build deps before changes
       "snapshotBuildDependencies", // Record declared meta-build deps before changes
+      "snapshotSbtPlugin",         // Record plugin version before changes
       "updateSbtPlugin",           // Update sbt-dependencies (or wrapper) plugin version
       "updateBuildScalaVersions",  // Update Scala versions in project/dependencies.conf
       "updateBuildDependencies",   // Update dependencies in project/dependencies.conf
@@ -476,6 +477,28 @@ class Commands {
     state
   }
 
+  /** Snapshots the current SBT plugin version for later diff computation.
+    *
+    * Reads the plugin version from `project/project/plugins.sbt` or `project/plugins.sbt` and writes it to
+    * `target/sbt-dependencies/.sbt-plugin-snapshot`. This snapshot is later consumed by `computeDependencyDiff` to
+    * detect plugin version changes.
+    */
+  lazy val snapshotSbtPlugin = Command.command("snapshotSbtPlugin") { state =>
+    Try {
+      readPluginVersion(state).foreach { pluginDep =>
+        val outputFile =
+          Project.extract(state).get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-plugin-snapshot"
+
+        DependencyDiff.writeSnapshot(outputFile, Map(`sbt-build` -> Set(pluginDep)))
+      }
+    }.onError { case e =>
+      state.log.trace(e)
+      state.log.error("Unable to generate plugin snapshot")
+    }
+
+    state
+  }
+
   /** Computes a unified dependency diff by merging main-build and meta-build changes.
     *
     * Compares the current resolved dependencies against the snapshots taken before updates, merges the `sbt-build`
@@ -495,17 +518,23 @@ class Commands {
       val snapshotFile = outputDir / ".sbt-dependency-snapshot"
 
       // Merge sbt-build snapshot from project/dependencies.conf
-      val buildSnapshotFile = outputDir / ".sbt-build-snapshot"
-
       val (buildBefore, buildAfter) = {
         val file = DependenciesFile(base / "project" / "dependencies.conf")
 
-        val before = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
-        val after  = file.read(`sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
+        val buildSnapshotFile = outputDir / ".sbt-build-snapshot"
+        val before            = DependencyDiff.readSnapshot(buildSnapshotFile).getOrElse(`sbt-build`, Set.empty)
+        val after             = file.read(`sbt-build`, Map.empty).map(DependencyDiff.ResolvedDep.from).toSet
 
         IO.delete(buildSnapshotFile)
 
-        (before, after)
+        // Merge plugin snapshot (before) and current plugin version (after)
+        val pluginSnapshotFile = outputDir / ".sbt-plugin-snapshot"
+        val pluginBefore       = DependencyDiff.readSnapshot(pluginSnapshotFile).getOrElse(`sbt-build`, Set.empty)
+        val pluginAfter        = readPluginVersion(state).toList.toSet
+
+        IO.delete(pluginSnapshotFile)
+
+        (before ++ pluginBefore, after ++ pluginAfter)
       }
 
       val before = DependencyDiff.readSnapshot(snapshotFile)
@@ -535,6 +564,36 @@ class Commands {
     val metaBuild = base / "project" / "project" / "plugins.sbt"
 
     metaBuild.exists() && IO.readLines(metaBuild).exists(pluginRegex.findFirstIn(_).isDefined)
+  }
+
+  /** Reads the current plugin version from `project/project/plugins.sbt` or `project/plugins.sbt`.
+    *
+    * Returns the plugin as a [[DependencyDiff.ResolvedDep]] if found, or `None` if neither file contains a matching
+    * `addSbtPlugin` line.
+    */
+  private def readPluginVersion(state: State): Option[DependencyDiff.ResolvedDep] = {
+    val project = Project.extract(state)
+
+    val base       = project.get(ThisBuild / baseDirectory)
+    val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
+    val pluginName = project.get(Keys.sbtDependenciesPluginName)
+
+    val escapedOrg = pluginOrg.replace(".", """\.""")
+
+    val pluginRegex =
+      s"""addSbtPlugin\\s*\\(\\s*"$escapedOrg"\\s*%\\s*"$pluginName"\\s*%\\s*"([^"]+)"\\s*\\).*""".r
+
+    val metaBuild    = base / "project" / "project" / "plugins.sbt"
+    val regularBuild = base / "project" / "plugins.sbt"
+
+    def extractFrom(file: File): Option[DependencyDiff.ResolvedDep] =
+      if (!file.exists()) None
+      else
+        IO.readLines(file).collectFirst { case pluginRegex(version) =>
+          DependencyDiff.ResolvedDep(pluginOrg, pluginName, version)
+        }
+
+    extractFrom(metaBuild).orElse(extractFrom(regularBuild))
   }
 
   private def generateSnapshot(state: State): Map[String, Set[DependencyDiff.ResolvedDep]] = {
@@ -598,6 +657,7 @@ class Commands {
     IO.delete(outputDir / ".sbt-dependency-snapshot")
     IO.delete(outputDir / ".sbt-dependency-diff")
     IO.delete(outputDir / ".sbt-build-snapshot")
+    IO.delete(outputDir / ".sbt-plugin-snapshot")
 
     val remaining = ListBuffer(steps: _*)
 

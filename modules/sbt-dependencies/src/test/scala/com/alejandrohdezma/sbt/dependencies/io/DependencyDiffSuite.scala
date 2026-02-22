@@ -361,6 +361,59 @@ class DependencyDiffSuite extends munit.FunSuite {
     assertNoDiff(result, expected)
   }
 
+  // --- compute with plugin snapshot merging ---
+
+  test("compute detects plugin version update when merged into sbt-build group") {
+    val buildDeps   = Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0"))
+    val pluginDep   = ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0")
+    val updatedPlug = ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "2.0.0")
+
+    val before = Map("sbt-build" -> (buildDeps + pluginDep))
+    val after  = Map("sbt-build" -> (buildDeps + updatedPlug))
+
+    val result = compute(before, after)
+
+    val expected = Map(
+      "sbt-build" -> ProjectDiff(
+        updated = List(UpdatedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0", "2.0.0")),
+        added = Nil,
+        removed = Nil
+      )
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("compute returns empty diff when plugin version is unchanged") {
+    val deps = Set(
+      ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0"),
+      ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")
+    )
+    val before = Map("sbt-build" -> deps)
+    val after  = Map("sbt-build" -> deps)
+
+    val result = compute(before, after)
+
+    assertEquals(result, Map.empty[String, ProjectDiff])
+  }
+
+  test("compute detects plugin as added when only in after") {
+    val before = Map("sbt-build" -> Set.empty[ResolvedDep])
+    val after  = Map("sbt-build" -> Set(ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0")))
+
+    val result = compute(before, after)
+
+    val expected = Map(
+      "sbt-build" -> ProjectDiff(
+        updated = Nil,
+        added = List(ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0")),
+        removed = Nil
+      )
+    )
+
+    assertEquals(result, expected)
+  }
+
   def fileFixture: FunFixture[File] = FunFixture[File](
     setup = { _ =>
       val file = Files.createTempFile("snapshot", ".txt").toFile
