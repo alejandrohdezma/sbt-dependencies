@@ -5,10 +5,13 @@ Manage SBT dependencies from a single YAML file with version markers, auto-updat
 - Manage all dependencies in a single [`project/dependencies.conf`](#user-content-define-dependencies) file (HOCON format).
 - [Update dependencies](#user-content-update-project-dependencies) to their latest versions with a single command.
 - Control updates with [version markers](#user-content-pin-a-dependency): pin, restrict to major, or restrict to minor.
+- Document pinning decisions with [dependency notes](#user-content-add-a-note-to-a-pinned-dependency).
+- [Mark dependencies as intransitive](#user-content-mark-a-dependency-as-intransitive) to exclude transitive dependencies.
 - Automatically [migrate renamed artifacts](#user-content-configure-artifact-migrations) using Scala Steward's migration list.
 - [Exclude known-bad versions](#user-content-configure-update-ignores) from updates using Scala Steward's ignore list.
 - Automatically exclude [retracted versions](#user-content-configure-retracted-versions) from updates using Scala Steward's retraction list.
 - [Pin updates to allowed versions](#user-content-configure-update-pins) using Scala Steward's pin list.
+- Generate [post-update hooks](#user-content-configure-post-update-hooks) and [scalafix migrations](#user-content-configure-scalafix-migrations) for CI automation using Scala Steward's configuration.
 - Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
 - Share versions across dependencies with [version variables](#user-content-use-shared-version-variables), including [BOM support](https://github.com/heremaps/here-sbt-bom).
 - [VS Code / Cursor extension](#vs-code--cursor-extension) with syntax highlighting for `dependencies.conf`.
@@ -18,7 +21,7 @@ Manage SBT dependencies from a single YAML file with version markers, auto-updat
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.16.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.17.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -52,6 +55,8 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Use cross-compiled (Scala) dependencies](#user-content-use-cross-compiled-dependencies)
   + [Filter dependencies by Scala version](#user-content-filter-by-scala-version)
   + [Pin a dependency to a specific version](#user-content-pin-a-dependency)
+  + [Add a note to a pinned dependency](#user-content-add-a-note-to-a-pinned-dependency)
+  + [Mark a dependency as intransitive](#user-content-mark-a-dependency-as-intransitive)
   + [Use shared version variables](#user-content-use-shared-version-variables)
   + [Configure Scala versions](#user-content-configure-scala-versions)
   + [Use the advanced group format](#user-content-use-advanced-group-format)
@@ -69,6 +74,8 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Configure update ignores](#user-content-configure-update-ignores)
   + [Configure retracted versions](#user-content-configure-retracted-versions)
   + [Configure update pins](#user-content-configure-update-pins)
+  + [Configure post-update hooks](#user-content-configure-post-update-hooks)
+  + [Configure scalafix migrations](#user-content-configure-scalafix-migrations)
   + [Show library dependencies](#user-content-show-library-dependencies)
   + [Get all resolved dependencies](#user-content-get-all-resolved-dependencies)
   + [Validate resolved dependencies](#user-content-validate-resolved-dependencies)
@@ -174,6 +181,71 @@ my-project = [
   "io.circe::circe-core:~0.14.6"      # Updated within 0.14.x only
 ]
 ```
+
+---
+
+</details>
+
+<details><summary><b id="add-a-note-to-a-pinned-dependency">Add a note to a pinned dependency</b></summary><br/>
+
+When pinning a dependency with a [version marker](#user-content-pin-a-dependency), you can add a note explaining why using an object format:
+
+```hocon
+my-project = [
+  { dependency = "org.typelevel::cats-core:=2.10.0", note = "v3 drops Scala 2.12" }
+]
+```
+
+Long notes are automatically formatted across multiple lines:
+
+```hocon
+my-project = [
+  {
+    dependency = "org.http4s::http4s-core:~0.21.34"
+    note = "Pinned to 0.21.x because the EntityEncoder changes in 0.22 require a full rewrite of our streaming layer"
+  }
+]
+```
+
+Both formats (plain strings and objects with notes) can coexist in the same dependency list. Notes are preserved through `updateDependencies` — only the version is updated while the note remains unchanged.
+
+---
+
+</details>
+
+<details><summary><b id="mark-a-dependency-as-intransitive">Mark a dependency as intransitive</b></summary><br/>
+
+Use the object format with `intransitive = true` to exclude transitive dependencies:
+
+```hocon
+my-project = [
+  { dependency = "org.http4s::http4s-core:0.23.3", intransitive = true }
+]
+```
+
+This applies `.intransitive()` to the `ModuleID`, preventing SBT from pulling in its transitive dependencies.
+
+You can combine `intransitive` with a `note` to document why:
+
+```hocon
+my-project = [
+  { dependency = "org.http4s::http4s-core:0.23.3", intransitive = true, note = "We only need the core types" }
+]
+```
+
+Both single-line and multi-line formats are supported. Long entries are automatically formatted across multiple lines:
+
+```hocon
+my-project = [
+  {
+    dependency = "org.http4s::http4s-core:0.23.3"
+    note = "We only need the core types, transitive deps conflict with our custom HTTP layer"
+    intransitive = true
+  }
+]
+```
+
+The `intransitive` flag is preserved through `updateDependencies` — only the version is updated.
 
 ---
 
@@ -583,6 +655,109 @@ Each entry requires a `groupId`. The `artifactId` and `version` fields are optio
 - If `artifactId` is omitted, all artifacts in the group are matched.
 - If `version` is omitted, all versions are allowed (the pin has no effect).
 - `version` can be a string (treated as a prefix) or an object with `exact`, `prefix`, `suffix`, or `contains` fields.
+
+---
+
+</details>
+
+<details><summary><b id="configure-post-update-hooks">Configure post-update hooks</b></summary><br/>
+
+When `updateAllDependencies` runs, it generates a JSON file at `target/sbt-dependencies/.sbt-post-update-hooks` listing scripts that should be run after updating. This is useful for CI automation — for example, running `sbt scalafixAll` after updating a dependency that ships scalafix rewrite rules, or `sbt headerCreateAll` after updating `sbt-header`.
+
+The hooks are loaded from Scala Steward's [`postUpdateHooks` configuration](https://github.com/scala-steward-org/scala-steward/blob/main/modules/core/src/main/resources/default.scala-steward.conf) by default. Each hook specifies a `groupId`/`artifactId` filter and a `command` to run when a matching dependency is updated.
+
+The output file is a JSON array, parseable with `jq` or similar tools:
+
+```json
+[
+  {"script": "sbt scalafixAll", "message": "Reorganize imports with OrganizeImports 0.6.0"},
+  {"script": "sbt headerCreateAll", "message": "Update file headers with sbt-header 1.2.0"}
+]
+```
+
+You can customize the hook sources using the `dependencyPostUpdateHooks` setting:
+
+```scala
+// Disable all hooks
+ThisBuild / dependencyPostUpdateHooks := Nil
+
+// Add a custom hooks URL
+ThisBuild / dependencyPostUpdateHooks += url("https://example.com/my-hooks.conf")
+
+// Use a local file
+ThisBuild / dependencyPostUpdateHooks += file("hooks.conf").toURI.toURL
+```
+
+Custom hook files use Scala Steward's HOCON format:
+
+```hocon
+postUpdateHooks = [
+  {
+    groupId = "com.github.liancheng"
+    artifactId = "organize-imports"
+    command = ["sbt", "scalafixAll"]
+    commitMessage = "Run OrganizeImports after updating to ${nextVersion}"
+  }
+]
+```
+
+Each entry supports `groupId` (optional), `artifactId` (optional), `command` (string array, required), and `commitMessage` (required). The commit message supports `${nextVersion}`, `${currentVersion}`, and `${artifactName}` variables.
+
+---
+
+</details>
+
+<details><summary><b id="configure-scalafix-migrations">Configure scalafix migrations</b></summary><br/>
+
+When `updateAllDependencies` runs, it also matches [Scala Steward's scalafix migrations](https://github.com/scala-steward-org/scala-steward/blob/main/modules/core/src/main/resources/scalafix-migrations.conf) against updated dependencies. When a dependency update crosses a migration's version threshold, the corresponding scalafix rule is included in the post-update hooks output.
+
+The generated scripts are scoped to the project where the dependency was updated:
+
+```json
+[
+  {"script": "sbt \"scalafixEnable; core/scalafixAll github:typelevel/cats/Cats_v2_2_0?sha=v2.2.0\"", "message": "Run scalafix migration in core: Cats_v2_2_0 (see https://github.com/typelevel/cats/...)"}
+]
+```
+
+For build-level dependencies (plugins in the `sbt-build` group), migrations run the `scalafix` CLI directly on build files instead:
+
+```json
+[
+  {"script": "scalafix --rules=Sbt0_13BuildSyntax", "message": "Run scalafix migration (build): Sbt0_13BuildSyntax"}
+]
+```
+
+When a migration requires extra scalac options (e.g., `-P:semanticdb:synthetics:on`), they are included in the sbt command automatically.
+
+You can customize the migration sources using the `dependencyScalafixMigrations` setting:
+
+```scala
+// Disable all scalafix migrations
+ThisBuild / dependencyScalafixMigrations := Nil
+
+// Add a custom migrations URL
+ThisBuild / dependencyScalafixMigrations += url("https://example.com/my-migrations.conf")
+
+// Use a local file
+ThisBuild / dependencyScalafixMigrations += file("migrations.conf").toURI.toURL
+```
+
+Custom migration files use Scala Steward's HOCON format:
+
+```hocon
+migrations = [
+  {
+    groupId: "org.typelevel"
+    artifactIds: ["cats-core"]
+    newVersion: "2.2.0"
+    rewriteRules: ["github:typelevel/cats/Cats_v2_2_0?sha=v2.2.0"]
+    doc: "https://github.com/typelevel/cats/blob/v2.2.0/scalafix/README.md"
+    scalacOptions: ["-P:semanticdb:synthetics:on"]
+  }
+]
+```
+
+Each entry requires `groupId`, `artifactIds` (regex patterns), `newVersion`, and `rewriteRules`. The `doc` and `scalacOptions` fields are optional. A migration triggers when the dependency's version crosses `newVersion` (i.e., `currentVersion < newVersion <= nextVersion`).
 
 ---
 
