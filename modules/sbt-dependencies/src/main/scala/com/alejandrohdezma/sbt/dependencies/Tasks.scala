@@ -42,7 +42,8 @@ class Tasks {
   val updateDependencies = Def.inputTask {
     implicit val logger: Logger = streams.value.log
 
-    ConfigCache.withCacheDir((ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "config-cache")
+    implicit val configCache: ConfigCache =
+      ConfigCache((ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "config-cache")
 
     val ignoreFinder = IgnoreFinder.fromUrls(Keys.dependencyUpdateIgnores.value)
 
@@ -157,7 +158,8 @@ class Tasks {
   val updateScalaVersions = Def.inputTask {
     implicit val logger: Logger = streams.value.log
 
-    ConfigCache.withCacheDir((ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "config-cache")
+    implicit val configCache: ConfigCache =
+      ConfigCache((ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "config-cache")
 
     val ignoreFinder = IgnoreFinder.fromUrls(Keys.dependencyUpdateIgnores.value)
 

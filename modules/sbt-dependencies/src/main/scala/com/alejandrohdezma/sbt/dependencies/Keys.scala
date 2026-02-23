@@ -200,6 +200,53 @@ class Keys {
     "URLs pointing to update-pin files (Scala Steward HOCON format). Default: Scala Steward's public config"
   }
 
+  /** URLs pointing to post-update hook files in Scala Steward's HOCON format.
+    *
+    * After `updateAllDependencies` computes the dependency diff, hooks from these URLs are matched against updated
+    * dependencies. Matching hooks are written to a JSON output file for CI consumption.
+    *
+    * Default: Scala Steward's public default.scala-steward.conf
+    *
+    * @example
+    *   {{{
+    * // Disable all post-update hooks
+    * ThisBuild / dependencyPostUpdateHooks := Nil
+    *
+    * // Add custom hooks URL
+    * ThisBuild / dependencyPostUpdateHooks += url("https://example.com/my-hooks.conf")
+    *
+    * // Use a local file
+    * ThisBuild / dependencyPostUpdateHooks += file("hooks.conf").toURI.toURL
+    *   }}}
+    */
+  val dependencyPostUpdateHooks = settingKey[List[java.net.URL]] {
+    "URLs pointing to post-update hook files (Scala Steward HOCON format). Default: Scala Steward's public config"
+  }
+
+  /** URLs pointing to scalafix migration files in Scala Steward's HOCON format.
+    *
+    * After `updateAllDependencies` computes the dependency diff, migrations from these URLs are matched against updated
+    * dependencies using version range checks. Matching migrations are written to a JSON output file as scalafix
+    * commands for CI consumption.
+    *
+    * Default: Scala Steward's public scalafix-migrations.conf
+    *
+    * @example
+    *   {{{
+    * // Disable all scalafix migrations
+    * ThisBuild / dependencyScalafixMigrations := Nil
+    *
+    * // Add custom migrations URL
+    * ThisBuild / dependencyScalafixMigrations += url("https://example.com/my-migrations.conf")
+    *
+    * // Use a local file
+    * ThisBuild / dependencyScalafixMigrations += file("migrations.conf").toURI.toURL
+    *   }}}
+    */
+  val dependencyScalafixMigrations = settingKey[List[java.net.URL]] {
+    "URLs pointing to scalafix migration files (Scala Steward HOCON format). Default: Scala Steward's public migrations"
+  }
+
   /** Maximum number of dependencies resolved concurrently.
     *
     * Controls the size of the thread pool used when checking dependency versions.

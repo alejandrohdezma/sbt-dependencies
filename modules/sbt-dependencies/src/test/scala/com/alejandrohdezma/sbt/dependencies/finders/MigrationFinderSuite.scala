@@ -23,12 +23,19 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
+import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 
 class MigrationFinderSuite extends munit.FunSuite {
 
   implicit val logger: Logger = TestLogger()
+
+  private val tempCacheDir = Files.createTempDirectory("config-cache")
+
+  implicit val configCache: ConfigCache = ConfigCache(tempCacheDir.toFile())
+
+  override def afterAll(): Unit = IO.delete(tempCacheDir.toFile())
 
   private def dep(org: String, name: String) = Dependency.WithNumericVersion(
     org,

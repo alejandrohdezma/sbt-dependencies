@@ -22,11 +22,18 @@ import sbt.IO
 import sbt.util.Level
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
+import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 
 class RetractionFinderSuite extends munit.FunSuite {
 
   implicit val logger: TestLogger = TestLogger()
+
+  private val tempCacheDir = Files.createTempDirectory("config-cache")
+
+  implicit val configCache: ConfigCache = ConfigCache(tempCacheDir.toFile())
+
+  override def afterAll(): Unit = IO.delete(tempCacheDir.toFile())
 
   override def beforeEach(context: BeforeEach): Unit = logger.cleanLogs()
 

@@ -20,22 +20,28 @@ import java.io.File
 import java.net.URL
 import java.nio.file.Files
 
+import scala.Console._
+import scala.util.Try
+
 import sbt.IO
-import sbt.util.Logger
+import sbt.util.Level
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
+import com.typesafe.config.ConfigFactory
 
 class ArtifactMigrationSuite extends munit.FunSuite {
 
-  implicit val logger: Logger = TestLogger()
+  implicit val logger: TestLogger = TestLogger()
 
   private val tempCacheDir = Files.createTempDirectory("config-cache")
 
-  override def beforeAll(): Unit = ConfigCache.withCacheDir(tempCacheDir.toFile())
+  implicit val configCache: ConfigCache = ConfigCache(tempCacheDir.toFile())
 
   override def afterAll(): Unit = IO.delete(tempCacheDir.toFile())
+
+  override def beforeEach(context: BeforeEach): Unit = logger.cleanLogs()
 
   def withMigrationFile(contents: String*) = FunFixture[List[URL]](
     setup = { _ =>
@@ -65,11 +71,11 @@ class ArtifactMigrationSuite extends munit.FunSuite {
   }.test("loadFromUrls parses group-only change") { files =>
     val migrations = ArtifactMigration.loadFromUrls(files)
 
-    assertEquals(migrations.length, 1)
-    assertEquals(migrations.head.groupIdBefore, Some("com.typesafe.play"))
-    assertEquals(migrations.head.groupIdAfter, "org.playframework")
-    assertEquals(migrations.head.artifactIdBefore, None)
-    assertEquals(migrations.head.artifactIdAfter, "play-json")
+    val expected = List(
+      ArtifactMigration(Some("com.typesafe.play"), "org.playframework", None, "play-json")
+    )
+
+    assertEquals(migrations, expected)
   }
 
   withMigrationFile {
@@ -84,11 +90,11 @@ class ArtifactMigrationSuite extends munit.FunSuite {
   }.test("loadFromUrls parses artifact-only change") { files =>
     val migrations = ArtifactMigration.loadFromUrls(files)
 
-    assertEquals(migrations.length, 1)
-    assertEquals(migrations.head.groupIdBefore, None)
-    assertEquals(migrations.head.groupIdAfter, "org.typelevel")
-    assertEquals(migrations.head.artifactIdBefore, Some("cats-core"))
-    assertEquals(migrations.head.artifactIdAfter, "cats-core-new")
+    val expected = List(
+      ArtifactMigration(None, "org.typelevel", Some("cats-core"), "cats-core-new")
+    )
+
+    assertEquals(migrations, expected)
   }
 
   withMigrationFile {
@@ -104,11 +110,11 @@ class ArtifactMigrationSuite extends munit.FunSuite {
   }.test("loadFromUrls parses both group and artifact change") { files =>
     val migrations = ArtifactMigration.loadFromUrls(files)
 
-    assertEquals(migrations.length, 1)
-    assertEquals(migrations.head.groupIdBefore, Some("com.old.group"))
-    assertEquals(migrations.head.groupIdAfter, "com.new.group")
-    assertEquals(migrations.head.artifactIdBefore, Some("old-name"))
-    assertEquals(migrations.head.artifactIdAfter, "new-name")
+    val expected = List(
+      ArtifactMigration(Some("com.old.group"), "com.new.group", Some("old-name"), "new-name")
+    )
+
+    assertEquals(migrations, expected)
   }
 
   withMigrationFile {
@@ -128,7 +134,12 @@ class ArtifactMigrationSuite extends munit.FunSuite {
   }.test("loadFromUrls parses multiple migrations from single file") { urls =>
     val migrations = ArtifactMigration.loadFromUrls(urls)
 
-    assertEquals(migrations.length, 2)
+    val expected = List(
+      ArtifactMigration(Some("com.old1"), "com.new1", None, "artifact1"),
+      ArtifactMigration(Some("com.old2"), "com.new2", None, "artifact2")
+    )
+
+    assertEquals(migrations, expected)
   }
 
   withMigrationFile(
@@ -156,8 +167,13 @@ class ArtifactMigrationSuite extends munit.FunSuite {
   ).test("loadFromUrls combines migrations from multiple URLs") { urls =>
     val migrations = ArtifactMigration.loadFromUrls(urls)
 
-    assertEquals(migrations.length, 3)
-    assertEquals(migrations.map(_.groupIdBefore), List(Some("com.first"), Some("com.second"), Some("com.third")))
+    val expected = List(
+      ArtifactMigration(Some("com.first"), "com.first.new", None, "artifact1"),
+      ArtifactMigration(Some("com.second"), "com.second.new", None, "artifact2"),
+      ArtifactMigration(Some("com.third"), "com.third.new", None, "artifact3")
+    )
+
+    assertEquals(migrations, expected)
   }
 
   withMigrationFile {
@@ -168,12 +184,17 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       |  }
       |]
       |""".stripMargin
-  }.test("loadFromUrls fails when entry missing both groupIdBefore and artifactIdBefore") { urls =>
-    val expectedMessage = "Migration entry at index 0 must have at least one of 'groupIdBefore' or 'artifactIdBefore'"
+  }.test("loadFromUrls warns and skips when entry missing both groupIdBefore and artifactIdBefore") { urls =>
+    val migrations = ArtifactMigration.loadFromUrls(urls)
 
-    interceptMessage[RuntimeException](expectedMessage) {
-      ArtifactMigration.loadFromUrls(urls)
-    }
+    assertEquals(migrations, Nil)
+
+    val expectedLogs = List(
+      s"⚠ Skipping malformed ${ArtifactMigration.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+        "must have at least one of 'groupIdBefore' or 'artifactIdBefore'"
+    )
+
+    assertEquals(logger.getLogs(Level.Warn), expectedLogs)
   }
 
   withMigrationFile {
@@ -184,12 +205,17 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       |  }
       |]
       |""".stripMargin
-  }.test("loadFromUrls fails when entry missing groupIdAfter") { urls =>
-    val expectedMessage = "Migration entry at index 0 must have a 'groupIdAfter'"
+  }.test("loadFromUrls warns and skips when entry missing groupIdAfter") { urls =>
+    val migrations = ArtifactMigration.loadFromUrls(urls)
 
-    interceptMessage[RuntimeException](expectedMessage) {
-      ArtifactMigration.loadFromUrls(urls)
-    }
+    assertEquals(migrations, Nil)
+
+    val expectedLogs = List(
+      s"⚠ Skipping malformed ${ArtifactMigration.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+        "must have a 'groupIdAfter'"
+    )
+
+    assertEquals(logger.getLogs(Level.Warn), expectedLogs)
   }
 
   withMigrationFile {
@@ -200,21 +226,28 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       |  }
       |]
       |""".stripMargin
-  }.test("loadFromUrls fails when entry missing artifactIdAfter") { urls =>
-    val expectedMessage = "Migration entry at index 0 must have a 'artifactIdAfter'"
+  }.test("loadFromUrls warns and skips when entry missing artifactIdAfter") { urls =>
+    val migrations = ArtifactMigration.loadFromUrls(urls)
 
-    interceptMessage[RuntimeException](expectedMessage) {
-      ArtifactMigration.loadFromUrls(urls)
-    }
+    assertEquals(migrations, Nil)
+
+    val expectedLogs = List(
+      s"⚠ Skipping malformed ${ArtifactMigration.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+        "must have a 'artifactIdAfter'"
+    )
+
+    assertEquals(logger.getLogs(Level.Warn), expectedLogs)
   }
 
-  withMigrationFile("not valid hocon {{{").test("loadFromUrls fails for invalid HOCON") { urls =>
-    val expectedMessage =
-      s"Failed to parse migration file ${urls.head}: ${urls.head.toExternalForm().stripPrefix("file:")}: 1: expecting a close parentheses ')' here, not: '{'"
+  withMigrationFile("not valid hocon {{{").test("loadFromUrls warns and skips for invalid HOCON") { urls =>
+    val migrations = ArtifactMigration.loadFromUrls(urls)
 
-    interceptMessage[RuntimeException](expectedMessage) {
-      ArtifactMigration.loadFromUrls(urls)
-    }
+    val parseError = Try(ConfigFactory.parseURL(urls.head)).failed.get.getMessage
+
+    val expectedLogs = List(s"Failed to parse config from ${urls.head}: $parseError")
+
+    assertEquals(migrations, Nil: List[ArtifactMigration])
+    assertEquals(logger.getLogs(Level.Warn), expectedLogs)
   }
 
   withMigrationFile {
@@ -222,12 +255,17 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       |  { foo = bar }
       |]
       |""".stripMargin
-  }.test("loadFromUrls fails when changes key is missing") { urls =>
-    val expectedMessage = "Migration file must contain a 'changes' array"
+  }.test("loadFromUrls warns and skips when changes key is missing") { urls =>
+    val migrations = ArtifactMigration.loadFromUrls(urls)
 
-    interceptMessage[RuntimeException](expectedMessage) {
-      ArtifactMigration.loadFromUrls(urls)
-    }
+    assertEquals(migrations, Nil)
+
+    val expectedLogs = List(
+      s"⚠ Skipping malformed ${ArtifactMigration.name} from $CYAN${urls.head}$RESET: " +
+        "must have a 'changes' array"
+    )
+
+    assertEquals(logger.getLogs(Level.Warn), expectedLogs)
   }
 
   test("loadFromUrls returns empty list for empty URL list") {
@@ -239,7 +277,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
   test("loadFromUrls can load Scala Steward's default migration file") {
     val migrations = ArtifactMigration.loadFromUrls(ArtifactMigration.default)
 
-    assert(migrations.nonEmpty)
+    assertEquals(migrations.nonEmpty, true)
   }
 
   // --- Matching tests ---
@@ -259,7 +297,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       artifactIdAfter = "play-json"
     )
 
-    assert(migration.matches(dep("com.typesafe.play", "play-json")))
+    assertEquals(migration.matches(dep("com.typesafe.play", "play-json")), true)
   }
 
   test("matches returns true for artifact-only migration") {
@@ -270,7 +308,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       artifactIdAfter = "cats-core-new"
     )
 
-    assert(migration.matches(dep("org.typelevel", "cats-core")))
+    assertEquals(migration.matches(dep("org.typelevel", "cats-core")), true)
   }
 
   test("matches returns true for both group and artifact migration") {
@@ -281,7 +319,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       artifactIdAfter = "new-name"
     )
 
-    assert(migration.matches(dep("com.old", "old-name")))
+    assertEquals(migration.matches(dep("com.old", "old-name")), true)
   }
 
   test("matches returns false for non-matching group") {
@@ -292,7 +330,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       artifactIdAfter = "play-json"
     )
 
-    assert(!migration.matches(dep("com.other.group", "play-json")))
+    assertEquals(migration.matches(dep("com.other.group", "play-json")), false)
   }
 
   test("matches returns false for non-matching artifact") {
@@ -303,7 +341,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       artifactIdAfter = "play-json"
     )
 
-    assert(!migration.matches(dep("com.typesafe.play", "other-artifact")))
+    assertEquals(migration.matches(dep("com.typesafe.play", "other-artifact")), false)
   }
 
   test("matches returns false when artifact does not match artifactIdAfter (group-only migration)") {
@@ -315,7 +353,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
     )
 
     // In group-only migration, artifact must match artifactIdAfter
-    assert(!migration.matches(dep("com.typesafe.play", "play-ws")))
+    assertEquals(migration.matches(dep("com.typesafe.play", "play-ws")), false)
   }
 
 }

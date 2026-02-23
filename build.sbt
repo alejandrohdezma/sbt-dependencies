@@ -24,7 +24,7 @@ lazy val documentation = project
 lazy val `sbt-dependencies` = module
   .enablePlugins(SbtPlugin)
   .settings(scriptedLaunchOpts += s"-Dplugin.version=${version.value}")
-  .settings(scriptedBufferLog := false)
+  .settings(scriptedBufferLog := true)
   .settings(scriptedBatchExecution := true)
   .settings(scriptedParallelInstances := 5)
   .enablePlugins(BuildInfoPlugin)

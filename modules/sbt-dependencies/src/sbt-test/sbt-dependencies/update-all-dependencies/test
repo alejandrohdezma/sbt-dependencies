@@ -9,3 +9,6 @@
 
 # Validate the diff file matches expected output
 $ must-mirror target/sbt-dependencies/.sbt-dependency-diff expected-diff
+
+# Validate the post-update hooks JSON matches expected output
+$ must-mirror target/sbt-dependencies/.sbt-post-update-hooks expected-scripts

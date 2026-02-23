@@ -20,6 +20,8 @@ import java.io.File
 import java.net.URL
 import java.nio.file.Files
 
+import scala.Console._
+
 import sbt.IO
 import sbt.util.Level
 
@@ -31,7 +33,7 @@ class UpdatePinSuite extends munit.FunSuite {
 
   private val tempCacheDir = Files.createTempDirectory("config-cache")
 
-  override def beforeAll(): Unit = ConfigCache.withCacheDir(tempCacheDir.toFile())
+  implicit val configCache: ConfigCache = ConfigCache(tempCacheDir.toFile())
 
   override def afterAll(): Unit = IO.delete(tempCacheDir.toFile())
 
@@ -173,7 +175,13 @@ class UpdatePinSuite extends munit.FunSuite {
     val pins = UpdatePin.loadFromUrls(urls)
 
     assertEquals(pins, Nil)
-    assert(logger.getLogs(Level.Warn).exists(_.contains("entry at index 0 must have a 'groupId'")))
+
+    val expectedLogs = List(
+      s"⚠ Skipping malformed ${UpdatePin.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+        "must have a 'groupId'"
+    )
+
+    assertEquals(logger.getLogs(Level.Warn), expectedLogs)
   }
 
   test("loadFromUrls returns empty list for empty URL list") {
@@ -185,7 +193,7 @@ class UpdatePinSuite extends munit.FunSuite {
   test("loadFromUrls can load Scala Steward's default config without crash") {
     val pins = UpdatePin.loadFromUrls(UpdatePin.default)
 
-    assert(pins.size >= 0)
+    assertEquals(pins.size >= 0, true)
   }
 
   // --- matchesArtifact tests ---
@@ -193,26 +201,26 @@ class UpdatePinSuite extends munit.FunSuite {
   test("matchesArtifact returns true for matching groupId and artifactId") {
     val pin = UpdatePin("org.http4s", Some("http4s-core"))
 
-    assert(pin.matchesArtifact("org.http4s", "http4s-core"))
+    assertEquals(pin.matchesArtifact("org.http4s", "http4s-core"), true)
   }
 
   test("matchesArtifact returns false for non-matching groupId") {
     val pin = UpdatePin("org.http4s", Some("http4s-core"))
 
-    assert(!pin.matchesArtifact("org.typelevel", "http4s-core"))
+    assertEquals(pin.matchesArtifact("org.typelevel", "http4s-core"), false)
   }
 
   test("matchesArtifact returns true for any artifact when artifactId is None") {
     val pin = UpdatePin("org.http4s")
 
-    assert(pin.matchesArtifact("org.http4s", "http4s-core"))
-    assert(pin.matchesArtifact("org.http4s", "http4s-dsl"))
+    assertEquals(pin.matchesArtifact("org.http4s", "http4s-core"), true)
+    assertEquals(pin.matchesArtifact("org.http4s", "http4s-dsl"), true)
   }
 
   test("matchesArtifact returns false for non-matching artifactId") {
     val pin = UpdatePin("org.http4s", Some("http4s-core"))
 
-    assert(!pin.matchesArtifact("org.http4s", "http4s-dsl"))
+    assertEquals(pin.matchesArtifact("org.http4s", "http4s-dsl"), false)
   }
 
   // --- matchesVersion tests ---
@@ -220,20 +228,20 @@ class UpdatePinSuite extends munit.FunSuite {
   test("matchesVersion returns true for matching version") {
     val pin = UpdatePin("org.http4s", version = Some(VersionPattern(prefix = Some("0.23."))))
 
-    assert(pin.matchesVersion("0.23.10"))
+    assertEquals(pin.matchesVersion("0.23.10"), true)
   }
 
   test("matchesVersion returns false for non-matching version") {
     val pin = UpdatePin("org.http4s", version = Some(VersionPattern(prefix = Some("0.23."))))
 
-    assert(!pin.matchesVersion("1.0.0"))
+    assertEquals(pin.matchesVersion("1.0.0"), false)
   }
 
   test("matchesVersion returns true when version pattern is None") {
     val pin = UpdatePin("org.http4s")
 
-    assert(pin.matchesVersion("1.0.0"))
-    assert(pin.matchesVersion("0.23.10"))
+    assertEquals(pin.matchesVersion("1.0.0"), true)
+    assertEquals(pin.matchesVersion("0.23.10"), true)
   }
 
   //////////////

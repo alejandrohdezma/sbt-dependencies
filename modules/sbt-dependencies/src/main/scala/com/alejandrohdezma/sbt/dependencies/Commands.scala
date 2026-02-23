@@ -24,6 +24,8 @@ import sbt.Keys._
 import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
+import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
+import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
 import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
@@ -33,6 +35,7 @@ import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff
 import com.alejandrohdezma.sbt.dependencies.io.Scalafmt
+import com.alejandrohdezma.sbt.dependencies.io.UpdateScript
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -44,7 +47,7 @@ class Commands {
   val all = Seq(initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies,
     installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
     enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, snapshotSbtPlugin, snapshotSbtVersion,
-    computeDependencyDiff)
+    computeDependencyDiff, computePostUpdateHooks)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -152,6 +155,7 @@ class Commands {
       "updateSbt",                 // Update sbt version in build.properties
       "disableEvictionWarnings",   // Re-lower eviction errors (lost after reload)
       "computeDependencyDiff",     // Compute main diff and merge sbt-build diff
+      "computePostUpdateHooks",    // Match hooks/migrations against diff, write JSON output
       "enableEvictionWarnings"     // Restore eviction errors
     )
 
@@ -166,7 +170,8 @@ class Commands {
 
     val project = Project.extract(state)
 
-    ConfigCache.withCacheDir(project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / "config-cache")
+    implicit val configCache: ConfigCache =
+      ConfigCache(project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / "config-cache")
 
     val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
@@ -315,7 +320,8 @@ class Commands {
 
     val base = project.get(ThisBuild / baseDirectory)
 
-    ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
+    implicit val configCache: ConfigCache =
+      ConfigCache(base / "target" / "sbt-dependencies" / "config-cache")
 
     logger.info("\n↻ Checking for new versions of Scalafmt\n")
 
@@ -339,7 +345,8 @@ class Commands {
 
     val base = project.get(ThisBuild / baseDirectory)
 
-    ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
+    implicit val configCache: ConfigCache =
+      ConfigCache(base / "target" / "sbt-dependencies" / "config-cache")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -556,6 +563,44 @@ class Commands {
     state
   }
 
+  /** Reads the dependency diff and matches it against post-update hooks and scalafix migrations.
+    *
+    * Writes a JSON file to `target/sbt-dependencies/.sbt-post-update-hooks` listing scripts to run.
+    */
+  lazy val computePostUpdateHooks = Command.command("computePostUpdateHooks") { state =>
+    Try {
+      implicit val logger: Logger = state.log
+
+      val project = Project.extract(state)
+
+      val base      = project.get(ThisBuild / baseDirectory)
+      val outputDir = base / "target" / "sbt-dependencies"
+      val diffFile  = outputDir / ".sbt-dependency-diff"
+
+      if (diffFile.exists()) {
+        implicit val configCache: ConfigCache = ConfigCache(outputDir / "config-cache")
+
+        val diffs = DependencyDiff.readDiff(diffFile)
+
+        val hooks = PostUpdateHook.loadFromUrls(project.get(ThisBuild / Keys.dependencyPostUpdateHooks))
+
+        val migrations = ScalafixMigration.loadFromUrls(project.get(ThisBuild / Keys.dependencyScalafixMigrations))
+
+        val scripts = UpdateScript.fromHooks(hooks, diffs) ++ UpdateScript.fromMigrations(migrations, diffs)
+
+        if (scripts.nonEmpty) {
+          val json = UpdateScript.toJson(scripts)
+
+          IO.write(outputDir / ".sbt-post-update-hooks", json)
+
+          logger.info(s"✎ Wrote ${scripts.size} post-update hook(s) to $outputDir/.sbt-post-update-hooks")
+        }
+      }
+    }.onError { case e => state.log.warn(s"Unable to compute post-update hooks: ${e.getMessage}") }
+
+    state
+  }
+
   private def isPluginInMetaBuild(state: State): Boolean = {
     val project    = Project.extract(state)
     val base       = project.get(ThisBuild / baseDirectory)
@@ -638,7 +683,10 @@ class Commands {
     snapshot
   }
 
-  def getVersionFinder(state: State, scalaBinaryVersion: String)(implicit logger: Logger): VersionFinder = {
+  def getVersionFinder(state: State, scalaBinaryVersion: String)(implicit
+      logger: Logger,
+      configCache: ConfigCache
+  ): VersionFinder = {
     val project = Project.extract(state)
 
     VersionFinder
@@ -661,7 +709,8 @@ class Commands {
 
     if (!file.exists() || !dependenciesFile.hasGroup(`sbt-build`)) state
     else {
-      ConfigCache.withCacheDir(base / "target" / "sbt-dependencies" / "config-cache")
+      implicit val configCache: ConfigCache =
+        ConfigCache(base / "target" / "sbt-dependencies" / "config-cache")
 
       val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
@@ -684,6 +733,7 @@ class Commands {
     IO.delete(outputDir / ".sbt-build-snapshot")
     IO.delete(outputDir / ".sbt-plugin-snapshot")
     IO.delete(outputDir / ".sbt-version-snapshot")
+    IO.delete(outputDir / ".sbt-post-update-hooks")
 
     val remaining = ListBuffer(steps: _*)
 

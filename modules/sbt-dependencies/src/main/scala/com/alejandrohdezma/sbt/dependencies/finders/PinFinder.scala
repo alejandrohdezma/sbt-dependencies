@@ -20,6 +20,7 @@ import java.net.URL
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdatePin
 
 /** Abstraction for checking if a dependency version is allowed by pin constraints.
@@ -46,7 +47,7 @@ trait PinFinder {
 object PinFinder {
 
   /** Creates a PinFinder that loads pin patterns from the given URLs. */
-  def fromUrls(urls: List[URL])(implicit logger: Logger): PinFinder = {
+  def fromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): PinFinder = {
     val pins = UpdatePin.loadFromUrls(urls)
 
     (organization, name, version) =>

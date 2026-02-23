@@ -19,25 +19,37 @@ package com.alejandrohdezma.sbt
 import scala.util.Failure
 import scala.util.Try
 
-import com.typesafe.config.Config
+import com.alejandrohdezma.sbt.dependencies.model.Eq
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 package object dependencies {
 
-  implicit class ConfigOps(config: Config) {
+  implicit class EitherStringOps[A](either: Either[String, A]) {
 
-    /** Gets a string value from the config or `None` if the path does not exist.
-      *
-      * @throws com.typesafe.config.ConfigException.WrongType
-      *   if the path is not a string.
-      */
-    def get(path: String): Option[String] =
-      if (config.hasPath(path)) Some(config.getString(path)) else None
+    /** Runs a side effect when the value inside the `Either` is a left. */
+    def onLeft(f: String => Unit): Either[String, A] = either match {
+      case Left(value) =>
+        f(value)
+        either
+      case Right(_) =>
+        either
+    }
+
+  }
+
+  implicit class ListOps[A](list: List[A]) {
+
+    /** Returns a deduplicated list by the given function. */
+    def distinctBy[B: Eq](f: A => B): List[A] = list.foldLeft(List.empty[A]) {
+      case (acc, a) if acc.exists(a2 => f(a2) === f(a)) => acc
+      case (acc, a)                                     => acc :+ a
+    }
 
   }
 
   implicit class TryOps[A](tryA: Try[A]) {
 
-    /** Runs a side effect When the value inside the `Try` is a failure. */
+    /** Runs a side effect when the value inside the `Try` is a failure. */
     def onError(f: PartialFunction[Throwable, Unit]): Try[A] = tryA.recoverWith {
       case e if f.isDefinedAt(e) =>
         f(e)

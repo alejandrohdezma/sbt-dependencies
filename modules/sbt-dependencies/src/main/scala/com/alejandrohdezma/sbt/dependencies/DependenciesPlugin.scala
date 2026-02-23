@@ -22,7 +22,9 @@ import sbt.Keys._
 import sbt._
 
 import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
+import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.RetractedArtifact
+import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdateIgnore
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdatePin
 
@@ -57,6 +59,8 @@ object DependenciesPlugin extends AutoPlugin {
     dependencyUpdateRetractions       := RetractedArtifact.default,
     dependencyUpdateIgnores           := UpdateIgnore.default,
     dependencyUpdatePins              := UpdatePin.default,
+    dependencyPostUpdateHooks         := PostUpdateHook.default,
+    dependencyScalafixMigrations      := ScalafixMigration.default,
     dependencyResolverTimeout         := 60,
     dependencyResolverParallelism     := Runtime.getRuntime.availableProcessors,
     dependenciesManagedScalaVersions  := Settings.buildScalaVersions.value.nonEmpty,

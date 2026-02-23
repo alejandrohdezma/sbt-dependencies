@@ -435,6 +435,32 @@ class DependencyDiffSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  // --- readDiff ---
+
+  fileFixture.test("readDiff round-trips with toHocon") { file =>
+    val diffs = Map(
+      "core" -> ProjectDiff(
+        updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
+        added = List(ResolvedDep("org.typelevel", "cats-parse_2.13", "1.1.0")),
+        removed = List(ResolvedDep("org.typelevel", "cats-macros_2.13", "2.9.0"))
+      )
+    )
+
+    sbt.io.IO.write(file, toHocon(diffs))
+
+    val result = readDiff(file)
+
+    assertEquals(result, diffs)
+  }
+
+  fileFixture.test("readDiff returns empty map for non-existent file") { file =>
+    file.delete()
+
+    val result = readDiff(file)
+
+    assertEquals(result, Map.empty[String, ProjectDiff])
+  }
+
   def fileFixture: FunFixture[File] = FunFixture[File](
     setup = { _ =>
       val file = Files.createTempFile("snapshot", ".txt").toFile
