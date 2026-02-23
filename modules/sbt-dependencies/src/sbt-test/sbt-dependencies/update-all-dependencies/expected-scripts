@@ -1,0 +1,5 @@
+[
+  {"script": "sbt headerCreateAll", "message": "Update license headers after updating cats to 2.6.1"},
+  {"script": "sbt \"scalafixEnable; myproject/scalafixAll dependency:v0_21@org.http4s::http4s-scalafix:0.21.5\"", "message": "Run scalafix migration in myproject: dependency:v0_21@org.http4s::http4s-scalafix:0.21.5 (see https://github.com/http4s/http4s/releases/tag/v0.21.5)"},
+  {"script": "sbt \"scalafixEnable; myproject/scalafixAll github:functional-streams-for-scala/fs2/v1?sha=v2.5.0\"", "message": "Run scalafix migration in myproject: github:functional-streams-for-scala/fs2/v1?sha=v2.5.0"}
+]
