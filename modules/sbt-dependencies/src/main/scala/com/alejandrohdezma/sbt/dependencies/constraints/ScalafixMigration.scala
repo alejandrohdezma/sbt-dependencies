@@ -18,8 +18,15 @@ package com.alejandrohdezma.sbt.dependencies.constraints
 
 import sbt.url
 
+import scala.math.Ordering.Implicits._
 import com.alejandrohdezma.sbt.dependencies.config._
 import com.typesafe.config.Config
+
+import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff.UpdatedDep
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import java.util.regex.Pattern
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.io.UpdateScript
 
 /** Represents an entry from the `migrations` section of a Scala Steward scalafix migrations configuration file.
   *
@@ -43,7 +50,50 @@ final case class ScalafixMigration(
     rewriteRules: List[String],
     doc: Option[String] = None,
     scalacOptions: List[String] = Nil
-)
+) {
+
+  /** Converts this migration to a script for the given project. */
+  def toScript(project: String): UpdateScript =
+    if (project === "sbt-build") {
+      val docSuffix = doc.map(url => s" (see $url)").getOrElse("")
+
+      UpdateScript(
+        script = s"scalafix ${rewriteRules.map("--rules=" + _).mkString(" ")}",
+        message = s"Run scalafix migration (build): ${rewriteRules.mkString(", ")}$docSuffix"
+      )
+    } else {
+      val scalacOptCmd =
+        if (scalacOptions.isEmpty) ""
+        else s"; set ThisBuild / scalacOptions ++= List(${scalacOptions.map(o => s""""$o"""").mkString(", ")})"
+
+      val docSuffix = doc.map(url => s" (see $url)").getOrElse("")
+
+      val scalafixCmds = rewriteRules.map(rule => s"$project/scalafixAll $rule").mkString("; ")
+
+      UpdateScript(
+        script = s"""sbt "scalafixEnable$scalacOptCmd; $scalafixCmds"""",
+        message = s"Run scalafix migration in $project: ${rewriteRules.mkString(", ")}$docSuffix"
+      )
+    }
+
+  /** Checks if this migration matches the given dependency. */
+  def matches(dep: UpdatedDep): Boolean = {
+    val groupMatches = groupId === dep.organization
+
+    val artifactMatches = artifactIds.exists { regex =>
+      Pattern.compile(regex).matcher(dep.name).matches()
+    }
+
+    val versionMatches = for {
+      from       <- Dependency.Version.Numeric.from(dep.from, Dependency.Version.Numeric.Marker.NoMarker)
+      to         <- Dependency.Version.Numeric.from(dep.to, Dependency.Version.Numeric.Marker.NoMarker)
+      newVersion <- Dependency.Version.Numeric.from(newVersion, Dependency.Version.Numeric.Marker.NoMarker)
+    } yield from < newVersion && to >= newVersion
+
+    groupMatches && artifactMatches && versionMatches.getOrElse(false)
+  }
+
+}
 
 object ScalafixMigration extends Cached[ScalafixMigration] {
 
