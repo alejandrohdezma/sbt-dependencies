@@ -52,7 +52,9 @@ class ScalafixMigrationSuite extends munit.FunSuite {
     val migrations = ScalafixMigration.loadFromUrls(urls)
 
     val expected = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "1.0.0",
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "1.0.0",
       rewriteRules = List("github:functional-streams-for-scala/fs2/v1?sha=v1.0.5")
     )
 
@@ -74,8 +76,10 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
     val expected = List(
       ScalafixMigration(
-        groupId = "co.fs2", artifactIds = List("fs2-core", "fs2-io", "fs2-reactive-streams"),
-        newVersion = "3.0.7", rewriteRules = List("rule1", "rule2")
+        groupId = "co.fs2",
+        artifactIds = List("fs2-core", "fs2-io", "fs2-reactive-streams"),
+        newVersion = "3.0.7",
+        rewriteRules = List("rule1", "rule2")
       )
     )
 
@@ -97,7 +101,9 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
     val expected = List(
       ScalafixMigration(
-        groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "1.0.0",
+        groupId = "co.fs2",
+        artifactIds = List("fs2-.*"),
+        newVersion = "1.0.0",
         rewriteRules = List("github:functional-streams-for-scala/fs2/v1?sha=v1.0.5")
       )
     )
@@ -170,7 +176,10 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
   test("matches returns true when groupId, artifactId regex, and version range match") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "3.0.7", rewriteRules = List("rule1")
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "3.0.7",
+      rewriteRules = List("rule1")
     )
 
     val dep = UpdatedDep("co.fs2", "fs2-core_2.13", "2.5.0", "3.1.0")
@@ -180,7 +189,10 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
   test("matches returns true when to equals newVersion") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "3.0.7", rewriteRules = List("rule1")
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "3.0.7",
+      rewriteRules = List("rule1")
     )
 
     val dep = UpdatedDep("co.fs2", "fs2-core_2.13", "2.5.0", "3.0.7")
@@ -190,7 +202,10 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
   test("matches returns false when groupId does not match") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "3.0.7", rewriteRules = List("rule1")
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "3.0.7",
+      rewriteRules = List("rule1")
     )
 
     val dep = UpdatedDep("org.typelevel", "fs2-core_2.13", "2.5.0", "3.1.0")
@@ -200,7 +215,10 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
   test("matches returns false when artifactId does not match regex") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-core"), newVersion = "3.0.7", rewriteRules = List("rule1")
+      groupId = "co.fs2",
+      artifactIds = List("fs2-core"),
+      newVersion = "3.0.7",
+      rewriteRules = List("rule1")
     )
 
     val dep = UpdatedDep("co.fs2", "fs2-io_2.13", "2.5.0", "3.1.0")
@@ -210,7 +228,10 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
   test("matches returns false when from >= newVersion") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "3.0.7", rewriteRules = List("rule1")
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "3.0.7",
+      rewriteRules = List("rule1")
     )
 
     val dep = UpdatedDep("co.fs2", "fs2-core_2.13", "3.0.7", "3.1.0")
@@ -220,7 +241,10 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
   test("matches returns false when to < newVersion") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "3.0.7", rewriteRules = List("rule1")
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "3.0.7",
+      rewriteRules = List("rule1")
     )
 
     val dep = UpdatedDep("co.fs2", "fs2-core_2.13", "2.5.0", "3.0.6")
@@ -232,7 +256,9 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
   test("toScript generates sbt scalafixAll command for regular project") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "3.0.7",
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "3.0.7",
       rewriteRules = List("replace:fs2.text.utf8Decode/fs2.text.utf8.decode")
     )
 
@@ -246,7 +272,9 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
   test("toScript generates scalafix CLI command for sbt-build project") {
     val migration = ScalafixMigration(
-      groupId = "ch.epfl.scala", artifactIds = List("sbt-scalafix"), newVersion = "0.9.21",
+      groupId = "ch.epfl.scala",
+      artifactIds = List("sbt-scalafix"),
+      newVersion = "0.9.21",
       rewriteRules = List("Sbt0_13BuildSyntax")
     )
 
@@ -261,8 +289,7 @@ class ScalafixMigrationSuite extends munit.FunSuite {
   test("toScript includes scalacOptions in sbt command") {
     val migration = ScalafixMigration(
       groupId = "org.typelevel", artifactIds = List("cats-core.*"), newVersion = "2.2.0",
-      rewriteRules = List("CatsRule"),
-      scalacOptions = List("-P:semanticdb:synthetics:on")
+      rewriteRules = List("CatsRule"), scalacOptions = List("-P:semanticdb:synthetics:on")
     )
 
     val expected = UpdateScript(
@@ -276,8 +303,7 @@ class ScalafixMigrationSuite extends munit.FunSuite {
   test("toScript ignores scalacOptions for sbt-build project") {
     val migration = ScalafixMigration(
       groupId = "ch.epfl.scala", artifactIds = List("sbt-scalafix"), newVersion = "0.9.21",
-      rewriteRules = List("BuildRule"),
-      scalacOptions = List("-P:semanticdb:synthetics:on")
+      rewriteRules = List("BuildRule"), scalacOptions = List("-P:semanticdb:synthetics:on")
     )
 
     val expected = UpdateScript(
@@ -290,7 +316,9 @@ class ScalafixMigrationSuite extends munit.FunSuite {
 
   test("toScript handles multiple rewrite rules for sbt-build") {
     val migration = ScalafixMigration(
-      groupId = "ch.epfl.scala", artifactIds = List("sbt-scalafix"), newVersion = "0.9.21",
+      groupId = "ch.epfl.scala",
+      artifactIds = List("sbt-scalafix"),
+      newVersion = "0.9.21",
       rewriteRules = List("Rule1", "Rule2")
     )
 
@@ -305,8 +333,7 @@ class ScalafixMigrationSuite extends munit.FunSuite {
   test("toScript appends doc URL to message") {
     val migration = ScalafixMigration(
       groupId = "org.typelevel", artifactIds = List("cats-core.*"), newVersion = "2.2.0",
-      rewriteRules = List("CatsRule"),
-      doc = Some("https://github.com/typelevel/cats/blob/v2.2.0/scalafix/README.md")
+      rewriteRules = List("CatsRule"), doc = Some("https://github.com/typelevel/cats/blob/v2.2.0/scalafix/README.md")
     )
 
     val expected = UpdateScript(

@@ -283,7 +283,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
       logger.getLogs(Level.Warn),
       List(
         s"⚠ Skipping malformed ${RetractedArtifact.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
-          s"must have a 'reason'"
+          "must have a 'reason'"
       )
     )
   }
@@ -306,7 +306,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
       logger.getLogs(Level.Warn),
       List(
         s"⚠ Skipping malformed ${RetractedArtifact.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
-          s"must have a 'doc'"
+          "must have a 'doc'"
       )
     )
   }
@@ -327,7 +327,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
       logger.getLogs(Level.Warn),
       List(
         s"⚠ Skipping malformed ${RetractedArtifact.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
-          s"must have a 'artifacts' array"
+          "must have a 'artifacts' array"
       )
     )
   }
@@ -351,7 +351,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
       logger.getLogs(Level.Warn),
       List(
         s"⚠ Skipping malformed ${RetractedArtifact.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
-          s"entry at index 0: must have a 'groupId'"
+          "entry at index 0: must have a 'groupId'"
       )
     )
   }

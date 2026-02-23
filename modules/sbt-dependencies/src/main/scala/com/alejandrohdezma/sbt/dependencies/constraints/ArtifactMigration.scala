@@ -17,8 +17,8 @@
 package com.alejandrohdezma.sbt.dependencies.constraints
 
 import sbt.url
-import com.alejandrohdezma.sbt.dependencies.config._
 
+import com.alejandrohdezma.sbt.dependencies.config._
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.Config
@@ -70,7 +70,7 @@ object ArtifactMigration extends Cached[ArtifactMigration] {
     ConfigDecoder.configList[ArtifactMigration] { config =>
       for {
         _ <- if (config.hasPath("groupIdBefore") || config.hasPath("artifactIdBefore")) Right(())
-             else Left(s"must have at least one of 'groupIdBefore' or 'artifactIdBefore'")
+             else Left("must have at least one of 'groupIdBefore' or 'artifactIdBefore'")
         groupIdBefore    <- config.as[Option[String]]("groupIdBefore")
         groupIdAfter     <- config.as[String]("groupIdAfter")
         artifactIdBefore <- config.as[Option[String]]("artifactIdBefore")

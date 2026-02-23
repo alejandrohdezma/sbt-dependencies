@@ -17,8 +17,8 @@
 package com.alejandrohdezma.sbt
 
 import scala.util.Failure
-
 import scala.util.Try
+
 import com.alejandrohdezma.sbt.dependencies.model.Eq
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 

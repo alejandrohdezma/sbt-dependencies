@@ -19,19 +19,19 @@ package com.alejandrohdezma.sbt.dependencies.constraints
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 
+import scala.Console._
+import scala.reflect.ClassTag
+
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies._
 import com.typesafe.config.Config
 
-import scala.Console._
-import scala.reflect.ClassTag
-
 abstract class Cached[A: ClassTag] {
 
-  private val cache = new ConcurrentHashMap[URL, List[A]]()
+  private val cache = new ConcurrentHashMap[URL, List[A]]() // scalafix:ok
 
-  val name = implicitly[ClassTag[A]].runtimeClass.getSimpleName
+  val name = implicitly[ClassTag[A]].runtimeClass.getSimpleName // scalafix:ok
 
   def configToValue(config: Config): Either[String, List[A]]
 

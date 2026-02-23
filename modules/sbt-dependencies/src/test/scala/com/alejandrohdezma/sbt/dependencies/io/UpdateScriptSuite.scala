@@ -138,7 +138,9 @@ class UpdateScriptSuite extends munit.FunSuite {
 
   test("fromMigrations matches migration within version range") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "3.0.7",
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "3.0.7",
       rewriteRules = List("replace:fs2.text.utf8Decode/fs2.text.utf8.decode")
     )
 
@@ -162,7 +164,10 @@ class UpdateScriptSuite extends munit.FunSuite {
 
   test("fromMigrations skips migration when from >= newVersion") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "3.0.7", rewriteRules = List("some-rule")
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "3.0.7",
+      rewriteRules = List("some-rule")
     )
 
     val diffs = Map(
@@ -180,7 +185,10 @@ class UpdateScriptSuite extends munit.FunSuite {
 
   test("fromMigrations skips migration when to < newVersion") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "3.0.7", rewriteRules = List("some-rule")
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "3.0.7",
+      rewriteRules = List("some-rule")
     )
 
     val diffs = Map(
@@ -198,7 +206,10 @@ class UpdateScriptSuite extends munit.FunSuite {
 
   test("fromMigrations uses regex for artifactId matching") {
     val migration = ScalafixMigration(
-      groupId = "co.fs2", artifactIds = List("fs2-.*"), newVersion = "1.0.0", rewriteRules = List("rule1")
+      groupId = "co.fs2",
+      artifactIds = List("fs2-.*"),
+      newVersion = "1.0.0",
+      rewriteRules = List("rule1")
     )
 
     val diffs = Map(
@@ -221,7 +232,9 @@ class UpdateScriptSuite extends munit.FunSuite {
 
   test("fromMigrations scopes scalafixAll to the project") {
     val migration = ScalafixMigration(
-      groupId = "org.typelevel", artifactIds = List("cats-core.*"), newVersion = "2.10.0",
+      groupId = "org.typelevel",
+      artifactIds = List("cats-core.*"),
+      newVersion = "2.10.0",
       rewriteRules = List("CatsRule")
     )
 
@@ -241,7 +254,9 @@ class UpdateScriptSuite extends munit.FunSuite {
 
   test("fromMigrations generates separate scripts for different projects") {
     val migration = ScalafixMigration(
-      groupId = "org.typelevel", artifactIds = List("cats-core.*"), newVersion = "2.10.0",
+      groupId = "org.typelevel",
+      artifactIds = List("cats-core.*"),
+      newVersion = "2.10.0",
       rewriteRules = List("CatsRule")
     )
 
@@ -267,7 +282,9 @@ class UpdateScriptSuite extends munit.FunSuite {
 
   test("fromMigrations uses scalafix CLI for sbt-build project") {
     val migration = ScalafixMigration(
-      groupId = "ch.epfl.scala", artifactIds = List("sbt-scalafix"), newVersion = "0.9.21",
+      groupId = "ch.epfl.scala",
+      artifactIds = List("sbt-scalafix"),
+      newVersion = "0.9.21",
       rewriteRules = List("Sbt0_13BuildSyntax")
     )
 
@@ -289,8 +306,7 @@ class UpdateScriptSuite extends munit.FunSuite {
   test("fromMigrations includes scalacOptions in sbt command") {
     val migration = ScalafixMigration(
       groupId = "org.typelevel", artifactIds = List("cats-core.*"), newVersion = "2.2.0",
-      rewriteRules = List("CatsRule"),
-      scalacOptions = List("-P:semanticdb:synthetics:on")
+      rewriteRules = List("CatsRule"), scalacOptions = List("-P:semanticdb:synthetics:on")
     )
 
     val diffs = Map(
@@ -313,8 +329,7 @@ class UpdateScriptSuite extends munit.FunSuite {
   test("fromMigrations appends doc URL to message") {
     val migration = ScalafixMigration(
       groupId = "org.typelevel", artifactIds = List("cats-core.*"), newVersion = "2.2.0",
-      rewriteRules = List("CatsRule"),
-      doc = Some("https://github.com/typelevel/cats/blob/v2.2.0/scalafix/README.md")
+      rewriteRules = List("CatsRule"), doc = Some("https://github.com/typelevel/cats/blob/v2.2.0/scalafix/README.md")
     )
 
     val diffs = Map(
@@ -337,8 +352,7 @@ class UpdateScriptSuite extends munit.FunSuite {
   test("fromMigrations ignores scalacOptions for sbt-build project") {
     val migration = ScalafixMigration(
       groupId = "ch.epfl.scala", artifactIds = List("sbt-scalafix"), newVersion = "0.9.21",
-      rewriteRules = List("BuildRule"),
-      scalacOptions = List("-P:semanticdb:synthetics:on")
+      rewriteRules = List("BuildRule"), scalacOptions = List("-P:semanticdb:synthetics:on")
     )
 
     val diffs = Map(

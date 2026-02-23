@@ -26,11 +26,10 @@ import scala.util.Try
 import sbt.IO
 import sbt.util.Level
 
-import com.typesafe.config.ConfigFactory
-
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
+import com.typesafe.config.ConfigFactory
 
 class ArtifactMigrationSuite extends munit.FunSuite {
 
@@ -192,7 +191,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
 
     val expectedLogs = List(
       s"⚠ Skipping malformed ${ArtifactMigration.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
-        s"must have at least one of 'groupIdBefore' or 'artifactIdBefore'"
+        "must have at least one of 'groupIdBefore' or 'artifactIdBefore'"
     )
 
     assertEquals(logger.getLogs(Level.Warn), expectedLogs)
@@ -213,7 +212,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
 
     val expectedLogs = List(
       s"⚠ Skipping malformed ${ArtifactMigration.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
-        s"must have a 'groupIdAfter'"
+        "must have a 'groupIdAfter'"
     )
 
     assertEquals(logger.getLogs(Level.Warn), expectedLogs)
@@ -234,7 +233,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
 
     val expectedLogs = List(
       s"⚠ Skipping malformed ${ArtifactMigration.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
-        s"must have a 'artifactIdAfter'"
+        "must have a 'artifactIdAfter'"
     )
 
     assertEquals(logger.getLogs(Level.Warn), expectedLogs)
@@ -263,7 +262,7 @@ class ArtifactMigrationSuite extends munit.FunSuite {
 
     val expectedLogs = List(
       s"⚠ Skipping malformed ${ArtifactMigration.name} from $CYAN${urls.head}$RESET: " +
-        s"must have a 'changes' array"
+        "must have a 'changes' array"
     )
 
     assertEquals(logger.getLogs(Level.Warn), expectedLogs)

@@ -178,7 +178,7 @@ class UpdateIgnoreSuite extends munit.FunSuite {
 
     val expectedLogs = List(
       s"⚠ Skipping malformed ${UpdateIgnore.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
-        s"must have a 'groupId'"
+        "must have a 'groupId'"
     )
 
     assertEquals(logger.getLogs(Level.Warn), expectedLogs)

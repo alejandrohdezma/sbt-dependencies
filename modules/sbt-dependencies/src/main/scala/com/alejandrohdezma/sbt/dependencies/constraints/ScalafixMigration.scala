@@ -16,17 +16,18 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import sbt.url
+import java.util.regex.Pattern
 
 import scala.math.Ordering.Implicits._
-import com.alejandrohdezma.sbt.dependencies.config._
-import com.typesafe.config.Config
 
+import sbt.url
+
+import com.alejandrohdezma.sbt.dependencies.config._
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff.UpdatedDep
-import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import java.util.regex.Pattern
-import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.io.UpdateScript
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.typesafe.config.Config
 
 /** Represents an entry from the `migrations` section of a Scala Steward scalafix migrations configuration file.
   *
