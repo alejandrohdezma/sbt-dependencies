@@ -20,6 +20,8 @@ import java.io.File
 import java.net.URL
 import java.nio.file.Files
 
+import scala.Console._
+
 import sbt.IO
 import sbt.util.Level
 
@@ -173,7 +175,13 @@ class UpdateIgnoreSuite extends munit.FunSuite {
     val ignores = UpdateIgnore.loadFromUrls(urls)
 
     assertEquals(ignores, Nil)
-    assert(logger.getLogs(Level.Warn).exists(_.contains("entry at index 0 must have a 'groupId'")))
+
+    val expectedLogs = List(
+      s"⚠ Skipping malformed ${UpdateIgnore.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+        s"must have a 'groupId'"
+    )
+
+    assertEquals(logger.getLogs(Level.Warn), expectedLogs)
   }
 
   test("loadFromUrls returns empty list for empty URL list") {
@@ -185,7 +193,7 @@ class UpdateIgnoreSuite extends munit.FunSuite {
   test("loadFromUrls can load Scala Steward's default config") {
     val ignores = UpdateIgnore.loadFromUrls(UpdateIgnore.default)
 
-    assert(ignores.nonEmpty)
+    assertEquals(ignores.nonEmpty, true)
   }
 
   // --- Matching tests ---
@@ -193,39 +201,39 @@ class UpdateIgnoreSuite extends munit.FunSuite {
   test("matches returns true when all fields match") {
     val ignore = UpdateIgnore("org.scala-lang", Some("scala3-compiler"), Some(VersionPattern(exact = Some("3.8.2"))))
 
-    assert(ignore.matches("org.scala-lang", "scala3-compiler", "3.8.2"))
+    assertEquals(ignore.matches("org.scala-lang", "scala3-compiler", "3.8.2"), true)
   }
 
   test("matches returns false for non-matching groupId") {
     val ignore = UpdateIgnore("org.scala-lang")
 
-    assert(!ignore.matches("org.typelevel", "cats-core", "2.0.0"))
+    assertEquals(ignore.matches("org.typelevel", "cats-core", "2.0.0"), false)
   }
 
   test("matches returns true for any artifact when artifactId is None") {
     val ignore = UpdateIgnore("com.typesafe.akka")
 
-    assert(ignore.matches("com.typesafe.akka", "akka-actor", "2.6.0"))
-    assert(ignore.matches("com.typesafe.akka", "akka-stream", "2.6.0"))
+    assertEquals(ignore.matches("com.typesafe.akka", "akka-actor", "2.6.0"), true)
+    assertEquals(ignore.matches("com.typesafe.akka", "akka-stream", "2.6.0"), true)
   }
 
   test("matches returns false for non-matching artifactId") {
     val ignore = UpdateIgnore("org.scala-lang", Some("scala3-compiler"))
 
-    assert(!ignore.matches("org.scala-lang", "scala-library", "2.13.0"))
+    assertEquals(ignore.matches("org.scala-lang", "scala-library", "2.13.0"), false)
   }
 
   test("matches returns true for any version when version is None") {
     val ignore = UpdateIgnore("org.scala-lang", Some("scala3-compiler"))
 
-    assert(ignore.matches("org.scala-lang", "scala3-compiler", "3.0.0"))
-    assert(ignore.matches("org.scala-lang", "scala3-compiler", "3.8.2"))
+    assertEquals(ignore.matches("org.scala-lang", "scala3-compiler", "3.0.0"), true)
+    assertEquals(ignore.matches("org.scala-lang", "scala3-compiler", "3.8.2"), true)
   }
 
   test("matches returns false for non-matching version") {
     val ignore = UpdateIgnore("org.scala-lang", Some("scala3-compiler"), Some(VersionPattern(exact = Some("3.8.2"))))
 
-    assert(!ignore.matches("org.scala-lang", "scala3-compiler", "3.8.1"))
+    assertEquals(ignore.matches("org.scala-lang", "scala3-compiler", "3.8.1"), false)
   }
 
   //////////////

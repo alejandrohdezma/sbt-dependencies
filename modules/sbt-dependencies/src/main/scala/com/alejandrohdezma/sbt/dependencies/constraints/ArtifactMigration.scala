@@ -16,19 +16,12 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import java.net.URL
-import java.util.concurrent.ConcurrentHashMap
-
-import scala.Console._
-import scala.jdk.CollectionConverters._
-
 import sbt.url
-import sbt.util.Logger
+import com.alejandrohdezma.sbt.dependencies.config._
 
-import com.alejandrohdezma.sbt.dependencies._
-import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.typesafe.config.Config
 
 /** Represents an artifact migration from old coordinates to new coordinates.
   *
@@ -71,63 +64,26 @@ final case class ArtifactMigration(
 
 }
 
-object ArtifactMigration {
+object ArtifactMigration extends Cached[ArtifactMigration] {
 
-  private val cache = new ConcurrentHashMap[URL, List[ArtifactMigration]]()
+  implicit val ArtifactMigrationConfigDecoder: ConfigDecoder[List[ArtifactMigration]] =
+    ConfigDecoder.configList[ArtifactMigration] { config =>
+      for {
+        _ <- if (config.hasPath("groupIdBefore") || config.hasPath("artifactIdBefore")) Right(())
+             else Left(s"must have at least one of 'groupIdBefore' or 'artifactIdBefore'")
+        groupIdBefore    <- config.as[Option[String]]("groupIdBefore")
+        groupIdAfter     <- config.as[String]("groupIdAfter")
+        artifactIdBefore <- config.as[Option[String]]("artifactIdBefore")
+        artifactIdAfter  <- config.as[String]("artifactIdAfter")
+      } yield ArtifactMigration(groupIdBefore, groupIdAfter, artifactIdBefore, artifactIdAfter)
+    }
 
   /** The default list of artifact migrations. */
   val default = List(
     url("https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/artifact-migrations.v2.conf")
   )
 
-  /** Loads artifact migrations from a list of URLs.
-    *
-    * Supports both `https://` and `file://` URLs. Each URL is fetched and parsed as HOCON.
-    *
-    * @param urls
-    *   The list of URLs to load migrations from
-    * @return
-    *   Combined list of all migrations from all URLs
-    */
-  def loadFromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): List[ArtifactMigration] =
-    urls.flatMap { url =>
-      cache.computeIfAbsent(
-        url,
-        _ => {
-          logger.debug(s"↻ Loading migrations from $CYAN$url$RESET")
-
-          val config = configCache
-            .get(url)
-            .onLeft { e =>
-              Utils.fail(s"Failed to parse migration file $url: $e")
-            }
-            .right
-            .get
-
-          if (!config.hasPath("changes"))
-            Utils.fail("Migration file must contain a 'changes' array")
-
-          config.getConfigList("changes").asScala.toList.zipWithIndex.map { case (change, index) =>
-            if (!change.hasPath("groupIdBefore") && !change.hasPath("artifactIdBefore"))
-              Utils.fail(
-                s"Migration entry at index $index must have at least one of 'groupIdBefore' or 'artifactIdBefore'"
-              )
-
-            if (!change.hasPath("groupIdAfter"))
-              Utils.fail(s"Migration entry at index $index must have a 'groupIdAfter'")
-
-            if (!change.hasPath("artifactIdAfter"))
-              Utils.fail(s"Migration entry at index $index must have a 'artifactIdAfter'")
-
-            ArtifactMigration(
-              groupIdBefore = change.get("groupIdBefore"),
-              groupIdAfter = change.get("groupIdAfter").get,
-              artifactIdBefore = change.get("artifactIdBefore"),
-              artifactIdAfter = change.get("artifactIdAfter").get
-            )
-          }
-        }
-      )
-    }
+  def configToValue(config: Config): Either[String, List[ArtifactMigration]] =
+    config.as[List[ArtifactMigration]]("changes")
 
 }

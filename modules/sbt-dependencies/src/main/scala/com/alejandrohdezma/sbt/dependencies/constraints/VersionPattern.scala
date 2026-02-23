@@ -16,7 +16,9 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
+import com.alejandrohdezma.sbt.dependencies.config._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.typesafe.config.ConfigValueType
 
 /** Pattern for matching dependency versions.
   *
@@ -44,5 +46,37 @@ final case class VersionPattern(
       suffix.forall(version.endsWith) &&
       exact.forall(_ === version) &&
       contains.forall(version.contains)
+
+}
+
+object VersionPattern {
+
+  /** Decodes an optional version pattern from a HOCON config entry.
+    *
+    * Supports three shapes:
+    *   - Missing path → `None`
+    *   - String value → `Some(VersionPattern(prefix = ...))` (prefix shorthand)
+    *   - Object value → `Some(VersionPattern(prefix, suffix, exact, contains))`
+    */
+  implicit val configDecoder: ConfigDecoder[Option[VersionPattern]] = {
+    case (config, path) if !config.hasPath(path) => Right(None)
+    case (config, path) =>
+      config.getValue(path).valueType() match {
+        case ConfigValueType.STRING =>
+          Right(Some(VersionPattern(prefix = Some(config.getString(path)))))
+
+        case ConfigValueType.OBJECT =>
+          val obj = config.getConfig(path)
+          for {
+            prefix   <- obj.as[Option[String]]("prefix")
+            suffix   <- obj.as[Option[String]]("suffix")
+            exact    <- obj.as[Option[String]]("exact")
+            contains <- obj.as[Option[String]]("contains")
+          } yield Some(VersionPattern(prefix, suffix, exact, contains))
+
+        case other =>
+          Left(s"has unsupported version type: $other")
+      }
+  }
 
 }

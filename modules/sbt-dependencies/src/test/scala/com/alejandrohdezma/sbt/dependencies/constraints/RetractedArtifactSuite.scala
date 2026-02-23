@@ -281,7 +281,10 @@ class RetractedArtifactSuite extends munit.FunSuite {
     assertEquals(retractions, Nil)
     assertEquals(
       logger.getLogs(Level.Warn),
-      List(s"⚠ Skipping malformed retracted entry from $CYAN${urls.head}$RESET: java.lang.RuntimeException: entry at index 0 must have a 'reason'")
+      List(
+        s"⚠ Skipping malformed ${RetractedArtifact.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+          s"must have a 'reason'"
+      )
     )
   }
 
@@ -301,7 +304,10 @@ class RetractedArtifactSuite extends munit.FunSuite {
     assertEquals(retractions, Nil)
     assertEquals(
       logger.getLogs(Level.Warn),
-      List(s"⚠ Skipping malformed retracted entry from $CYAN${urls.head}$RESET: java.lang.RuntimeException: entry at index 0 must have a 'doc'")
+      List(
+        s"⚠ Skipping malformed ${RetractedArtifact.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+          s"must have a 'doc'"
+      )
     )
   }
 
@@ -319,7 +325,10 @@ class RetractedArtifactSuite extends munit.FunSuite {
     assertEquals(retractions, Nil)
     assertEquals(
       logger.getLogs(Level.Warn),
-      List(s"⚠ Skipping malformed retracted entry from $CYAN${urls.head}$RESET: java.lang.RuntimeException: entry at index 0 must have an 'artifacts' list")
+      List(
+        s"⚠ Skipping malformed ${RetractedArtifact.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+          s"must have a 'artifacts' array"
+      )
     )
   }
 
@@ -340,7 +349,10 @@ class RetractedArtifactSuite extends munit.FunSuite {
     assertEquals(retractions, Nil)
     assertEquals(
       logger.getLogs(Level.Warn),
-      List(s"⚠ Skipping malformed retracted-artifact entry from $CYAN${urls.head}$RESET: java.lang.RuntimeException: artifact at index 0 in entry 0 must have a 'groupId'")
+      List(
+        s"⚠ Skipping malformed ${RetractedArtifact.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+          s"entry at index 0: must have a 'groupId'"
+      )
     )
   }
 
@@ -353,7 +365,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
   test("loadFromUrls can load Scala Steward's default config") {
     val retractions = RetractedArtifact.loadFromUrls(RetractedArtifact.default)
 
-    assert(retractions.nonEmpty)
+    assertEquals(retractions.nonEmpty, true)
   }
 
   // --- Matching tests ---
@@ -364,20 +376,20 @@ class RetractedArtifactSuite extends munit.FunSuite {
       version = Some(VersionPattern(exact = Some("3.8.2")))
     )
 
-    assert(retracted.matches("org.scala-lang", "scala3-compiler", "3.8.2"))
+    assertEquals(retracted.matches("org.scala-lang", "scala3-compiler", "3.8.2"), true)
   }
 
   test("matches returns false for non-matching groupId") {
     val retracted = RetractedArtifact(reason = "bug", doc = "https://doc", groupId = "org.scala-lang")
 
-    assert(!retracted.matches("org.typelevel", "cats-core", "2.0.0"))
+    assertEquals(retracted.matches("org.typelevel", "cats-core", "2.0.0"), false)
   }
 
   test("matches returns true for any artifact when artifactId is None") {
     val retracted = RetractedArtifact(reason = "bug", doc = "https://doc", groupId = "com.typesafe.akka")
 
-    assert(retracted.matches("com.typesafe.akka", "akka-actor", "2.6.0"))
-    assert(retracted.matches("com.typesafe.akka", "akka-stream", "2.6.0"))
+    assertEquals(retracted.matches("com.typesafe.akka", "akka-actor", "2.6.0"), true)
+    assertEquals(retracted.matches("com.typesafe.akka", "akka-stream", "2.6.0"), true)
   }
 
   test("matches returns false for non-matching artifactId") {
@@ -388,7 +400,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
       artifactId = Some("scala3-compiler")
     )
 
-    assert(!retracted.matches("org.scala-lang", "scala-library", "2.13.0"))
+    assertEquals(retracted.matches("org.scala-lang", "scala-library", "2.13.0"), false)
   }
 
   test("matches returns true for any version when version is None") {
@@ -399,8 +411,8 @@ class RetractedArtifactSuite extends munit.FunSuite {
       artifactId = Some("scala3-compiler")
     )
 
-    assert(retracted.matches("org.scala-lang", "scala3-compiler", "3.0.0"))
-    assert(retracted.matches("org.scala-lang", "scala3-compiler", "3.8.2"))
+    assertEquals(retracted.matches("org.scala-lang", "scala3-compiler", "3.0.0"), true)
+    assertEquals(retracted.matches("org.scala-lang", "scala3-compiler", "3.8.2"), true)
   }
 
   test("matches returns false for non-matching version") {
@@ -409,7 +421,7 @@ class RetractedArtifactSuite extends munit.FunSuite {
       version = Some(VersionPattern(exact = Some("3.8.2")))
     )
 
-    assert(!retracted.matches("org.scala-lang", "scala3-compiler", "3.8.1"))
+    assertEquals(retracted.matches("org.scala-lang", "scala3-compiler", "3.8.1"), false)
   }
 
   //////////////

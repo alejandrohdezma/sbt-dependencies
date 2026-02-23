@@ -16,22 +16,11 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import java.net.URL
-import java.util.concurrent.ConcurrentHashMap
-
-import scala.Console._
-import scala.jdk.CollectionConverters._
-import scala.util.Try
-
 import sbt.url
-import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.ConfigOps
-import com.alejandrohdezma.sbt.dependencies.TryOps
-import com.alejandrohdezma.sbt.dependencies.finders.Utils
+import com.alejandrohdezma.sbt.dependencies.config._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import com.typesafe.config.ConfigObject
-import com.typesafe.config.ConfigValueType
+import com.typesafe.config.Config
 
 /** Represents an entry from the `updates.retracted` section of a Scala Steward configuration file.
   *
@@ -67,104 +56,33 @@ final case class RetractedArtifact(
 
 }
 
-object RetractedArtifact {
+object RetractedArtifact extends Cached[RetractedArtifact] {
 
-  /** Per-URL cache so each URL is fetched and parsed only once per JVM session. */
-  private val cache = new ConcurrentHashMap[URL, List[RetractedArtifact]]()
+  implicit val RetractedArtifactConfigDecoder: ConfigDecoder[List[RetractedArtifact]] =
+    ConfigDecoder
+      .optionalConfigList[List[RetractedArtifact]] { config =>
+        for {
+          reason <- config.as[String]("reason")
+          doc    <- config.as[String]("doc")
+          artifacts <- config.as[List[RetractedArtifact]]("artifacts") {
+                         ConfigDecoder.configList[RetractedArtifact] { c =>
+                           for {
+                             groupId    <- c.as[String]("groupId")
+                             artifactId <- c.as[Option[String]]("artifactId")
+                             version    <- c.as[Option[VersionPattern]]("version")
+                           } yield RetractedArtifact(reason, doc, groupId, artifactId, version)
+                         }
+                       }
+        } yield artifacts
+      }
+      .map(_.flatten)
 
   /** The default list of retraction URLs. */
   val default = List(
     url("https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/default.scala-steward.conf")
   )
 
-  /** Loads retracted-artifact entries from a list of URLs.
-    *
-    * Supports both `https://` and `file://` URLs. Each URL is fetched and parsed as HOCON. Files without an
-    * `updates.retracted` key are silently skipped.
-    *
-    * The Scala Steward format nests artifacts inside each retracted entry. This method flattens them so each
-    * `RetractedArtifact` is self-contained with the parent's `reason` and `doc`.
-    *
-    * @param urls
-    *   The list of URLs to load retraction entries from.
-    * @return
-    *   Combined list of all retraction entries from all URLs.
-    */
-  def loadFromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): List[RetractedArtifact] =
-    urls.flatMap { url =>
-      cache.computeIfAbsent(
-        url,
-        _ => {
-          logger.debug(s"↻ Loading retracted versions from $CYAN$url$RESET")
-
-          configCache
-            .get(url)
-            .fold(
-              err => {
-                logger.warn(s"⚠ Failed to load retracted versions from $CYAN$url$RESET: $err")
-                Nil
-              },
-              config =>
-                if (!config.hasPath("updates.retracted")) Nil
-                else
-                  config.getConfigList("updates.retracted").asScala.toList.zipWithIndex.flatMap { case (entry, index) =>
-                    Try {
-                      val reason = entry.get("reason").getOrElse {
-                        Utils.fail(s"entry at index $index must have a 'reason'")
-                      }
-
-                      val doc = entry.get("doc").getOrElse {
-                        Utils.fail(s"entry at index $index must have a 'doc'")
-                      }
-
-                      if (!entry.hasPath("artifacts"))
-                        Utils.fail(s"entry at index $index must have an 'artifacts' list")
-
-                      entry.getConfigList("artifacts").asScala.toList.zipWithIndex.flatMap { case (artifact, artIndex) =>
-                        Try {
-                          if (!artifact.hasPath("groupId"))
-                            Utils.fail(s"artifact at index $artIndex in entry $index must have a 'groupId'")
-
-                          val groupId    = artifact.get("groupId").get
-                          val artifactId = artifact.get("artifactId")
-
-                          val version =
-                            if (!artifact.hasPath("version")) None
-                            else
-                              artifact.getValue("version").valueType() match {
-                                case ConfigValueType.STRING =>
-                                  Some(VersionPattern(prefix = artifact.get("version")))
-
-                                case ConfigValueType.OBJECT =>
-                                  val obj = artifact.getValue("version").asInstanceOf[ConfigObject].toConfig
-
-                                  Some(
-                                    VersionPattern(
-                                      obj.get("prefix"),
-                                      obj.get("suffix"),
-                                      obj.get("exact"),
-                                      obj.get("contains")
-                                    )
-                                  )
-
-                                case other =>
-                                  Utils.fail(
-                                    s"artifact at index $artIndex in entry $index has unsupported version type: $other"
-                                  )
-                              }
-
-                          List(RetractedArtifact(reason, doc, groupId, artifactId, version))
-                        }.onError { case e =>
-                          logger.warn(s"⚠ Skipping malformed retracted-artifact entry from $CYAN$url$RESET: $e")
-                        }.getOrElse(Nil)
-                      }
-                    }.onError { case e =>
-                      logger.warn(s"⚠ Skipping malformed retracted entry from $CYAN$url$RESET: $e")
-                    }.getOrElse(Nil)
-                  }
-            )
-        }
-      )
-    }
+  def configToValue(config: Config): Either[String, List[RetractedArtifact]] =
+    config.as[List[RetractedArtifact]]("updates.retracted")
 
 }
