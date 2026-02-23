@@ -17,7 +17,10 @@
 package com.alejandrohdezma.sbt
 
 import scala.util.Failure
+
 import scala.util.Try
+import com.alejandrohdezma.sbt.dependencies.model.Eq
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 package object dependencies {
 
@@ -30,6 +33,16 @@ package object dependencies {
         either
       case Right(_) =>
         either
+    }
+
+  }
+
+  implicit class ListOps[A](list: List[A]) {
+
+    /** Returns a deduplicated list by the given function. */
+    def distinctBy[B: Eq](f: A => B): List[A] = list.foldLeft(List.empty[A]) {
+      case (acc, a) if acc.exists(a2 => f(a2) === f(a)) => acc
+      case (acc, a)                                     => acc :+ a
     }
 
   }
