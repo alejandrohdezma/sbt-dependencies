@@ -53,9 +53,6 @@ class Keys {
       "Map of variable names to resolver functions for variable-based dependency versions"
     )
 
-  val dependenciesManagedScalaVersions =
-    settingKey[Boolean]("Whether scala versions are managed by sbt-dependencies via dependencies.conf")
-
   val sbtDependenciesPluginOrganization =
     settingKey[String] {
       "Organization of the plugin to update in project/project/plugins.sbt"

@@ -63,7 +63,6 @@ object DependenciesPlugin extends AutoPlugin {
     dependencyScalafixMigrations      := ScalafixMigration.default,
     dependencyResolverTimeout         := 60,
     dependencyResolverParallelism     := Runtime.getRuntime.availableProcessors,
-    dependenciesManagedScalaVersions  := Settings.buildScalaVersions.value.nonEmpty,
     scalaVersion := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
@@ -84,18 +83,17 @@ object DependenciesPlugin extends AutoPlugin {
 
   /** Project settings: wires libraryDependencies and registers tasks. */
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    dependenciesFromFile             := Settings.dependenciesFromFile.value,
-    libraryDependencies             ++= Settings.libraryDependencies.value,
-    inheritedDependencies            := Settings.inheritedDependencies.value,
-    showLibraryDependencies          := Tasks.showLibraryDependencies.tag(Exclusive).value,
-    updateDependencies               := Tasks.updateDependencies.tag(Exclusive).evaluated,
-    updateScalaVersions              := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
-    install                          := Tasks.install.tag(Exclusive).evaluated,
-    dependenciesCheck                := Nil,
-    update                           := Tasks.updateWithChecks.value,
-    allProjectDependencies           := update.value.allModules.toList,
-    install / aggregate              := false,
-    dependenciesManagedScalaVersions := Settings.projectScalaVersions.value.nonEmpty,
+    dependenciesFromFile    := Settings.dependenciesFromFile.value,
+    libraryDependencies    ++= Settings.libraryDependencies.value,
+    inheritedDependencies   := Settings.inheritedDependencies.value,
+    showLibraryDependencies := Tasks.showLibraryDependencies.tag(Exclusive).value,
+    updateDependencies      := Tasks.updateDependencies.tag(Exclusive).evaluated,
+    updateScalaVersions     := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
+    install                 := Tasks.install.tag(Exclusive).evaluated,
+    dependenciesCheck       := Nil,
+    update                  := Tasks.updateWithChecks.value,
+    allProjectDependencies  := update.value.allModules.toList,
+    install / aggregate     := false,
     scalaVersion := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
