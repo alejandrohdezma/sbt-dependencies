@@ -57,15 +57,17 @@ trait VersionFinder {
 
 object VersionFinder {
 
-  private def findVersionsUsingCoursier(module: Module, timeoutSeconds: Int)(implicit
+  private def findVersionsUsingCoursier(module: Module, repositories: Seq[Repository], timeoutSeconds: Int)(implicit
       logger: Logger
   ): List[Dependency.Version.Numeric] = {
     logger.debug(s"Retrieving versions for ${module.organization.value}:${module.name.value}")
+    logger.debug(s"Repositories: ${repositories.map(_.repr).mkString(", ")}")
 
     try {
       val result = Versions()
         .withCache(FileCache().withTtl(None))
         .withModule(module)
+        .addRepositories(repositories: _*)
         .versions()
         .future()
         .pipe(Await.result(_, timeoutSeconds.seconds))
@@ -80,11 +82,20 @@ object VersionFinder {
       result
     } catch {
       case _: TimeoutException =>
-        Utils.fail(
+        logger.warn(
           s"Timed out after ${timeoutSeconds}s resolving versions for " +
             s"${module.organization.value}:${module.name.value}. " +
             "Try increasing `dependencyResolverTimeout`."
         )
+        Nil
+
+      case e: Exception =>
+        logger.warn(
+          "Failed to retrieve versions for " +
+            s"${module.organization.value}:${module.name.value}: ${e.getMessage}"
+        )
+
+        Nil
     }
   }
 
@@ -94,10 +105,19 @@ object VersionFinder {
     *   The Scala binary version for cross-compiled dependencies.
     * @param timeout
     *   Timeout in seconds for Coursier version resolution requests.
+    * @param repositories
+    *   Additional Coursier repositories to query for versions, on top of Coursier defaults (Maven Central + Ivy2
+    *   local).
     */
-  def fromCoursier(scalaBinaryVersion: String, timeout: Int = 60)(implicit logger: Logger): VersionFinder = {
+  def fromCoursier(scalaBinaryVersion: String, timeout: Int = 60, repositories: Seq[Repository])(implicit
+      logger: Logger
+  ): VersionFinder = {
     case (organization, name, true, _) =>
-      findVersionsUsingCoursier(Module(Organization(organization), ModuleName(s"${name}_$scalaBinaryVersion")), timeout)
+      findVersionsUsingCoursier(
+        Module(Organization(organization), ModuleName(s"${name}_$scalaBinaryVersion")),
+        repositories,
+        timeout
+      )
     case (organization, name, _, true) =>
       val binaryModule =
         Module(Organization(organization), ModuleName(s"${name}_2.12_1.0"))
@@ -105,9 +125,10 @@ object VersionFinder {
       val moduleWithAttributes =
         Module(Organization(organization), ModuleName(name), Map("scalaVersion" -> "2.12", "sbtVersion" -> "1.0"))
 
-      findVersionsUsingCoursier(binaryModule, timeout) ++ findVersionsUsingCoursier(moduleWithAttributes, timeout)
+      findVersionsUsingCoursier(binaryModule, repositories, timeout) ++
+        findVersionsUsingCoursier(moduleWithAttributes, repositories, timeout)
     case (organization, name, _, _) =>
-      findVersionsUsingCoursier(Module(Organization(organization), ModuleName(name)), timeout)
+      findVersionsUsingCoursier(Module(Organization(organization), ModuleName(name)), repositories, timeout)
   }
 
   implicit class VersionFinderOps(private val underlying: VersionFinder) extends AnyVal {
