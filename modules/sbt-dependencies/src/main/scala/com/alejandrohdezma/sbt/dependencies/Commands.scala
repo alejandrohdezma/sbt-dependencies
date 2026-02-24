@@ -39,6 +39,8 @@ import com.alejandrohdezma.sbt.dependencies.io.UpdateScript
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import coursier.MavenRepository
+import coursier.Repository
 
 /** SBT commands for managing dependencies. */
 class Commands {
@@ -689,8 +691,11 @@ class Commands {
   ): VersionFinder = {
     val project = Project.extract(state)
 
+    val repositories: Seq[Repository] =
+      project.get(ThisBuild / resolvers).collect { case repo: MavenRepo => MavenRepository(repo.root) }
+
     VersionFinder
-      .fromCoursier(scalaBinaryVersion, project.get(ThisBuild / Keys.dependencyResolverTimeout))
+      .fromCoursier(scalaBinaryVersion, project.get(ThisBuild / Keys.dependencyResolverTimeout), repositories)
       .cached
       .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
       .excludingRetracted(RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions)))
