@@ -143,6 +143,9 @@ object Utils {
             numeric.isValidCandidate
           }
 
+        val current = Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric,
+          dependency.isCross, dependency.configuration)
+
         (bestOld, bestNew) match {
           case (None, Some(nv)) =>
             Dependency.WithNumericVersion(migration.groupIdAfter, migration.artifactIdAfter,
@@ -154,19 +157,25 @@ object Utils {
             Dependency.WithNumericVersion(dependency.organization, dependency.name, ov.copy(marker = numeric.marker),
               dependency.isCross, dependency.configuration)
           case (None, None) =>
-            fail(s"Could not resolve ${dependency.organization}:${dependency.name}")
+            logger.warn(s"Could not resolve ${dependency.organization}:${dependency.name}")
+            current
         }
 
       case (numeric: Dependency.Version.Numeric, None) =>
-        val latest =
-          Utils
-            .findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
-              numeric.isValidCandidate
-            }
-            .getOrElse(fail(s"Could not resolve ${dependency.organization}:${dependency.name}"))
+        Utils
+          .findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
+            numeric.isValidCandidate
+          }
+          .map { latest =>
+            Dependency.WithNumericVersion(dependency.organization, dependency.name,
+              latest.copy(marker = numeric.marker), dependency.isCross, dependency.configuration)
+          }
+          .getOrElse {
+            logger.warn(s"Could not resolve ${dependency.organization}:${dependency.name}")
 
-        Dependency.WithNumericVersion(dependency.organization, dependency.name, latest.copy(marker = numeric.marker),
-          dependency.isCross, dependency.configuration)
+            Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric, dependency.isCross,
+              dependency.configuration)
+          }
     }
 
   }

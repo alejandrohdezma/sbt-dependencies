@@ -82,11 +82,20 @@ object VersionFinder {
       result
     } catch {
       case _: TimeoutException =>
-        Utils.fail(
+        logger.warn(
           s"Timed out after ${timeoutSeconds}s resolving versions for " +
             s"${module.organization.value}:${module.name.value}. " +
             "Try increasing `dependencyResolverTimeout`."
         )
+        Nil
+
+      case e: Exception =>
+        logger.warn(
+          "Failed to retrieve versions for " +
+            s"${module.organization.value}:${module.name.value}: ${e.getMessage}"
+        )
+
+        Nil
     }
   }
 

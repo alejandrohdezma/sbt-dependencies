@@ -172,7 +172,7 @@ class UtilsSuite extends munit.FunSuite {
     assertEquals(result, v("3.8.2"))
   }
 
-  test("findLatestScalaVersion fails for version without patch") {
+  test("findLatestScalaVersion returns current version for version without patch") {
     implicit val versionFinder: VersionFinder = mockVersionFinder(
       Map(
         ("org.scala-lang", "scala-library") -> List("2.13.12", "2.13.14")
@@ -181,9 +181,10 @@ class UtilsSuite extends munit.FunSuite {
 
     // 2.13 is not a valid Scala version format - it needs a patch component
     // Shape matching in isValidCandidate will reject 3-part versions when current is 2-part
-    intercept[RuntimeException] {
-      Utils.findLatestScalaVersion(v("2.13"))
-    }
+    // Since no valid candidates are found, it returns the current version with a warning
+    val result = Utils.findLatestScalaVersion(v("2.13"))
+
+    assertEquals(result, v("2.13"))
   }
 
   // --- resolveLatestVersions tests ---
