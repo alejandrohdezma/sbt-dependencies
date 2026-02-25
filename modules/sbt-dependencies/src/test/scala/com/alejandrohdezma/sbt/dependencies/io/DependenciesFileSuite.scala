@@ -218,6 +218,31 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(depOrder, List("org:a-lib:1.0.0", "org:b-lib:1.0.0", "org:m-lib:1.0.0:test", "org:z-lib:1.0.0:test"))
   }
 
+  withDependenciesFile("").test("write sorts base artifact before suffixed artifacts from same org") { file =>
+    val dependencies = List(
+      Dependency.WithNumericVersion(
+        "com.beachape",
+        "enumeratum-cats",
+        Version.Numeric(List(1, 9, 5), None, Version.Numeric.Marker.NoMarker),
+        isCross = true
+      ),
+      Dependency.WithNumericVersion(
+        "com.beachape",
+        "enumeratum",
+        Version.Numeric(List(1, 9, 5), None, Version.Numeric.Marker.NoMarker),
+        isCross = true
+      )
+    )
+
+    DependenciesFile(file).write("group", dependencies)
+
+    val content = IO.read(file)
+    val depOrder =
+      content.linesIterator.filter(_.trim.startsWith("\"")).map(_.trim.stripPrefix("\"").stripSuffix("\"")).toList
+
+    assertEquals(depOrder, List("com.beachape::enumeratum:1.9.5", "com.beachape::enumeratum-cats:1.9.5"))
+  }
+
   withDependenciesFile("").test("write then read round-trip preserves dependencies") { file =>
     val projectADeps = List(
       Dependency.WithNumericVersion(

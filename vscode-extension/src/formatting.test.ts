@@ -490,4 +490,20 @@ describe("formatDocument", () => {
       ']',
     ].join("\n"));
   });
+
+  it("sorts base artifact before suffixed artifacts from same org", () => {
+    const lines = [
+      'my-group = [',
+      '  "com.beachape::enumeratum-cats:1.9.5"',
+      '  "com.beachape::enumeratum:1.9.5"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "com.beachape::enumeratum:1.9.5"',
+      '  "com.beachape::enumeratum-cats:1.9.5"',
+      ']',
+    ].join("\n"));
+  });
 });
