@@ -191,10 +191,9 @@ object Dependency {
   /** Known Scala version suffixes for artifact names */
   val scalaVersionSuffixes: List[String] = List("2.13", "2.12", "2.11", "2.10", "3")
 
-  /** Ordering for dependencies: first by configuration, then by organization and name. */
+  /** Ordering for dependencies: first by configuration, then by organization, then by name. */
   implicit val DependencyOrdering: Ordering[Dependency] = Ordering.by { d =>
-    val separator = if (d.isCross) "::" else ":"
-    (d.configuration, s"${d.organization}$separator${d.name}")
+    (d.configuration, d.organization.toLowerCase, d.name.toLowerCase)
   }
 
   /** Creates a dependency with the latest stable version resolved from Coursier. */

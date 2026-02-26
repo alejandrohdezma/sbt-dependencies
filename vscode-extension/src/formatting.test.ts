@@ -491,6 +491,30 @@ describe("formatDocument", () => {
     ].join("\n"));
   });
 
+  it("sorts shorter org prefix before longer org with same prefix", () => {
+    const lines = [
+      'my-group = [',
+      '  "com.squareup.okio:okio:3.16.4"',
+      '  "com.squareup.okio:okio-jvm:3.16.4"',
+      '  "com.squareup.wire:wire-runtime-jvm:5.5.0"',
+      '  "com.squareup.wire:wire-schema-jvm:5.5.0"',
+      '  "com.squareup:javapoet:1.13.0"',
+      '  "com.squareup:kotlinpoet:2.2.0"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "com.squareup:javapoet:1.13.0"',
+      '  "com.squareup:kotlinpoet:2.2.0"',
+      '  "com.squareup.okio:okio:3.16.4"',
+      '  "com.squareup.okio:okio-jvm:3.16.4"',
+      '  "com.squareup.wire:wire-runtime-jvm:5.5.0"',
+      '  "com.squareup.wire:wire-schema-jvm:5.5.0"',
+      ']',
+    ].join("\n"));
+  });
+
   it("sorts base artifact before suffixed artifacts from same org", () => {
     const lines = [
       'my-group = [',

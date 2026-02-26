@@ -382,7 +382,7 @@ function buildSortKey(depString: string): string {
   const artifact = m[3].toLowerCase();
   const config = (m[5] ?? "").toLowerCase();
 
-  return `${config}\0${org}${separator}${artifact}`;
+  return `${config}\0${org}\0${artifact}`;
 }
 
 /** Sorts entries and flushes them to output. */
@@ -390,7 +390,7 @@ function flushEntries(
   output: string[],
   entries: DependencyEntry[]
 ): void {
-  entries.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  entries.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
   for (const entry of entries) {
     // depLine may contain newlines for multi-line objects
     for (const line of entry.depLine.split("\n")) {
@@ -412,7 +412,7 @@ function formatSingleLineGroup(line: string, indent: string): string {
   }
   if (deps.length === 0) return line;
 
-  deps.sort((a, b) => buildSortKey(a).localeCompare(buildSortKey(b)));
+  deps.sort((a, b) => { const ka = buildSortKey(a), kb = buildSortKey(b); return ka < kb ? -1 : ka > kb ? 1 : 0; });
   // Reconstruct — but for single-line we keep it as-is
   return line;
 }

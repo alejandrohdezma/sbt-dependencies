@@ -243,6 +243,32 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(depOrder, List("com.beachape::enumeratum:1.9.5", "com.beachape::enumeratum-cats:1.9.5"))
   }
 
+  withDependenciesFile("").test("write sorts shorter org prefix before longer org with same prefix") { file =>
+    val v = Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
+
+    val dependencies = List(
+      Dependency.WithNumericVersion("com.squareup.okio", "okio", v, isCross = false),
+      Dependency.WithNumericVersion("com.squareup.okio", "okio-jvm", v, isCross = false),
+      Dependency.WithNumericVersion("com.squareup.wire", "wire-runtime-jvm", v, isCross = false),
+      Dependency.WithNumericVersion("com.squareup", "javapoet", v, isCross = false),
+      Dependency.WithNumericVersion("com.squareup", "kotlinpoet", v, isCross = false)
+    )
+
+    DependenciesFile(file).write("group", dependencies)
+
+    val content = IO.read(file)
+    val depOrder =
+      content.linesIterator.filter(_.trim.startsWith("\"")).map(_.trim.stripPrefix("\"").stripSuffix("\"")).toList
+
+    assertEquals(
+      depOrder,
+      List(
+        "com.squareup:javapoet:1.0.0", "com.squareup:kotlinpoet:1.0.0", "com.squareup.okio:okio:1.0.0",
+        "com.squareup.okio:okio-jvm:1.0.0", "com.squareup.wire:wire-runtime-jvm:1.0.0"
+      )
+    )
+  }
+
   withDependenciesFile("").test("write then read round-trip preserves dependencies") { file =>
     val projectADeps = List(
       Dependency.WithNumericVersion(
