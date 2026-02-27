@@ -48,7 +48,7 @@
 
   <!-- Frame 1: dependencies.conf base view (688px) -->
   <g opacity="1">
-    <animate attributeName="opacity" values="1;0;0;0;0;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0;0;0;0;0;0;0" keyTimes="0;0.125;0.25;0.375;0.5;0.625;0.75;0.875" calcMode="discrete" dur="16s" repeatCount="indefinite"/>
     <g clip-path="url(#clip)">
       <rect width="1100" height="688" fill="url(#bg)"/>
       <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
@@ -67,8 +67,8 @@
         <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
         <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
         <text x="86" y="330" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">2.10.0"</tspan></text>
-        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
-        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan></text>
+        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan><tspan fill="#6c7086" font-size="16" font-style="italic">  // 1.0 rewrites our streaming layer</tspan></text>
         <text x="86" y="444" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
         <text x="86" y="482" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
         <text x="86" y="520" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
@@ -80,7 +80,7 @@
 
   <!-- Frame 2: dependencies.conf hover on "View project" (688px) -->
   <g opacity="0">
-    <animate attributeName="opacity" values="0;1;0;0;0;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;1;0;0;0;0;0;0" keyTimes="0;0.125;0.25;0.375;0.5;0.625;0.75;0.875" calcMode="discrete" dur="16s" repeatCount="indefinite"/>
     <g clip-path="url(#clip)">
       <rect width="1100" height="688" fill="url(#bg)"/>
       <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
@@ -100,8 +100,8 @@
         <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
         <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
         <text x="86" y="330" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">2.10.0"</tspan></text>
-        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
-        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan></text>
+        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan><tspan fill="#6c7086" font-size="16" font-style="italic">  // 1.0 rewrites our streaming layer</tspan></text>
         <text x="86" y="444" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
         <text x="86" y="482" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
         <text x="86" y="520" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
@@ -116,7 +116,7 @@
 
   <!-- Frame 3: build.sbt base view (688px) -->
   <g opacity="0">
-    <animate attributeName="opacity" values="0;0;1;0;0;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0;1;0;0;0;0;0" keyTimes="0;0.125;0.25;0.375;0.5;0.625;0.75;0.875" calcMode="discrete" dur="16s" repeatCount="indefinite"/>
     <g clip-path="url(#clip)">
       <rect width="1100" height="688" fill="url(#bg)"/>
       <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
@@ -141,7 +141,7 @@
 
   <!-- Frame 4: build.sbt hover on "View dependencies" (688px) -->
   <g opacity="0">
-    <animate attributeName="opacity" values="0;0;0;1;0;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0;0;1;0;0;0;0" keyTimes="0;0.125;0.25;0.375;0.5;0.625;0.75;0.875" calcMode="discrete" dur="16s" repeatCount="indefinite"/>
     <g clip-path="url(#clip)">
       <rect width="1100" height="688" fill="url(#bg)"/>
       <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
@@ -168,9 +168,9 @@
     </g>
   </g>
 
-  <!-- Frame 5: dependencies.conf base view return (688px) -->
+  <!-- Frame 5: dependencies.conf note decoration highlight (688px) -->
   <g opacity="0">
-    <animate attributeName="opacity" values="0;0;0;0;1;0" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0;0;0;1;0;0;0" keyTimes="0;0.125;0.25;0.375;0.5;0.625;0.75;0.875" calcMode="discrete" dur="16s" repeatCount="indefinite"/>
     <g clip-path="url(#clip)">
       <rect width="1100" height="688" fill="url(#bg)"/>
       <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
@@ -183,14 +183,16 @@
       <rect x="191" y="90" width="260" height="60" fill="#1e1e2e"/>
       <line x1="191" y1="90" x2="451" y2="90" stroke="#89b4fa" stroke-width="2"/>
       <text x="206" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#cdd6f4">project/dependencies.conf</text>
+      <!-- Highlight rect behind the http4s note-decorated line -->
+      <rect x="50" y="389" width="1000" height="28" fill="#313244" opacity="0.7"/>
       <g font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace">
         <text x="86" y="192" font-size="16" fill="#6c7086" xml:space="preserve">View project</text>
         <text x="86" y="216" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">my-project</tspan><tspan fill="#cdd6f4"> {</tspan></text>
         <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
         <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
         <text x="86" y="330" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">2.10.0"</tspan></text>
-        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
-        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan></text>
+        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan><tspan fill="#6c7086" font-size="16" font-style="italic">  // 1.0 rewrites our streaming layer</tspan></text>
         <text x="86" y="444" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
         <text x="86" y="482" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
         <text x="86" y="520" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
@@ -202,7 +204,7 @@
 
   <!-- Frame 6: dependencies.conf tooltip (688px) -->
   <g opacity="0">
-    <animate attributeName="opacity" values="0;0;0;0;0;1" keyTimes="0;0.16667;0.33333;0.5;0.66667;0.83333" calcMode="discrete" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0;0;0;0;1;0;0" keyTimes="0;0.125;0.25;0.375;0.5;0.625;0.75;0.875" calcMode="discrete" dur="16s" repeatCount="indefinite"/>
     <g clip-path="url(#clip)">
       <rect width="1100" height="688" fill="url(#bg)"/>
       <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
@@ -221,8 +223,8 @@
         <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
         <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
         <text x="86" y="330" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">2.10.0"</tspan></text>
-        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
-        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan></text>
+        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan><tspan fill="#6c7086" font-size="16" font-style="italic">  // 1.0 rewrites our streaming layer</tspan></text>
         <text x="86" y="444" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
         <text x="86" y="482" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
         <text x="86" y="520" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
@@ -242,6 +244,84 @@
       </g>
       <g opacity="0.95" filter="url(#tooltip-shadow)">
         <use href="#hand-cursor" x="337" y="384" width="48" height="48"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Frame 7: dependencies.conf pinned code lens (688px) -->
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;0;0;1;0" keyTimes="0;0.125;0.25;0.375;0.5;0.625;0.75;0.875" calcMode="discrete" dur="16s" repeatCount="indefinite"/>
+    <g clip-path="url(#clip)">
+      <rect width="1100" height="688" fill="url(#bg)"/>
+      <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
+      <circle cx="92" cy="56" r="8" fill="#ff5f57"/>
+      <circle cx="118" cy="56" r="8" fill="#febc2e"/>
+      <circle cx="144" cy="56" r="8" fill="#28c840"/>
+      <rect x="50" y="90" width="1000" height="60" fill="#181825"/>
+      <text x="85" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#6c7086">build.sbt</text>
+      <line x1="190" y1="94" x2="190" y2="146" stroke="#313244" stroke-width="1"/>
+      <rect x="191" y="90" width="260" height="60" fill="#1e1e2e"/>
+      <line x1="191" y1="90" x2="451" y2="90" stroke="#89b4fa" stroke-width="2"/>
+      <text x="206" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#cdd6f4">project/dependencies.conf</text>
+      <g font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace">
+        <text x="86" y="192" font-size="16" fill="#6c7086" xml:space="preserve">View project</text>
+        <text x="86" y="216" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">my-project</tspan><tspan fill="#cdd6f4"> {</tspan></text>
+        <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
+        <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
+        <!-- Pinned without note code lens -->
+        <text x="86" y="318" font-size="14" fill="#6c7086" xml:space="preserve">&#x24D8; Pinned without note &#x2014; consider adding { dependency = &quot;...&quot;, note = &quot;...&quot; }</text>
+        <!-- Shifted deps (all +10px from standard positions) -->
+        <text x="86" y="340" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core:</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">2.10.0"</tspan></text>
+        <text x="86" y="378" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="416" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan><tspan fill="#6c7086" font-size="16" font-style="italic">  // 1.0 rewrites our streaming layer</tspan></text>
+        <text x="86" y="454" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="492" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="530" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="568" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">    ]</tspan></text>
+        <text x="86" y="606" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">}</tspan></text>
+      </g>
+      <g opacity="0.95" filter="url(#cursor-shadow)">
+        <use href="#hand-cursor" x="145" y="299" width="48" height="48"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Frame 8: dependencies.conf diagnostics squiggle (688px) -->
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;0;0;0;1" keyTimes="0;0.125;0.25;0.375;0.5;0.625;0.75;0.875" calcMode="discrete" dur="16s" repeatCount="indefinite"/>
+    <g clip-path="url(#clip)">
+      <rect width="1100" height="688" fill="url(#bg)"/>
+      <rect x="50" y="22" width="1000" height="644" rx="12" fill="#1e1e2e" filter="url(#shadow)"/>
+      <circle cx="92" cy="56" r="8" fill="#ff5f57"/>
+      <circle cx="118" cy="56" r="8" fill="#febc2e"/>
+      <circle cx="144" cy="56" r="8" fill="#28c840"/>
+      <rect x="50" y="90" width="1000" height="60" fill="#181825"/>
+      <text x="85" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#6c7086">build.sbt</text>
+      <line x1="190" y1="94" x2="190" y2="146" stroke="#313244" stroke-width="1"/>
+      <rect x="191" y="90" width="260" height="60" fill="#1e1e2e"/>
+      <line x1="191" y1="90" x2="451" y2="90" stroke="#89b4fa" stroke-width="2"/>
+      <text x="206" y="125" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="13" fill="#cdd6f4">project/dependencies.conf</text>
+      <g font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace">
+        <text x="86" y="192" font-size="16" fill="#6c7086" xml:space="preserve">View project</text>
+        <text x="86" y="216" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">my-project</tspan><tspan fill="#cdd6f4"> {</tspan></text>
+        <text x="86" y="254" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    scala-versions</tspan><tspan fill="#cdd6f4"> = [</tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">2.13.12"</tspan><tspan fill="#cdd6f4">, </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#cba6f7">^</tspan><tspan fill="#a6e3a1">3.3.3"</tspan><tspan fill="#cdd6f4">]</tspan></text>
+        <text x="86" y="292" font-size="21" xml:space="preserve"><tspan fill="#89b4fa">    dependencies</tspan><tspan fill="#cdd6f4"> = [</tspan></text>
+        <!-- Malformed dep: missing version -->
+        <text x="86" y="330" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::cats-core</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <!-- Red squiggly underline under dep content (inside quotes) -->
+        <path d="M 200 335 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0 q 2 -2 4 0 q 2 2 4 0" stroke="#f38ba8" stroke-width="1.2" fill="none"/>
+        <text x="86" y="368" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">co.fs2::fs2-core:</tspan><tspan fill="#a6e3a1">3.9.4"</tspan></text>
+        <text x="86" y="406" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.http4s::http4s-core:</tspan><tspan fill="#cba6f7">~</tspan><tspan fill="#a6e3a1">0.23.25"</tspan><tspan fill="#6c7086" font-size="16" font-style="italic">  // 1.0 rewrites our streaming layer</tspan></text>
+        <text x="86" y="444" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.scalameta::munit:</tspan><tspan fill="#a6e3a1">1.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="482" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">org.typelevel::munit-cats-effect:</tspan><tspan fill="#a6e3a1">2.0.0</tspan><tspan fill="#fab387">:test</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="520" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">        </tspan><tspan fill="#a6e3a1">"</tspan><tspan fill="#f9e2af">com.disneystreaming.smithy4s::smithy4s-core:</tspan><tspan fill="#fab387">{{smithy4sVersion}}</tspan><tspan fill="#a6e3a1">"</tspan></text>
+        <text x="86" y="558" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">    ]</tspan></text>
+        <text x="86" y="596" font-size="21" xml:space="preserve"><tspan fill="#cdd6f4">}</tspan></text>
+      </g>
+      <!-- Diagnostic message tooltip -->
+      <g filter="url(#tooltip-shadow)">
+        <rect x="186" y="342" width="526" height="32" rx="6" fill="#2d3043" stroke="#f38ba8" stroke-width="1"/>
+        <text x="200" y="364" font-family="'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace" font-size="14" fill="#cdd6f4">Missing version: expected format &quot;org:artifact:version&quot;</text>
       </g>
     </g>
   </g>
