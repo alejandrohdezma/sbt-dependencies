@@ -84,20 +84,24 @@ function cleanUrl(url: string): string | undefined {
 }
 
 /**
- * Finds the Maven layout base path within a repo host directory using BFS.
+ * Finds all Maven layout base paths within a repo host directory using BFS.
  *
  * Different repositories use different sub-paths before the Maven layout starts:
  * - `repo1.maven.org` → `maven2/`
  * - `oss.sonatype.org` → `content/repositories/releases/`
  *
- * Searches up to 4 levels deep for a directory containing the first component
+ * Some hosts (e.g. JFrog Artifactory) serve multiple Maven repositories under
+ * different paths.  This function returns all of them so the caller can try each.
+ *
+ * Searches up to 4 levels deep for directories containing the first component
  * of the org path (e.g., `org` for `org.typelevel`).
  */
-export function findMavenBase(
+export function findMavenBases(
   hostDir: string,
   orgFirstComponent: string,
   readdir: ReadDir
-): string | undefined {
+): string[] {
+  const results: string[] = [];
   const queue: Array<{ dir: string; depth: number }> = [{ dir: hostDir, depth: 0 }];
 
   while (queue.length > 0) {
@@ -111,7 +115,8 @@ export function findMavenBase(
     }
 
     if (entries.includes(orgFirstComponent)) {
-      return dir;
+      results.push(dir);
+      continue;
     }
 
     if (depth < 4) {
@@ -121,11 +126,11 @@ export function findMavenBase(
     }
   }
 
-  return undefined;
+  return results;
 }
 
-/** Cache for `findMavenBase` results keyed by `hostPath\0orgFirstComponent`. */
-const mavenBaseCache = new Map<string, string | undefined>();
+/** Cache for `findMavenBases` results keyed by `hostPath\0orgFirstComponent`. */
+const mavenBaseCache = new Map<string, string[]>();
 
 /**
  * Resolves the project repository URL for a dependency by searching
@@ -175,45 +180,47 @@ export function resolveRepositoryUrl(
   for (const hostDir of hostDirs) {
     const hostPath = path.join(httpsDir, hostDir);
 
-    // Cache findMavenBase results to avoid repeated BFS for every dependency
+    // Cache findMavenBases results to avoid repeated BFS for every dependency
     const cacheKey = `${hostPath}\0${orgFirstComponent}`;
-    let mavenBase: string | undefined;
+    let mavenBases: string[];
     if (mavenBaseCache.has(cacheKey)) {
-      mavenBase = mavenBaseCache.get(cacheKey);
+      mavenBases = mavenBaseCache.get(cacheKey)!;
     } else {
-      mavenBase = findMavenBase(hostPath, orgFirstComponent, rd);
-      mavenBaseCache.set(cacheKey, mavenBase);
+      mavenBases = findMavenBases(hostPath, orgFirstComponent, rd);
+      mavenBaseCache.set(cacheKey, mavenBases);
     }
-    if (!mavenBase) continue;
+    if (mavenBases.length === 0) continue;
 
-    for (const candidate of candidates) {
-      const artifactDir = path.join(mavenBase, orgPath, candidate);
+    for (const mavenBase of mavenBases) {
+      for (const candidate of candidates) {
+        const artifactDir = path.join(mavenBase, orgPath, candidate);
 
-      let versions: string[];
-      try {
-        versions = rd(artifactDir);
-      } catch {
-        continue;
-      }
-
-      for (const version of versions) {
-        const versionDir = path.join(artifactDir, version);
-
-        let files: string[];
+        let versions: string[];
         try {
-          files = rd(versionDir);
+          versions = rd(artifactDir);
         } catch {
           continue;
         }
 
-        const pomFile = files.find((f) => f.endsWith(".pom"));
-        if (!pomFile) continue;
+        for (const version of versions) {
+          const versionDir = path.join(artifactDir, version);
 
-        const pomContent = rf(path.join(versionDir, pomFile));
-        if (!pomContent) continue;
+          let files: string[];
+          try {
+            files = rd(versionDir);
+          } catch {
+            continue;
+          }
 
-        const url = extractRepositoryUrl(pomContent);
-        if (url) return url;
+          const pomFile = files.find((f) => f.endsWith(".pom"));
+          if (!pomFile) continue;
+
+          const pomContent = rf(path.join(versionDir, pomFile));
+          if (!pomContent) continue;
+
+          const url = extractRepositoryUrl(pomContent);
+          if (url) return url;
+        }
       }
     }
   }

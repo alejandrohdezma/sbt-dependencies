@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   getCoursierCachePath,
   extractRepositoryUrl,
-  findMavenBase,
+  findMavenBases,
   resolveRepositoryUrl,
 } from "./pom";
 
@@ -110,16 +110,16 @@ describe("extractRepositoryUrl", () => {
   });
 });
 
-describe("findMavenBase", () => {
+describe("findMavenBases", () => {
   it("finds base at depth 1 (maven2/)", () => {
     const tree: Record<string, string[]> = {
       "/cache/repo1.maven.org": ["maven2"],
       "/cache/repo1.maven.org/maven2": ["org", "com"],
     };
     const readdir = (dir: string) => tree[dir] ?? [];
-    expect(findMavenBase("/cache/repo1.maven.org", "org", readdir)).toBe(
-      path.join("/cache/repo1.maven.org", "maven2")
-    );
+    expect(findMavenBases("/cache/repo1.maven.org", "org", readdir)).toEqual([
+      path.join("/cache/repo1.maven.org", "maven2"),
+    ]);
   });
 
   it("finds base at depth 3 (content/repositories/releases/)", () => {
@@ -130,14 +130,29 @@ describe("findMavenBase", () => {
       "/cache/oss.sonatype.org/content/repositories/releases": ["org", "com"],
     };
     const readdir = (dir: string) => tree[dir] ?? [];
-    expect(findMavenBase("/cache/oss.sonatype.org", "org", readdir)).toBe(
-      path.join("/cache/oss.sonatype.org", "content", "repositories", "releases")
-    );
+    expect(findMavenBases("/cache/oss.sonatype.org", "org", readdir)).toEqual([
+      path.join("/cache/oss.sonatype.org", "content", "repositories", "releases"),
+    ]);
   });
 
-  it("returns undefined when not found", () => {
+  it("returns empty array when not found", () => {
     const readdir = (_dir: string): string[] => [];
-    expect(findMavenBase("/cache/unknown.host", "org", readdir)).toBeUndefined();
+    expect(findMavenBases("/cache/unknown.host", "org", readdir)).toEqual([]);
+  });
+
+  it("finds multiple bases under the same host (JFrog Artifactory)", () => {
+    const tree: Record<string, string[]> = {
+      "/cache/jfrog.io": ["artifactory"],
+      "/cache/jfrog.io/artifactory": ["ivy", "maven", "custom-libs"],
+      "/cache/jfrog.io/artifactory/ivy": ["com.example"],
+      "/cache/jfrog.io/artifactory/maven": ["com"],
+      "/cache/jfrog.io/artifactory/custom-libs": ["com"],
+    };
+    const readdir = (dir: string) => tree[dir] ?? [];
+    expect(findMavenBases("/cache/jfrog.io", "com", readdir)).toEqual([
+      path.join("/cache/jfrog.io", "artifactory", "maven"),
+      path.join("/cache/jfrog.io", "artifactory", "custom-libs"),
+    ]);
   });
 });
 
@@ -270,6 +285,41 @@ describe("resolveRepositoryUrl", () => {
 
     expect(resolveRepositoryUrl(dep, cachePath, readdir, readFile)).toBe(
       "https://github.com/scalacenter/scalafix"
+    );
+  });
+
+  it("tries multiple maven bases within the same host", () => {
+    const { readdir, readFile } = buildMockFs({
+      "/fake/cache/https": ["jfrog.io"],
+      "/fake/cache/https/jfrog.io": ["artifactory"],
+      "/fake/cache/https/jfrog.io/artifactory": ["maven", "custom-libs"],
+      // maven has com/ but no POM for this artifact
+      "/fake/cache/https/jfrog.io/artifactory/maven": ["com"],
+      "/fake/cache/https/jfrog.io/artifactory/maven/com": ["acme"],
+      "/fake/cache/https/jfrog.io/artifactory/maven/com/acme": [],
+      // custom-libs has the actual artifact with SCM info
+      "/fake/cache/https/jfrog.io/artifactory/custom-libs": ["com"],
+      "/fake/cache/https/jfrog.io/artifactory/custom-libs/com": ["acme"],
+      "/fake/cache/https/jfrog.io/artifactory/custom-libs/com/acme": ["my-lib_3"],
+      "/fake/cache/https/jfrog.io/artifactory/custom-libs/com/acme/my-lib_3": ["1.0.0"],
+      "/fake/cache/https/jfrog.io/artifactory/custom-libs/com/acme/my-lib_3/1.0.0": [
+        "my-lib_3-1.0.0.pom",
+      ],
+      "/fake/cache/https/jfrog.io/artifactory/custom-libs/com/acme/my-lib_3/1.0.0/my-lib_3-1.0.0.pom":
+        '<project><scm><url>https://github.com/acme/my-lib</url></scm></project>',
+    });
+
+    const dep = {
+      org: "com.acme",
+      separator: "::",
+      artifact: "my-lib",
+      version: "1.0.0",
+      matchStart: 0,
+      matchEnd: 30,
+    };
+
+    expect(resolveRepositoryUrl(dep, cachePath, readdir, readFile)).toBe(
+      "https://github.com/acme/my-lib"
     );
   });
 });

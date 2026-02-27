@@ -1,5 +1,5 @@
 myproject = [
   "org.typelevel::cats-core:2.10.0"
   "org.typelevel::cats-effect:3.5.0"
-  "org.scalameta::munit:1.2.2:test"
+  "org.scalameta::munit:1.2.3:test"
 ]
