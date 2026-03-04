@@ -1,4 +1,4 @@
-Manage SBT dependencies from a single YAML file with version markers, auto-updates, and cross-project support
+Manage SBT dependencies from a single HOCON file with version markers, auto-updates, and cross-project support
 
 <img src="vscode-extension/images/demo.svg" alt="sbt-dependencies" width="600" />
 
