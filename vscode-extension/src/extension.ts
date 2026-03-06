@@ -466,6 +466,69 @@ async function runInstallDependencyInGroup(groupName: string): Promise<void> {
 }
 
 /**
+ * Code Action handler: prompts the user for a variable name, then replaces
+ * all numeric dependency versions in the given group with `{{variableName}}`.
+ */
+async function replaceVersionsWithVariable(groupName: string): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== "sbt-dependencies") {
+    vscode.window.showErrorMessage("Open a dependencies.conf file first.");
+    return;
+  }
+
+  const document = editor.document;
+  const lines: string[] = [];
+  for (let i = 0; i < document.lineCount; i++) {
+    lines.push(document.lineAt(i).text);
+  }
+
+  const symbols = parseDocumentSymbols(lines);
+  const group = symbols.find((s) => s.name === groupName);
+  if (!group || !group.children) {
+    vscode.window.showWarningMessage(`Group '${groupName}' not found.`);
+    return;
+  }
+
+  // Collect version positions for dependencies with numeric versions
+  const replacements: { line: number; startCol: number; endCol: number }[] = [];
+  for (const child of group.children) {
+    if (child.kind !== "dependency") continue;
+    const line = lines[child.range.startLine];
+    const dep = parseDependency(line);
+    if (!dep || !dep.version || dep.version.startsWith("{{")) continue;
+    const versionStart = dep.matchStart + dep.org.length + dep.separator.length + dep.artifact.length + 1;
+    replacements.push({ line: child.range.startLine, startCol: versionStart, endCol: versionStart + dep.version.length });
+  }
+
+  if (replacements.length === 0) {
+    vscode.window.showInformationMessage(`No numeric versions found in '${groupName}'.`);
+    return;
+  }
+
+  const variableName = await vscode.window.showInputBox({
+    prompt: `Variable name for versions in '${groupName}'`,
+    placeHolder: "e.g., circeVersion",
+    validateInput: (value) => {
+      if (!value || !/^\w+$/.test(value)) {
+        return "Variable name must contain only letters, digits, and underscores";
+      }
+      return undefined;
+    },
+  });
+  if (!variableName) return;
+
+  const wsEdit = new vscode.WorkspaceEdit();
+  for (const r of replacements) {
+    wsEdit.replace(
+      document.uri,
+      new vscode.Range(r.line, r.startCol, r.line, r.endCol),
+      `{{${variableName}}}`
+    );
+  }
+  await vscode.workspace.applyEdit(wsEdit);
+}
+
+/**
  * Provides code actions to update individual dependencies via the SBT plugin.
  */
 class DependencyCodeActionProvider implements vscode.CodeActionProvider {
@@ -508,6 +571,17 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
         arguments: [groupName],
       };
       actions.push(action);
+
+      const replaceAction = new vscode.CodeAction(
+        `Replace versions with variable in '${groupName}'`,
+        vscode.CodeActionKind.RefactorRewrite
+      );
+      replaceAction.command = {
+        command: "sbt-dependencies.replaceVersionsWithVariable",
+        title: `Replace versions with variable in '${groupName}'`,
+        arguments: [groupName],
+      };
+      actions.push(replaceAction);
     }
 
     for (const diagnostic of context.diagnostics) {
@@ -878,6 +952,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "sbt-dependencies.installDependencyInGroup",
       runInstallDependencyInGroup
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.replaceVersionsWithVariable",
+      replaceVersionsWithVariable
     ),
     vscode.languages.registerCodeLensProvider(
       { pattern: "**/*.sbt", scheme: "file" },
