@@ -11,7 +11,7 @@ const advancedGroupStart = /^\s*[\w][\w.-]*\s*\{/;
 const dependenciesArrayStart = /^\s*dependencies\s*=\s*\[/;
 
 /** Matches a single-line object entry: `{ dependency = "...", note = "..." }` */
-const singleLineObjectPattern = /\{[^}]*\}/g;
+const singleLineObjectPattern = /\{(?:[^}"{]*(?:"[^"]*")?)*\}/g;
 
 /** Extracts the `dependency` field value from an object entry string. */
 const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;

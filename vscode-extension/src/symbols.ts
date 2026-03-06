@@ -164,7 +164,7 @@ export function parseDocumentSymbols(lines: string[]): ParsedSymbol[] {
  */
 function extractDependencies(line: string, lineIndex: number, group: ParsedSymbol): void {
   // First, find single-line object entries and track their ranges
-  const singleLineObjectPattern = /\{([^}]*)\}/g;
+  const singleLineObjectPattern = /\{((?:[^}"{]*(?:"[^"]*")?)*)\}/g;
   let objMatch;
   const objectRanges: [number, number][] = [];
 
