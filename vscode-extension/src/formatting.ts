@@ -237,7 +237,7 @@ export function formatDocument(lines: string[]): string {
     }
   }
 
-  return output.join("\n");
+  return output.join("\n") + "\n";
 }
 
 /**
