@@ -17,7 +17,7 @@ describe("formatDocument", () => {
       '  "com.typesafe:config:1.4.3"',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("strips comments above deps", () => {
@@ -35,7 +35,7 @@ describe("formatDocument", () => {
       '  "co.fs2::fs2-core:^3.9.4"',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("preserves group order", () => {
@@ -57,7 +57,7 @@ describe("formatDocument", () => {
       'group-a = [',
       '  "co.fs2::fs2-core:^3.9.4"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("preserves non-dependency fields in advanced blocks", () => {
@@ -79,7 +79,7 @@ describe("formatDocument", () => {
       '    "org.typelevel::cats-core:2.10.0"',
       '  ]',
       '}',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("normalizes indentation", () => {
@@ -95,7 +95,7 @@ describe("formatDocument", () => {
       '  "co.fs2::fs2-core:^3.9.4"',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("leaves empty groups unchanged", () => {
@@ -103,7 +103,7 @@ describe("formatDocument", () => {
       'my-group = []',
     ];
     const result = formatDocument(lines);
-    expect(result).toBe('my-group = []');
+    expect(result).toBe('my-group = []\n');
   });
 
   it("strips trailing comments at end of group", () => {
@@ -118,7 +118,7 @@ describe("formatDocument", () => {
       'my-group = [',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("does not change already sorted deps", () => {
@@ -130,7 +130,7 @@ describe("formatDocument", () => {
       ']',
     ];
     const result = formatDocument(lines);
-    expect(result).toBe(lines.join("\n"));
+    expect(result).toBe(lines.join("\n") + "\n");
   });
 
   it("formats real-world example correctly", () => {
@@ -176,7 +176,7 @@ describe("formatDocument", () => {
       '    "org.typelevel::munit-cats-effect:2.0.0:test"',
       '  ]',
       '}',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("normalizes multiple blank lines between groups to one", () => {
@@ -200,7 +200,7 @@ describe("formatDocument", () => {
       'group-b = [',
       '  "co.fs2::fs2-core:^3.9.4"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("adds blank line between groups when missing", () => {
@@ -221,7 +221,7 @@ describe("formatDocument", () => {
       'group-b = [',
       '  "co.fs2::fs2-core:^3.9.4"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("strips comment between groups", () => {
@@ -246,7 +246,7 @@ describe("formatDocument", () => {
       'group-b = [',
       '  "co.fs2::fs2-core:^3.9.4"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("does not add blank line before first group", () => {
@@ -260,7 +260,7 @@ describe("formatDocument", () => {
       'group-a = [',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("sorts by config first (empty before named) then by org:artifact", () => {
@@ -280,7 +280,7 @@ describe("formatDocument", () => {
       '  "org.scalameta::munit:1.0.0:test"',
       '  "org.typelevel::munit-cats-effect:2.0.0:test"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("sorts single-line object entries alongside string entries", () => {
@@ -296,7 +296,7 @@ describe("formatDocument", () => {
       '  "co.fs2::fs2-core:^3.9.4"',
       '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("preserves object entries in advanced block dependencies", () => {
@@ -318,7 +318,7 @@ describe("formatDocument", () => {
       '    { dependency = "org.typelevel::cats-core:=2.10.0", note = "Exact pin" }',
       '  ]',
       '}',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("handles multi-line object entries", () => {
@@ -337,7 +337,7 @@ describe("formatDocument", () => {
       '  "co.fs2::fs2-core:^3.9.4"',
       '  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("strips hash comments in groups", () => {
@@ -355,7 +355,7 @@ describe("formatDocument", () => {
       '  "co.fs2::fs2-core:^3.9.4"',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("converts SBT %% dependency to HOCON format", () => {
@@ -369,7 +369,7 @@ describe("formatDocument", () => {
       'my-group = [',
       '  "org.http4s::http4s-dsl:0.23.33"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("converts SBT % dependency to HOCON format", () => {
@@ -383,7 +383,7 @@ describe("formatDocument", () => {
       'my-group = [',
       '  "org.http4s:http4s-netty-client_2.13:0.5.28"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("converts SBT dependency with config", () => {
@@ -397,7 +397,7 @@ describe("formatDocument", () => {
       'my-group = [',
       '  "org.scalameta::munit:1.0.0:test"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("strips libraryDependencies prefix from SBT dependency", () => {
@@ -411,7 +411,7 @@ describe("formatDocument", () => {
       'my-group = [',
       '  "org.http4s::http4s-dsl:0.23.33"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("converts and sorts SBT deps alongside normal deps", () => {
@@ -427,7 +427,7 @@ describe("formatDocument", () => {
       '  "co.fs2::fs2-core:3.9.4"',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("preserves intransitive = true in single-line object", () => {
@@ -441,7 +441,7 @@ describe("formatDocument", () => {
       'my-group = [',
       '  { dependency = "org.http4s::http4s-core:=0.23.3", intransitive = true }',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("preserves both note and intransitive = true", () => {
@@ -455,7 +455,7 @@ describe("formatDocument", () => {
       'my-group = [',
       '  { dependency = "org.http4s::http4s-core:=0.23.3", note = "reason", intransitive = true }',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("normalizes multi-line intransitive object to single-line when short enough", () => {
@@ -472,7 +472,7 @@ describe("formatDocument", () => {
       'my-group = [',
       '  { dependency = "org.http4s::http4s-core:=0.23.3", intransitive = true }',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("sorts intransitive object entry alongside other entries", () => {
@@ -488,7 +488,7 @@ describe("formatDocument", () => {
       '  "co.fs2::fs2-core:3.9.4"',
       '  { dependency = "org.typelevel::cats-core:=2.10.0", intransitive = true }',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("sorts shorter org prefix before longer org with same prefix", () => {
@@ -512,7 +512,7 @@ describe("formatDocument", () => {
       '  "com.squareup.wire:wire-runtime-jvm:5.5.0"',
       '  "com.squareup.wire:wire-schema-jvm:5.5.0"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 
   it("sorts base artifact before suffixed artifacts from same org", () => {
@@ -528,6 +528,6 @@ describe("formatDocument", () => {
       '  "com.beachape::enumeratum:1.9.5"',
       '  "com.beachape::enumeratum-cats:1.9.5"',
       ']',
-    ].join("\n"));
+    ].join("\n") + "\n");
   });
 });

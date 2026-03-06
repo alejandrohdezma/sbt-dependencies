@@ -270,6 +270,15 @@ describe("parseDiagnostics", () => {
       expect(parseDiagnostics(lines)).toEqual([]);
     });
 
+    it("returns no diagnostics for object entry with {{variable}} in dependency", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org.http4s::http4s-core:{{bom}}", note = "1.0 rewrites our streaming layer" }',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
     it("returns error for object entry without dependency field", () => {
       const lines = [
         'my-group = [',

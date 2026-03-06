@@ -14,7 +14,7 @@ const advancedGroupStart = /^\s*[\w][\w.-]*\s*\{/;
 const dependenciesArrayStart = /^\s*dependencies\s*=\s*\[/;
 
 /** Checks if a line is a single-line object entry (with or without note). */
-const singleLineObjectPattern = /\{[^}]*\}/;
+const singleLineObjectPattern = /\{(?:[^}"{]*(?:"[^"]*")?)*\}/;
 
 /** Extracts the `dependency` field value from an object entry. */
 const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
