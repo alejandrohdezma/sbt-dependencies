@@ -7,6 +7,7 @@ import { formatDocument } from "./formatting";
 import { parseDependency, buildHoverMarkdown } from "./hover";
 import { parseDocumentLinks } from "./links";
 import { parseNoteDecorations } from "./note-decorations";
+import { DependencyPasteEditProvider } from "./paste";
 import { resolveRepositoryUrl } from "./pom";
 import { findReferences } from "./references";
 import { getQuickFixes } from "./quickfix";
@@ -329,10 +330,20 @@ class DependencyRenameProvider implements vscode.RenameProvider {
  * Provides document formatting for `dependencies.conf` files, sorting
  * dependencies alphabetically within groups and normalizing indentation.
  */
-class DependencyDocumentFormattingProvider implements vscode.DocumentFormattingEditProvider {
+class DependencyDocumentFormattingProvider implements vscode.DocumentFormattingEditProvider, vscode.DocumentRangeFormattingEditProvider {
   provideDocumentFormattingEdits(
     document: vscode.TextDocument
   ): vscode.TextEdit[] {
+    return this.formatFullDocument(document);
+  }
+
+  provideDocumentRangeFormattingEdits(
+    document: vscode.TextDocument
+  ): vscode.TextEdit[] {
+    return this.formatFullDocument(document);
+  }
+
+  private formatFullDocument(document: vscode.TextDocument): vscode.TextEdit[] {
     const lines: string[] = [];
     for (let i = 0; i < document.lineCount; i++) {
       lines.push(document.lineAt(i).text);
@@ -927,6 +938,18 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerDocumentFormattingEditProvider(
       selector,
       new DependencyDocumentFormattingProvider()
+    ),
+    vscode.languages.registerDocumentRangeFormattingEditProvider(
+      selector,
+      new DependencyDocumentFormattingProvider()
+    ),
+    vscode.languages.registerDocumentPasteEditProvider(
+      selector,
+      new DependencyPasteEditProvider(),
+      {
+        providedPasteEditKinds: [DependencyPasteEditProvider.kind],
+        pasteMimeTypes: ["text/plain"],
+      }
     ),
     vscode.languages.registerCodeActionsProvider(
       selector,
