@@ -18,9 +18,9 @@ const objectIntransitivePattern = /intransitive\s*=\s*true/;
 /** Max line length for single-line object entries. */
 const maxObjectLineLength = 120;
 
-/** Matches SBT-style dependency: "org" %% "art" % "ver" [% "config"] */
+/** Matches SBT-style dependency: "org" %% "art" % "ver" [% "config" | % Test] */
 export const sbtDependencyPattern =
-  /^\s*(?:libraryDependencies\s*\+[+=]\s*)?"([^"]+)"\s*(%{1,2})\s*"([^"]+)"\s*%\s*"([^"]+)"(?:\s*%\s*"([^"]+)")?\s*,?\s*$/;
+  /^\s*(?:(libraryDependencies\s*\+[+=]|addSbtPlugin\s*\()\s*)?"([^"]+)"\s*(%{1,2})\s*"([^"]+)"\s*%\s*"([^"]+)"(?:\s*%\s*(?:"([^"]+)"|(\w+)))?\s*\)?\s*,?\s*$/;
 
 /** A dependency entry ready for sorting and output. */
 interface DependencyEntry {
@@ -359,11 +359,24 @@ function extractQuotedString(line: string): string | undefined {
 export function convertSbtDependency(line: string): string | undefined {
   const m = sbtDependencyPattern.exec(line);
   if (!m) return undefined;
-  const org = m[1];
-  const sep = m[2] === "%%" ? "::" : ":";
-  const artifact = m[3];
-  const version = m[4];
-  const config = m[5];
+  const prefix = m[1];
+  const org = m[2];
+  const sep = m[3] === "%%" ? "::" : ":";
+  let artifact = m[4];
+  const version = m[5];
+  let config = m[6] ?? (m[7] ? m[7].toLowerCase() : undefined);
+
+  // Artifact ending with _2.12_1.0 indicates an sbt plugin
+  if (artifact.endsWith("_2.12_1.0")) {
+    artifact = artifact.slice(0, -"_2.12_1.0".length);
+    config = "sbt-plugin";
+  }
+
+  // addSbtPlugin always implies sbt-plugin config
+  if (prefix?.startsWith("addSbtPlugin")) {
+    config = "sbt-plugin";
+  }
+
   return `${org}${sep}${artifact}:${version}${config ? `:${config}` : ""}`;
 }
 

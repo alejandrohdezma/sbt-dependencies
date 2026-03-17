@@ -530,4 +530,60 @@ describe("formatDocument", () => {
       ']',
     ].join("\n") + "\n");
   });
+
+  it("converts addSbtPlugin dependency to HOCON format with sbt-plugin config", () => {
+    const lines = [
+      'my-group = [',
+      '  addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.19.2")',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "com.alejandrohdezma:sbt-dependencies:0.19.2:sbt-plugin"',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("strips _2.12_1.0 suffix from artifact and adds sbt-plugin config", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.typelevel" % "sbt-tpolecat_2.12_1.0" % "0.5.3"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.typelevel:sbt-tpolecat:0.5.3:sbt-plugin"',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("converts unquoted % Test config to :test", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.scalameta" %% "munit" % "1.0.4" % Test',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.scalameta::munit:1.0.4:test"',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("converts libraryDependencies with unquoted % Test config", () => {
+    const lines = [
+      'my-group = [',
+      '  libraryDependencies += "org.scalameta" %% "munit" % "1.0.4" % Test',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.scalameta::munit:1.0.4:test"',
+      ']',
+    ].join("\n") + "\n");
+  });
 });
