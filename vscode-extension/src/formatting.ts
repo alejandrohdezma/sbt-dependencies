@@ -19,7 +19,7 @@ const objectIntransitivePattern = /intransitive\s*=\s*true/;
 const maxObjectLineLength = 120;
 
 /** Matches SBT-style dependency: "org" %% "art" % "ver" [% "config"] */
-const sbtDependencyPattern =
+export const sbtDependencyPattern =
   /^\s*(?:libraryDependencies\s*\+[+=]\s*)?"([^"]+)"\s*(%{1,2})\s*"([^"]+)"\s*%\s*"([^"]+)"(?:\s*%\s*"([^"]+)")?\s*,?\s*$/;
 
 /** A dependency entry ready for sorting and output. */
@@ -356,7 +356,7 @@ function extractQuotedString(line: string): string | undefined {
 }
 
 /** Converts an SBT-style dependency line to the canonical HOCON format, or undefined. */
-function convertSbtDependency(line: string): string | undefined {
+export function convertSbtDependency(line: string): string | undefined {
   const m = sbtDependencyPattern.exec(line);
   if (!m) return undefined;
   const org = m[1];

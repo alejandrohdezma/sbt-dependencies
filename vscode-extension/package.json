@@ -10,7 +10,7 @@
     "url": "https://github.com/alejandrohdezma/sbt-dependencies"
   },
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.82.0"
   },
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -69,7 +69,8 @@
         "dependencies.conf": "sbt-dependencies"
       },
       "[sbt-dependencies]": {
-        "editor.fontLigatures": false
+        "editor.fontLigatures": false,
+        "editor.formatOnPaste": true
       }
     }
   },
@@ -83,7 +84,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@types/vscode": "^1.75.0",
+    "@types/vscode": "^1.82.0",
     "@types/node": "^24.2.0",
     "@vscode/vsce": "^3.2.2",
     "esbuild": "^0.25.0",
