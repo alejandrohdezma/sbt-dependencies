@@ -20,7 +20,7 @@ const maxObjectLineLength = 120;
 
 /** Matches SBT-style dependency: "org" %% "art" % "ver" [% "config" | % Test] */
 export const sbtDependencyPattern =
-  /^\s*(?:(libraryDependencies\s*\+[+=]|addSbtPlugin\s*\()\s*)?"([^"]+)"\s*(%{1,2})\s*"([^"]+)"\s*%\s*"([^"]+)"(?:\s*%\s*(?:"([^"]+)"|(\w+)))?\s*\)?\s*,?\s*$/;
+  /^\s*(?:(libraryDependencies\s*\+[+=]|addSbtPlugin\s*\()\s*)?"([^"]+)"\s*(%{1,2})\s*"([^"]+)"\s*%\s*(?:"([^"]+)"|(\w+))(?:\s*%\s*(?:"([^"]+)"|(\w+)))?\s*\)?\s*,?\s*$/;
 
 /** A dependency entry ready for sorting and output. */
 interface DependencyEntry {
@@ -376,8 +376,8 @@ export function convertSbtDependency(line: string): string | undefined {
   const org = m[2];
   const sep = m[3] === "%%" ? "::" : ":";
   let artifact = m[4];
-  const version = m[5];
-  let config = m[6] ?? (m[7] ? m[7].toLowerCase() : undefined);
+  const version = m[5] ?? `{{${m[6]}}}`;
+  let config = m[7] ?? (m[8] ? m[8].toLowerCase() : undefined);
 
   // Artifact ending with _2.12_1.0 indicates an sbt plugin
   if (artifact.endsWith("_2.12_1.0")) {
