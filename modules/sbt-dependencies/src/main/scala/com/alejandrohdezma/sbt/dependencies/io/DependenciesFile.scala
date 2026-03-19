@@ -181,6 +181,20 @@ final case class DependenciesFile(file: File) {
     IO.write(file, content + "\n")
   }
 
+  /** Sorts dependencies within each group and rewrites the file with consistent formatting.
+    *
+    * Groups are sorted alphabetically. Dependencies within each group are sorted by (configuration, organization,
+    * name). All annotations, Scala versions, and format (Simple vs Advanced) are preserved.
+    */
+  def format()(implicit logger: Logger): Unit = {
+    val content = readRaw(file).toList
+      .sortBy(_._1)
+      .map { case (g, c) => c.sorted.format(g) }
+      .mkString("\n\n")
+
+    IO.write(file, content + "\n")
+  }
+
   /** Checks if a group exists in the given HOCON file.
     *
     * @param group

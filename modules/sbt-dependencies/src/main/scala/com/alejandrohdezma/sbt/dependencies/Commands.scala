@@ -46,10 +46,10 @@ import coursier.Repository
 class Commands {
 
   /** All commands provided by this plugin. */
-  val all = Seq(initDependenciesFile, updateAllDependencies, updateSbtPlugin, updateBuildDependencies,
-    installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
-    enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, snapshotSbtPlugin, snapshotSbtVersion,
-    computeDependencyDiff, computePostUpdateHooks)
+  val all = Seq(initDependenciesFile, formatDependenciesFile, updateAllDependencies, updateSbtPlugin,
+    updateBuildDependencies, installBuildDependencies, updateSbt, updateBuildScalaVersions, updateScalafmtVersion,
+    disableEvictionWarnings, enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, snapshotSbtPlugin,
+    snapshotSbtVersion, computeDependencyDiff, computePostUpdateHooks)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -135,6 +135,29 @@ class Commands {
       val composite = ("reload plugins" +: s"initDependenciesFile $flagsString" :+ "reload return").mkString("; ")
       state.copy(remainingCommands = Exec(composite, None) +: state.remainingCommands)
     }
+  }
+
+  /** Sorts dependencies within each group in the dependencies.conf file and rewrites it with consistent formatting. */
+  lazy val formatDependenciesFile = Command.command("formatDependenciesFile") { state =>
+    implicit val logger: Logger = state.log
+
+    val base = Project.extract(state).get(ThisBuild / baseDirectory)
+
+    val isSbtBuild = base.name.equalsIgnoreCase("project")
+
+    val file = DependenciesFile {
+      if (isSbtBuild) base / "dependencies.conf"
+      else base / "project" / "dependencies.conf"
+    }
+
+    if (file.exists()) {
+      file.format()
+      logger.info("✎ Formatted project/dependencies.conf")
+    } else {
+      logger.warn("project/dependencies.conf not found")
+    }
+
+    state
   }
 
   /** Updates everything: plugin, Scala versions, dependencies, scalafmt, and SBT version. */

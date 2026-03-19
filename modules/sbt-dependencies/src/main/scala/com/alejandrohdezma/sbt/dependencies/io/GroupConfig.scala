@@ -33,6 +33,11 @@ sealed trait GroupConfig {
   /** The list of Scala versions for this group. */
   def scalaVersions: List[String] = Nil
 
+  def sorted: GroupConfig = this match {
+    case GroupConfig.Simple(deps)             => GroupConfig.Simple(deps.sorted)
+    case GroupConfig.Advanced(deps, versions) => GroupConfig.Advanced(deps.sorted, versions)
+  }
+
   /** Formats a group with its configuration for HOCON output. */
   def format(group: String): String = this match {
     case GroupConfig.Simple(deps) =>

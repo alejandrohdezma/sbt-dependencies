@@ -1,0 +1,13 @@
+myproject {
+  scala-versions = ["2.13.16", "3.3.6"]
+  dependencies = [
+    { dependency = "com.google.guava:guava:33.4.0-jre", note = "Java library" }
+    "org.typelevel::cats-core:2.10.0"
+    "org.scalameta::munit:1.2.1:test"
+  ]
+}
+
+sbt-build = [
+  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
+  "org.scalameta:sbt-scalafmt:2.5.6:sbt-plugin"
+]
