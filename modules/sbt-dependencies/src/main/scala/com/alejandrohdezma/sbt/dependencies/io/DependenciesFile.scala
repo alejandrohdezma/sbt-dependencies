@@ -241,6 +241,6 @@ object DependenciesFile {
   def apply(file: File): DependenciesFile = new DependenciesFile(file)
 
   /** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
-  val GroupOrdering: Ordering[String] = Ordering.by(name => (name != "sbt-build", name))
+  val GroupOrdering: Ordering[String] = Ordering.by(name => (name !== "sbt-build", name))
 
 }
