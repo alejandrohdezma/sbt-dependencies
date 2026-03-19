@@ -608,4 +608,60 @@ describe("formatDocument", () => {
       ']',
     ].join("\n") + "\n");
   });
+
+  it("converts SBT dependency with unquoted version variable to {{variable}}", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.http4s" %% "http4s-dsl" % bom',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s::http4s-dsl:{{bom}}"',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("converts SBT dependency with unquoted version variable and quoted config", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.http4s" %% "http4s-dsl" % bom % "test"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s::http4s-dsl:{{bom}}:test"',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("converts SBT dependency with unquoted version variable and unquoted Test config", () => {
+    const lines = [
+      'my-group = [',
+      '  "org.http4s" %% "http4s-dsl" % bom % Test',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s::http4s-dsl:{{bom}}:test"',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("strips libraryDependencies prefix from SBT dependency with unquoted version", () => {
+    const lines = [
+      'my-group = [',
+      '  libraryDependencies += "org.http4s" %% "http4s-dsl" % bom',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  "org.http4s::http4s-dsl:{{bom}}"',
+      ']',
+    ].join("\n") + "\n");
+  });
 });
