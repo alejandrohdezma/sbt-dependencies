@@ -163,13 +163,13 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project = [
-         |  "org.typelevel::cats-core:2.10.0"
-         |]
-         |
-         |sbt-build = [
+      """|sbt-build = [
          |  "io.get-coursier::coursier:2.1.24"
          |  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
+         |]
+         |
+         |my-project = [
+         |  "org.typelevel::cats-core:2.10.0"
          |]
          |""".stripMargin
 
