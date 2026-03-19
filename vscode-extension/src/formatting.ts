@@ -30,8 +30,8 @@ interface DependencyEntry {
 }
 
 /**
- * Formats a `dependencies.conf` document by sorting dependencies
- * alphabetically within each group and normalizing indentation.
+ * Formats a `dependencies.conf` document by sorting groups (`sbt-build`
+ * first, then alphabetically) and dependencies within each group.
  *
  * - Simple groups: 2-space indent for dependencies
  * - Advanced blocks: 2-space indent for fields, 4-space indent for
@@ -39,8 +39,18 @@ interface DependencyEntry {
  * - All comments are stripped (the SBT plugin never writes them back)
  * - Object entries (`{ dependency = "...", note = "..." }`) are preserved
  */
+
+/** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
+function groupSortKey(name: string): string {
+  return name === "sbt-build" ? `\0${name}` : name;
+}
+
 export function formatDocument(lines: string[]): string {
-  const output: string[] = [];
+  /** Collected groups as (name, formatted lines). */
+  const groups: { name: string; lines: string[] }[] = [];
+  /** Current group being built. */
+  let currentGroup: { name: string; lines: string[] } | undefined;
+
   let state: ParserState = "outside";
   /** State to return to after a multi-line dependency object closes. */
   let preObjectState: "simple_array" | "dependencies_array" = "simple_array";
@@ -55,14 +65,14 @@ export function formatDocument(lines: string[]): string {
   /** Whether the opening bracket line has already been pushed. */
   let headerPushed = false;
 
-  /** Whether at least one group has been emitted (for blank-line normalization). */
-  let hasEmittedGroup = false;
-
   /** Accumulated lines for a multi-line object entry. */
   let objectLines: string[] = [];
 
   /** Dependency string extracted from a multi-line object. */
   let objectDepString: string | undefined;
+
+  /** Helper to push a line to the current group's output. */
+  const output = { push(line: string) { currentGroup!.lines.push(line); } };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -107,12 +117,9 @@ export function formatDocument(lines: string[]): string {
       const advancedMatch = !simpleMatch ? advancedGroupStart.exec(effectiveLine) : null;
 
       if (simpleMatch || advancedMatch) {
-        // About to start a new group — insert exactly one blank line
-        // between this group and the previous one. Comments are stripped.
-        if (hasEmittedGroup) {
-          output.push("");
-        }
-        hasEmittedGroup = true;
+        const groupName = (simpleMatch ?? advancedMatch)![2];
+        currentGroup = { name: groupName, lines: [] };
+        groups.push(currentGroup);
 
         if (simpleMatch) {
           depIndent = "  ";
@@ -237,7 +244,13 @@ export function formatDocument(lines: string[]): string {
     }
   }
 
-  return output.join("\n") + "\n";
+  groups.sort((a, b) => {
+    const ka = groupSortKey(a.name);
+    const kb = groupSortKey(b.name);
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
+  });
+
+  return groups.map(g => g.lines.join("\n")).join("\n\n") + "\n";
 }
 
 /**
@@ -400,7 +413,7 @@ function buildSortKey(depString: string): string {
 
 /** Sorts entries and flushes them to output. */
 function flushEntries(
-  output: string[],
+  output: { push(line: string): void },
   entries: DependencyEntry[]
 ): void {
   entries.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);

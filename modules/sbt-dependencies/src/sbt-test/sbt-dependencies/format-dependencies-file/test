@@ -1,0 +1,3 @@
+# Verify formatDependenciesFile sorts dependencies within each group
+> formatDependenciesFile
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

@@ -126,7 +126,7 @@ final case class DependenciesFile(file: File) {
       val updated = existingConfigs + (group -> newConfig)
 
       val content = updated.toList
-        .sortBy(_._1)
+        .sortBy(_._1)(DependenciesFile.GroupOrdering)
         .map { case (g, config) => config.format(g) }
         .mkString("\n\n")
 
@@ -174,8 +174,23 @@ final case class DependenciesFile(file: File) {
     val updated = existingConfigs + (group -> newConfig)
 
     val content = updated.toList
-      .sortBy(_._1)
+      .sortBy(_._1)(DependenciesFile.GroupOrdering)
       .map { case (g, config) => config.format(g) }
+      .mkString("\n\n")
+
+    IO.write(file, content + "\n")
+  }
+
+  /** Sorts dependencies within each group and rewrites the file with consistent formatting.
+    *
+    * Groups are sorted with `sbt-build` first, then alphabetically. Dependencies within each group are sorted by
+    * (configuration, organization, name). All annotations, Scala versions, and format (Simple vs Advanced) are
+    * preserved.
+    */
+  def format()(implicit logger: Logger): Unit = {
+    val content = readRaw(file).toList
+      .sortBy(_._1)(DependenciesFile.GroupOrdering)
+      .map { case (g, c) => c.sorted.format(g) }
       .mkString("\n\n")
 
     IO.write(file, content + "\n")
@@ -224,5 +239,8 @@ final case class DependenciesFile(file: File) {
 object DependenciesFile {
 
   def apply(file: File): DependenciesFile = new DependenciesFile(file)
+
+  /** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
+  val GroupOrdering: Ordering[String] = Ordering.by(name => (name !== "sbt-build", name))
 
 }

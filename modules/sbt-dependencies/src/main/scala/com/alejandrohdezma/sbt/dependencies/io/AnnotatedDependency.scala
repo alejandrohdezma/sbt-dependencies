@@ -58,6 +58,18 @@ final case class AnnotatedDependency(line: String, note: Option[String] = None, 
 
 object AnnotatedDependency {
 
+  /** Ordering for annotated dependencies: first by configuration, then by organization, then by name.
+    *
+    * Extracts sort keys directly from the dependency line regex, avoiding the need for full dependency parsing (which
+    * requires variable resolvers).
+    */
+  implicit val AnnotatedDependencyOrdering: Ordering[AnnotatedDependency] = Ordering.by(_.line match {
+    case Dependency.dependencyRegex(org, _, name, _, config) =>
+      (Option(config).getOrElse("compile"), org.toLowerCase, name.toLowerCase)
+    case line =>
+      ("zzz", line.toLowerCase, "")
+  })
+
   final case class NoteKey(organization: String, name: String, configuration: String)
 
   /** Holds the annotation data (note + intransitive flag) for a dependency, used during write preservation. */

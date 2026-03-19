@@ -1,3 +1,8 @@
+sbt-build {
+  scala-versions = ["2.13.12", "3.3.3"]
+  dependencies = []
+}
+
 myproject = [
   "org.typelevel::cats-core:2.10.0"
   "org.typelevel::kind-projector:0.13.4:plugin->default(compile)"
@@ -7,8 +12,3 @@ myproject = [
 otherproject = [
   "org.typelevel::cats-effect:3.5.7"
 ]
-
-sbt-build {
-  scala-versions = ["2.13.12", "3.3.3"]
-  dependencies = []
-}

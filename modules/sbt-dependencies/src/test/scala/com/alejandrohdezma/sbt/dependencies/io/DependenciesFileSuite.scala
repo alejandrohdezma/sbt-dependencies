@@ -163,13 +163,13 @@ class DependenciesFileSuite extends munit.FunSuite {
     val content = IO.read(file)
 
     val expected =
-      """|my-project = [
-         |  "org.typelevel::cats-core:2.10.0"
-         |]
-         |
-         |sbt-build = [
+      """|sbt-build = [
          |  "io.get-coursier::coursier:2.1.24"
          |  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
+         |]
+         |
+         |my-project = [
+         |  "org.typelevel::cats-core:2.10.0"
          |]
          |""".stripMargin
 
@@ -1470,6 +1470,132 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("hasGroup returns true for group with empty dependencies") { file =>
     assert(DependenciesFile(file).hasGroup("my-project"))
+  }
+
+  // --- format tests ---
+
+  withDependenciesFile {
+    """|my-project = [
+       |  "org.scalameta::munit:1.2.1:test"
+       |  "org.typelevel::cats-core:2.10.0"
+       |  "com.google.guava:guava:33.4.0-jre"
+       |]
+       |""".stripMargin
+  }.test("format sorts dependencies within simple group") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  "com.google.guava:guava:33.4.0-jre"
+         |  "org.typelevel::cats-core:2.10.0"
+         |  "org.scalameta::munit:1.2.1:test"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project {
+       |  scala-versions = ["2.13.16", "3.3.6"]
+       |  dependencies = [
+       |    "org.scalameta::munit:1.2.1:test"
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
+       |""".stripMargin
+  }.test("format sorts dependencies within advanced group preserving scala versions") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project {
+         |  scala-versions = ["2.13.16", "3.3.6"]
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |    "org.scalameta::munit:1.2.1:test"
+         |  ]
+         |}
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|z-group = [
+       |  "org:z-lib:1.0.0"
+       |]
+       |
+       |a-group = [
+       |  "org:a-lib:1.0.0"
+       |]
+       |""".stripMargin
+  }.test("format sorts groups alphabetically") { file =>
+    DependenciesFile(file).format()
+
+    val content    = IO.read(file)
+    val groupOrder = content.linesIterator.filter(_.contains(" = [")).map(_.split(" = ")(0)).toList
+
+    assertEquals(groupOrder, List("a-group", "z-group"))
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+       |  { dependency = "com.google.guava:guava:33.4.0-jre", intransitive = true }
+       |]
+       |""".stripMargin
+  }.test("format preserves annotations while sorting") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "com.google.guava:guava:33.4.0-jre", intransitive = true }
+         |  { dependency = "org.typelevel::cats-core:^2.10.0", note = "v3 drops Scala 2.12" }
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  nonExistentFile.test("format does not fail for non-existent file") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+    assertEquals(content, "\n")
+  }
+
+  withDependenciesFile("").test("format does not fail for empty file") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+    assertEquals(content, "\n")
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  "org.typelevel::cats-core:{{catsVersion}}"
+       |  "com.google.guava:guava:33.4.0-jre"
+       |]
+       |""".stripMargin
+  }.test("format sorts dependencies with variable versions") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  "com.google.guava:guava:33.4.0-jre"
+         |  "org.typelevel::cats-core:{{catsVersion}}"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
   }
 
 }

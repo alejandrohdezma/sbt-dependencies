@@ -38,7 +38,7 @@ describe("formatDocument", () => {
     ].join("\n") + "\n");
   });
 
-  it("preserves group order", () => {
+  it("sorts groups alphabetically", () => {
     const lines = [
       'group-b = [',
       '  "org.typelevel::cats-core:2.10.0"',
@@ -50,12 +50,34 @@ describe("formatDocument", () => {
     ];
     const result = formatDocument(lines);
     expect(result).toBe([
+      'group-a = [',
+      '  "co.fs2::fs2-core:^3.9.4"',
+      ']',
+      '',
       'group-b = [',
       '  "org.typelevel::cats-core:2.10.0"',
       ']',
+    ].join("\n") + "\n");
+  });
+
+  it("keeps sbt-build at the top", () => {
+    const lines = [
+      'my-project = [',
+      '  "org.typelevel::cats-core:2.10.0"',
+      ']',
       '',
-      'group-a = [',
-      '  "co.fs2::fs2-core:^3.9.4"',
+      'sbt-build = [',
+      '  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'sbt-build = [',
+      '  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"',
+      ']',
+      '',
+      'my-project = [',
+      '  "org.typelevel::cats-core:2.10.0"',
       ']',
     ].join("\n") + "\n");
   });
