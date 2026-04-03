@@ -62,8 +62,8 @@ object RetractedArtifact extends Cached[RetractedArtifact] {
     ConfigDecoder
       .optionalConfigList[List[RetractedArtifact]] { config =>
         for {
-          reason <- config.as[String]("reason")
-          doc    <- config.as[String]("doc")
+          reason    <- config.as[String]("reason")
+          doc       <- config.as[String]("doc")
           artifacts <- config.as[List[RetractedArtifact]]("artifacts") {
                          ConfigDecoder.configList[RetractedArtifact] { c =>
                            for {

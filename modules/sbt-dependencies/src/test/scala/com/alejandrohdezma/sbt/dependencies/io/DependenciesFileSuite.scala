@@ -210,7 +210,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     DependenciesFile(file).write("group", dependencies)
 
-    val content = IO.read(file)
+    val content  = IO.read(file)
     val depOrder =
       content.linesIterator.filter(_.trim.startsWith("\"")).map(_.trim.stripPrefix("\"").stripSuffix("\"")).toList
 
@@ -236,7 +236,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     DependenciesFile(file).write("group", dependencies)
 
-    val content = IO.read(file)
+    val content  = IO.read(file)
     val depOrder =
       content.linesIterator.filter(_.trim.startsWith("\"")).map(_.trim.stripPrefix("\"").stripSuffix("\"")).toList
 
@@ -256,7 +256,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     DependenciesFile(file).write("group", dependencies)
 
-    val content = IO.read(file)
+    val content  = IO.read(file)
     val depOrder =
       content.linesIterator.filter(_.trim.startsWith("\"")).map(_.trim.stripPrefix("\"").stripSuffix("\"")).toList
 
@@ -382,7 +382,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     DependenciesFile(file).write("group", dependencies)
 
-    val content = IO.read(file)
+    val content  = IO.read(file)
     val depOrder =
       content.linesIterator.filter(_.trim.startsWith("\"")).map(_.trim.stripPrefix("\"").stripSuffix("\"")).toList
 

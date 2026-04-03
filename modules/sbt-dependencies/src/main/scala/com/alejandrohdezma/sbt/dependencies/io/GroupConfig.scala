@@ -47,7 +47,7 @@ sealed trait GroupConfig {
       val scalaVersionsSection = versions match {
         case Nil           => ""
         case single :: Nil => s"""  scala-version = "$single"\n"""
-        case multiple =>
+        case multiple      =>
           s"""  scala-versions = [${multiple.map(v => s""""$v"""").mkString(", ")}]\n"""
       }
 

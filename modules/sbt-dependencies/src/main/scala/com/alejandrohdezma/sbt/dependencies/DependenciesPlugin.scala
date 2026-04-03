@@ -63,7 +63,7 @@ object DependenciesPlugin extends AutoPlugin {
     dependencyScalafixMigrations      := ScalafixMigration.default,
     dependencyResolverTimeout         := 60,
     dependencyResolverParallelism     := Runtime.getRuntime.availableProcessors,
-    scalaVersion := Def.settingDyn {
+    scalaVersion                      := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
         val versions = Settings.buildScalaVersions.value
@@ -94,7 +94,7 @@ object DependenciesPlugin extends AutoPlugin {
     update                  := Tasks.updateWithChecks.value,
     allProjectDependencies  := update.value.allModules.toList,
     install / aggregate     := false,
-    scalaVersion := Def.settingDyn {
+    scalaVersion            := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
         val versions = Settings.projectScalaVersions.value
