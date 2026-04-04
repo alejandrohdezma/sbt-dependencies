@@ -1,5 +1,5 @@
 # Verify +update doesn't try to resolve scala-reflect for Scala 3
 > +update
 
-# Verify {{scalaVersion}} variable resolves correctly
+# Verify {{scala}} variable resolves correctly
 > +assertTest
