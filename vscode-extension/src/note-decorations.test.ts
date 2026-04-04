@@ -152,6 +152,50 @@ describe("parseNoteDecorations", () => {
     expect(visiblePart).toBe('"org.http4s::http4s-core:=0.23.3"');
   });
 
+  it("returns decoration for scala-filter-only entry in simple group", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.scala-lang:scala-reflect:{{scala}}", scala-filter = "2" }',
+      ']',
+    ];
+    const results = parseNoteDecorations(lines);
+    expect(results).toHaveLength(1);
+    expect(results[0].line).toBe(1);
+    expect(results[0].noteText).toBe("only for Scala 2");
+
+    const visiblePart = lines[1].slice(results[0].prefixRange.endCol, results[0].suffixRange.startCol);
+    expect(visiblePart).toBe('"org.scala-lang:scala-reflect:{{scala}}"');
+
+    const suffixText = lines[1].slice(results[0].suffixRange.startCol, results[0].suffixRange.endCol);
+    expect(suffixText).toBe(', scala-filter = "2" }');
+  });
+
+  it("returns decoration for scala-filter-only entry in advanced group", () => {
+    const lines = [
+      'my-project {',
+      '  scala-versions = ["2.13.16", "3.3.7"]',
+      '  dependencies = [',
+      '    { dependency = "org.scala-lang:scala-reflect:{{scala}}", scala-filter = "2.13" }',
+      '  ]',
+      '}',
+    ];
+    const results = parseNoteDecorations(lines);
+    expect(results).toHaveLength(1);
+    expect(results[0].line).toBe(3);
+    expect(results[0].noteText).toBe("only for Scala 2.13");
+  });
+
+  it("prefers note over scala-filter when both are present", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.scala-lang:scala-reflect:{{scala}}", note = "Not available for Scala 3", scala-filter = "2" }',
+      ']',
+    ];
+    const results = parseNoteDecorations(lines);
+    expect(results).toHaveLength(1);
+    expect(results[0].noteText).toBe("Not available for Scala 3");
+  });
+
   it("does not return decoration for intransitive-only object (no note)", () => {
     const lines = [
       'my-group = [',

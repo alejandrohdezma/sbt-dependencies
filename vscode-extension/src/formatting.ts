@@ -15,6 +15,9 @@ const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
 /** Checks for `intransitive = true` in an object entry. */
 const objectIntransitivePattern = /intransitive\s*=\s*true/;
 
+/** Extracts the `scala-filter` field value from an object entry. */
+const objectScalaFilterPattern = /scala-filter\s*=\s*"([^"]*)"/;
+
 /** Max line length for single-line object entries. */
 const maxObjectLineLength = 120;
 
@@ -39,6 +42,11 @@ interface DependencyEntry {
  * - All comments are stripped (the SBT plugin never writes them back)
  * - Object entries (`{ dependency = "...", note = "..." }`) are preserved
  */
+
+/** Strips quoted strings from a line so that brace checks ignore content inside `"..."`. */
+function stripQuotedStrings(line: string): string {
+  return line.replace(/"[^"]*"/g, "");
+}
 
 /** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
 function groupSortKey(name: string): string {
@@ -156,8 +164,9 @@ export function formatDocument(lines: string[]): string {
         continue;
       }
 
-      // Check for multi-line object start
-      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
+      // Check for multi-line object start (strip quoted strings to avoid matching `}}` in `{{var}}`)
+      const unquoted = stripQuotedStrings(effectiveLine);
+      if (unquoted.includes("{") && !unquoted.includes("}")) {
         objectLines = [line];
         objectDepString = undefined;
         const depMatch = objectDepFieldPattern.exec(line);
@@ -210,8 +219,9 @@ export function formatDocument(lines: string[]): string {
         continue;
       }
 
-      // Check for multi-line object start
-      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
+      // Check for multi-line object start (strip quoted strings to avoid matching `}}` in `{{var}}`)
+      const unquotedDep = stripQuotedStrings(effectiveLine);
+      if (unquotedDep.includes("{") && !unquotedDep.includes("}")) {
         objectLines = [line];
         objectDepString = undefined;
         const depMatch = objectDepFieldPattern.exec(line);
@@ -232,7 +242,7 @@ export function formatDocument(lines: string[]): string {
       const depMatch = objectDepFieldPattern.exec(line);
       if (depMatch) objectDepString = depMatch[1];
 
-      if (effectiveLine.includes("}")) {
+      if (stripQuotedStrings(effectiveLine).includes("}")) {
         // Object closed — reconstruct as a properly indented entry
         const entry = buildObjectEntry(objectLines, depIndent, objectDepString);
         entries.push(entry);
@@ -264,8 +274,8 @@ function extractDependencyEntry(
   line: string,
   indent: string
 ): { depLine: string; sortKey: string } | undefined {
-  // Check for single-line object entry first
-  const objectMatch = /\{[^}]*\}/.exec(line);
+  // Check for single-line object entry first (handles quoted strings that may contain `}`)
+  const objectMatch = /\{(?:[^}"]*(?:"[^"]*")?)*\}/.exec(line);
   if (objectMatch) {
     const objectText = objectMatch[0];
     const depMatch = objectDepFieldPattern.exec(objectText);
@@ -274,9 +284,11 @@ function extractDependencyEntry(
       const noteMatch = /note\s*=\s*"([^"]*)"/.exec(objectText);
       const note = noteMatch?.[1];
       const isIntransitive = objectIntransitivePattern.test(objectText);
+      const scalaFilterMatch = objectScalaFilterPattern.exec(objectText);
+      const scalaFilter = scalaFilterMatch?.[1];
 
-      if (note || isIntransitive) {
-        return formatObjectFields(depString, note, isIntransitive, indent);
+      if (note || isIntransitive || scalaFilter) {
+        return formatObjectFields(depString, note, isIntransitive, scalaFilter, indent);
       } else {
         // Object without note or intransitive — preserve as-is with normalized indent
         return { depLine: `${indent}${objectText.trim()}`, sortKey: buildSortKey(depString) };
@@ -315,17 +327,20 @@ function buildObjectEntry(
     };
   }
 
-  // Extract note and intransitive from the multi-line object
+  // Extract note, intransitive, and scala-filter from the multi-line object
   let note: string | undefined;
   let isIntransitive = false;
+  let scalaFilter: string | undefined;
   for (const l of objectLines) {
     const noteMatch = /note\s*=\s*"([^"]*)"/.exec(l);
     if (noteMatch) note = noteMatch[1];
     if (objectIntransitivePattern.test(l)) isIntransitive = true;
+    const scalaFilterMatch = objectScalaFilterPattern.exec(l);
+    if (scalaFilterMatch) scalaFilter = scalaFilterMatch[1];
   }
 
-  if (note || isIntransitive) {
-    return formatObjectFields(depString, note, isIntransitive, indent);
+  if (note || isIntransitive || scalaFilter) {
+    return formatObjectFields(depString, note, isIntransitive, scalaFilter, indent);
   }
 
   // No extras — preserve with normalized indent
@@ -343,11 +358,13 @@ function formatObjectFields(
   depString: string,
   note: string | undefined,
   isIntransitive: boolean,
+  scalaFilter: string | undefined,
   indent: string
 ): { depLine: string; sortKey: string } {
   const noteField = note ? `note = "${note}"` : undefined;
   const intransitiveField = isIntransitive ? "intransitive = true" : undefined;
-  const fields = [noteField, intransitiveField].filter(Boolean).join(", ");
+  const scalaFilterField = scalaFilter ? `scala-filter = "${scalaFilter}"` : undefined;
+  const fields = [noteField, intransitiveField, scalaFilterField].filter(Boolean).join(", ");
 
   const singleLine = `${indent}{ dependency = "${depString}", ${fields} }`;
   if (singleLine.length <= maxObjectLineLength) {
@@ -355,8 +372,9 @@ function formatObjectFields(
   } else {
     const noteSection = note ? `\n${indent}  note = "${note}"` : "";
     const intransitiveSection = isIntransitive ? `\n${indent}  intransitive = true` : "";
+    const scalaFilterSection = scalaFilter ? `\n${indent}  scala-filter = "${scalaFilter}"` : "";
     return {
-      depLine: `${indent}{\n${indent}  dependency = "${depString}"${noteSection}${intransitiveSection}\n${indent}}`,
+      depLine: `${indent}{\n${indent}  dependency = "${depString}"${noteSection}${intransitiveSection}${scalaFilterSection}\n${indent}}`,
       sortKey: buildSortKey(depString),
     };
   }

@@ -22,6 +22,9 @@ const objectNoteFieldPattern = /note\s*=\s*"/;
 /** Checks for the presence of an `intransitive = true` field in an object entry string. */
 const objectIntransitiveFieldPattern = /intransitive\s*=\s*true/;
 
+/** Checks for the presence of a `scala-filter` field in an object entry string. */
+const objectScalaFilterFieldPattern = /scala-filter\s*=\s*"/;
+
 /** Regex mirroring Scala-side `Dependency.dependencyRegex`. */
 const dependencyValidationPattern =
   /^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$/;
@@ -94,6 +97,7 @@ function validateObjectEntry(
   const depMatch = objectDepFieldPattern.exec(objectText);
   const hasNote = objectNoteFieldPattern.test(objectText);
   const hasIntransitive = objectIntransitiveFieldPattern.test(objectText);
+  const hasScalaFilter = objectScalaFilterFieldPattern.test(objectText);
 
   if (!depMatch) {
     diagnostics.push({
@@ -105,9 +109,9 @@ function validateObjectEntry(
     return { diagnostics, depKey };
   }
 
-  if (!hasNote && !hasIntransitive) {
+  if (!hasNote && !hasIntransitive && !hasScalaFilter) {
     diagnostics.push({
-      message: "Object entry must have a 'note' or 'intransitive' field",
+      message: "Object entry must have a 'note', 'intransitive', or 'scala-filter' field",
       severity: "error",
       source: "sbt-dependencies",
       range: { startLine: lineIndex, startCol: objectStartCol, endLine: lineIndex, endCol: objectStartCol + objectText.length },
@@ -149,6 +153,8 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
   let objectHasNote = false;
   /** Tracks whether a multi-line object has an `intransitive = true` field. */
   let objectHasIntransitive = false;
+  /** Tracks whether a multi-line object has a `scala-filter` field. */
+  let objectHasScalaFilter = false;
   /** Start line of the current multi-line object. */
   let objectStartLine = 0;
 
@@ -250,6 +256,9 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
       if (objectIntransitiveFieldPattern.test(effectiveLine)) {
         objectHasIntransitive = true;
       }
+      if (objectScalaFilterFieldPattern.test(effectiveLine)) {
+        objectHasScalaFilter = true;
+      }
       if (effectiveLine.includes("}")) {
         if (!objectHasDep) {
           diagnostics.push({
@@ -258,9 +267,9 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
             source: "sbt-dependencies",
             range: { startLine: objectStartLine, startCol: 0, endLine: i, endCol: line.length },
           });
-        } else if (!objectHasNote && !objectHasIntransitive) {
+        } else if (!objectHasNote && !objectHasIntransitive && !objectHasScalaFilter) {
           diagnostics.push({
-            message: "Object entry must have a 'note' or 'intransitive' field",
+            message: "Object entry must have a 'note', 'intransitive', or 'scala-filter' field",
             severity: "error",
             source: "sbt-dependencies",
             range: { startLine: objectStartLine, startCol: 0, endLine: i, endCol: line.length },
@@ -284,11 +293,13 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
         objectHasDep = false;
         objectHasNote = false;
         objectHasIntransitive = false;
+        objectHasScalaFilter = false;
         objectStartLine = i;
-        // Check if this line already contains a dependency, note, or intransitive field
+        // Check if this line already contains a dependency, note, intransitive, or scala-filter field
         if (objectDepFieldPattern.test(effectiveLine)) objectHasDep = true;
         if (objectNoteFieldPattern.test(effectiveLine)) objectHasNote = true;
         if (objectIntransitiveFieldPattern.test(effectiveLine)) objectHasIntransitive = true;
+        if (objectScalaFilterFieldPattern.test(effectiveLine)) objectHasScalaFilter = true;
         state = "dependency_object";
         continue;
       }

@@ -12,6 +12,10 @@ export interface NoteDecorationData {
 const singleLineObjectPattern =
   /(\{\s*dependency\s*=\s*)"([^"]*)"(\s*,\s*note\s*=\s*"([^"]*)"[^}]*\})/;
 
+/** Matches a single-line object entry with scala-filter but no note: `{ dependency = "...", scala-filter = "..." }` */
+const scalaFilterObjectPattern =
+  /(\{\s*dependency\s*=\s*)"([^"]*)"(\s*,\s*scala-filter\s*=\s*"([^"]*)"[^}]*\})/;
+
 /**
  * Scans lines from a `dependencies.conf` file and returns decoration data
  * for single-line object entries that have both `dependency` and `note` fields.
@@ -89,14 +93,15 @@ export function parseNoteDecorations(lines: string[]): NoteDecorationData[] {
         continue;
       }
 
-      // Check for single-line object entry with both dependency and note
-      const match = singleLineObjectPattern.exec(effectiveLine);
+      // Check for single-line object entry with dependency and note (note takes priority)
+      const match = singleLineObjectPattern.exec(effectiveLine) ?? scalaFilterObjectPattern.exec(effectiveLine);
       if (match) {
+        const isScalaFilter = !singleLineObjectPattern.test(effectiveLine);
         const fullMatchStart = match.index;
         const prefix = match[1]; // `{ dependency = `
         const depString = match[2]; // the dependency string
-        const suffix = match[3]; // `, note = "..." }`
-        const noteText = match[4]; // the note content
+        const suffix = match[3]; // `, note/scala-filter = "..." }`
+        const fieldText = match[4]; // the note content or scala-filter value
 
         // Prefix ends before the opening `"`, suffix starts after the closing `"`
         const prefixEnd = fullMatchStart + prefix.length;
@@ -107,7 +112,7 @@ export function parseNoteDecorations(lines: string[]): NoteDecorationData[] {
           line: i,
           prefixRange: { startCol: fullMatchStart, endCol: prefixEnd },
           suffixRange: { startCol: suffixStart, endCol: suffixEnd },
-          noteText,
+          noteText: isScalaFilter ? `only for Scala ${fieldText}` : fieldText,
         });
       }
     }

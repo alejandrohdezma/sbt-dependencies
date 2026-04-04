@@ -513,6 +513,51 @@ describe("formatDocument", () => {
     ].join("\n") + "\n");
   });
 
+  it("preserves scala-filter in single-line object", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.scala-lang:scala-reflect:{{scala}}", scala-filter = "2" }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org.scala-lang:scala-reflect:{{scala}}", scala-filter = "2" }',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("normalizes multi-line scala-filter object to single-line when short enough", () => {
+    const lines = [
+      'my-group = [',
+      '  {',
+      '    dependency = "org.scala-lang:scala-reflect:{{scala}}"',
+      '    scala-filter = "2"',
+      '  }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org.scala-lang:scala-reflect:{{scala}}", scala-filter = "2" }',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("preserves note, intransitive, and scala-filter together", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org:name:1.0", note = "reason", intransitive = true, scala-filter = "2" }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org:name:1.0", note = "reason", intransitive = true, scala-filter = "2" }',
+      ']',
+    ].join("\n") + "\n");
+  });
+
   it("sorts shorter org prefix before longer org with same prefix", () => {
     const lines = [
       'my-group = [',

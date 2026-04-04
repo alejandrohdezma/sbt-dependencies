@@ -1,0 +1,5 @@
+# Verify +update succeeds (scala-reflect not resolved for Scala 3)
+> +update
+
+# Verify scala-filter includes/excludes correctly per Scala version
+> +assertTest

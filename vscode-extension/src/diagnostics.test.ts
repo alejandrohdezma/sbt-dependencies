@@ -298,7 +298,7 @@ describe("parseDiagnostics", () => {
       ];
       const result = parseDiagnostics(lines);
       expect(result).toHaveLength(1);
-      expect(result[0].message).toBe("Object entry must have a 'note' or 'intransitive' field");
+      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', or 'scala-filter' field");
     });
 
     it("returns no diagnostics for single-line object with intransitive = true", () => {
@@ -389,7 +389,7 @@ describe("parseDiagnostics", () => {
       ];
       const result = parseDiagnostics(lines);
       expect(result).toHaveLength(1);
-      expect(result[0].message).toBe("Object entry must have a 'note' or 'intransitive' field");
+      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', or 'scala-filter' field");
     });
 
     it("returns no diagnostics for multi-line object with intransitive = true", () => {

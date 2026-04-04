@@ -205,7 +205,7 @@ class GroupConfigSuite extends munit.FunSuite {
     val result = parseGroup("""my-group = [{ dependency = "org::name:1.0" }]""", "my-group")
 
     assert(result.isLeft)
-    assert(result.left.exists(_.contains("'note' or 'intransitive'")))
+    assert(result.left.exists(_.contains("'note', 'intransitive', or 'scala-filter'")))
   }
 
   // --- parse() tests: Object format with intransitive ---
@@ -449,6 +449,144 @@ class GroupConfigSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  // --- parse() tests: Object format with scala-filter ---
+
+  test("parse simple format with object entry containing scala-filter") {
+    val result = parseGroup(
+      """my-group = [{ dependency = "org:name:1.0", scala-filter = "2" }]""",
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(GroupConfig.Simple(List(AnnotatedDependency("org:name:1.0", scalaFilter = Some("2")))))
+    )
+  }
+
+  test("parse advanced format with object entry containing scala-filter") {
+    val result = parseGroup(
+      """|my-group {
+         |  scala-versions = ["2.13.16", "3.3.7"]
+         |  dependencies = [
+         |    { dependency = "org:name:1.0", scala-filter = "2" }
+         |    "org2::name2:2.0.0"
+         |  ]
+         |}""".stripMargin,
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(
+        GroupConfig.Advanced(
+          List(AnnotatedDependency("org:name:1.0", scalaFilter = Some("2")), "org2::name2:2.0.0"),
+          List("2.13.16", "3.3.7")
+        )
+      )
+    )
+  }
+
+  test("parse object entry with scala-filter and note") {
+    val result = parseGroup(
+      """my-group = [{ dependency = "org:name:1.0", note = "Scala 2 only", scala-filter = "2.13" }]""",
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(
+        GroupConfig.Simple(
+          List(AnnotatedDependency("org:name:1.0", note = Some("Scala 2 only"), scalaFilter = Some("2.13")))
+        )
+      )
+    )
+  }
+
+  test("parse object entry with all annotation fields") {
+    val result = parseGroup(
+      """my-group = [{ dependency = "org:name:1.0", note = "reason", intransitive = true, scala-filter = "3" }]""",
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(
+        GroupConfig.Simple(
+          List(
+            AnnotatedDependency("org:name:1.0", note = Some("reason"), intransitive = true, scalaFilter = Some("3"))
+          )
+        )
+      )
+    )
+  }
+
+  // --- format() tests: Object format with scala-filter ---
+
+  test("format Simple with scala-filter only uses single-line object") {
+    val config = GroupConfig.Simple(List(AnnotatedDependency("org:name:1.0", scalaFilter = Some("2"))))
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org:name:1.0", scala-filter = "2" }
+         |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Advanced with scala-filter in dependencies") {
+    val config = GroupConfig.Advanced(
+      List(AnnotatedDependency("org:name:1.0", scalaFilter = Some("2")), "org2::name2:2.0.0"),
+      List("2.13.16", "3.3.7")
+    )
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project {
+         |  scala-versions = ["2.13.16", "3.3.7"]
+         |  dependencies = [
+         |    { dependency = "org:name:1.0", scala-filter = "2" }
+         |    "org2::name2:2.0.0"
+         |  ]
+         |}""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format with note, intransitive, and scala-filter uses single-line object") {
+    val config = GroupConfig.Simple(
+      List(AnnotatedDependency("org:name:1.0", Some("reason"), intransitive = true, scalaFilter = Some("2")))
+    )
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org:name:1.0", note = "reason", intransitive = true, scala-filter = "2" }
+         |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format with long note and scala-filter uses multi-line object") {
+    val longNote =
+      "This dependency is pinned because the next major version drops support for Scala 2.12 and we still need cross-building"
+    val config = GroupConfig.Simple(
+      List(AnnotatedDependency("org.typelevel::cats-core:^2.10.0", Some(longNote), scalaFilter = Some("2")))
+    )
+    val result = config.format("my-project")
+
+    val expected =
+      s"""|my-project = [
+          |  {
+          |    dependency = "org.typelevel::cats-core:^2.10.0"
+          |    note = "$longNote"
+          |    scala-filter = "2"
+          |  }
+          |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
   // --- parse/format round-trip tests ---
 
   test("parse then format round-trips simple format with intransitive") {
@@ -470,6 +608,35 @@ class GroupConfigSuite extends munit.FunSuite {
          |  { dependency = "org::name:^1.0.0", note = "Pinned to major 1" }
          |  "org2::name2:2.0.0"
          |]""".stripMargin
+
+    val parsed    = parseGroup(hocon, "my-group")
+    val formatted = parsed.map(_.format("my-group"))
+
+    assertEquals(formatted, Right(hocon))
+  }
+
+  test("parse then format round-trips simple format with scala-filter") {
+    val hocon =
+      """|my-group = [
+         |  { dependency = "org:name:1.0", scala-filter = "2" }
+         |  "org2::name2:2.0.0"
+         |]""".stripMargin
+
+    val parsed    = parseGroup(hocon, "my-group")
+    val formatted = parsed.map(_.format("my-group"))
+
+    assertEquals(formatted, Right(hocon))
+  }
+
+  test("parse then format round-trips advanced format with scala-filter") {
+    val hocon =
+      """|my-group {
+         |  scala-versions = ["2.13.16", "3.3.7"]
+         |  dependencies = [
+         |    { dependency = "org:name:1.0", scala-filter = "2" }
+         |    "org2::name2:2.0.0"
+         |  ]
+         |}""".stripMargin
 
     val parsed    = parseGroup(hocon, "my-group")
     val formatted = parsed.map(_.format("my-group"))

@@ -84,7 +84,7 @@ object DependenciesPlugin extends AutoPlugin {
 
   /** Project settings: wires libraryDependencies and registers tasks. */
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    dependencyVersionVariables += "scalaVersion" -> { (oa: OrganizationArtifactName) => oa % scalaVersion.value },
+    dependencyVersionVariables += "scala" -> { (oa: OrganizationArtifactName) => oa % scalaVersion.value },
     dependenciesFromFile       := Settings.dependenciesFromFile.value,
     libraryDependencies       ++= Settings.libraryDependencies.value,
     inheritedDependencies      := Settings.inheritedDependencies.value,

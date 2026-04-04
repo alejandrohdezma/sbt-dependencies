@@ -107,7 +107,7 @@
       "patterns": [
         { "include": "#comments" },
         {
-          "match": "\\b(dependency|note)\\b",
+          "match": "\\b(dependency|note|intransitive|scala-filter)\\b",
           "name": "support.type.property-name.sbt-dependencies"
         },
         {
