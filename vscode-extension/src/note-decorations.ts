@@ -1,3 +1,5 @@
+import { walkDocument } from "./parser";
+
 export interface NoteDecorationData {
   line: number;
   /** Range of the `{ dependency = ` prefix to hide (before the opening `"`). */
@@ -25,97 +27,32 @@ const scalaFilterObjectPattern =
  */
 export function parseNoteDecorations(lines: string[]): NoteDecorationData[] {
   const results: NoteDecorationData[] = [];
-  let inArray = false;
-  let inAdvancedBlock = false;
-  let inBlockComment = false;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  for (const event of walkDocument(lines)) {
+    if (event.type !== "single-line-object") continue;
 
-    // Strip block/line comments to get effective line
-    let pos = 0;
-    let effectiveLine = "";
+    // Use the specialized regex that captures prefix/suffix ranges for decoration hiding
+    const match = singleLineObjectPattern.exec(event.rawLine) ?? scalaFilterObjectPattern.exec(event.rawLine);
+    if (!match) continue;
 
-    while (pos < line.length) {
-      if (inBlockComment) {
-        const endIdx = line.indexOf("*/", pos);
-        if (endIdx === -1) {
-          pos = line.length;
-        } else {
-          inBlockComment = false;
-          pos = endIdx + 2;
-        }
-      } else {
-        const startIdx = line.indexOf("/*", pos);
-        if (startIdx === -1) {
-          effectiveLine += line.slice(pos);
-          pos = line.length;
-        } else {
-          effectiveLine += line.slice(pos, startIdx);
-          inBlockComment = true;
-          pos = startIdx + 2;
-        }
-      }
-    }
+    const isScalaFilter = !singleLineObjectPattern.test(event.rawLine);
+    const fullMatchStart = match.index;
+    const prefix = match[1]; // `{ dependency = `
+    const depString = match[2]; // the dependency string
+    const suffix = match[3]; // `, note/scala-filter = "..." }`
+    const fieldText = match[4]; // the note content or scala-filter value
 
-    const commentIdx = Math.min(
-      effectiveLine.indexOf("//") === -1 ? Infinity : effectiveLine.indexOf("//"),
-      effectiveLine.indexOf("#") === -1 ? Infinity : effectiveLine.indexOf("#")
-    );
-    if (commentIdx !== Infinity) {
-      effectiveLine = effectiveLine.slice(0, commentIdx);
-    }
+    // Prefix ends before the opening `"`, suffix starts after the closing `"`
+    const prefixEnd = fullMatchStart + prefix.length;
+    const suffixStart = prefixEnd + 1 + depString.length + 1; // 1 for `"` on each side
+    const suffixEnd = suffixStart + suffix.length;
 
-    // State machine for tracking array context
-    if (!inArray && !inAdvancedBlock) {
-      if (/^\s*[\w][\w.-]*\s*=\s*\[/.test(effectiveLine)) {
-        inArray = !effectiveLine.includes("]");
-      } else if (/^\s*[\w][\w.-]*\s*\{/.test(effectiveLine)) {
-        inAdvancedBlock = true;
-      }
-      continue;
-    }
-
-    if (inAdvancedBlock && !inArray) {
-      if (/^\s*dependencies\s*=\s*\[/.test(effectiveLine)) {
-        inArray = !effectiveLine.includes("]");
-      } else if (effectiveLine.includes("}")) {
-        inAdvancedBlock = false;
-      }
-      continue;
-    }
-
-    if (inArray) {
-      if (effectiveLine.includes("]")) {
-        inArray = false;
-        if (!inAdvancedBlock) continue;
-        // Stay in advanced block after dependencies array closes
-        continue;
-      }
-
-      // Check for single-line object entry with dependency and note (note takes priority)
-      const match = singleLineObjectPattern.exec(effectiveLine) ?? scalaFilterObjectPattern.exec(effectiveLine);
-      if (match) {
-        const isScalaFilter = !singleLineObjectPattern.test(effectiveLine);
-        const fullMatchStart = match.index;
-        const prefix = match[1]; // `{ dependency = `
-        const depString = match[2]; // the dependency string
-        const suffix = match[3]; // `, note/scala-filter = "..." }`
-        const fieldText = match[4]; // the note content or scala-filter value
-
-        // Prefix ends before the opening `"`, suffix starts after the closing `"`
-        const prefixEnd = fullMatchStart + prefix.length;
-        const suffixStart = prefixEnd + 1 + depString.length + 1; // 1 for `"` on each side
-        const suffixEnd = suffixStart + suffix.length;
-
-        results.push({
-          line: i,
-          prefixRange: { startCol: fullMatchStart, endCol: prefixEnd },
-          suffixRange: { startCol: suffixStart, endCol: suffixEnd },
-          noteText: isScalaFilter ? `only for Scala ${fieldText}` : fieldText,
-        });
-      }
-    }
+    results.push({
+      line: event.lineIndex,
+      prefixRange: { startCol: fullMatchStart, endCol: prefixEnd },
+      suffixRange: { startCol: suffixStart, endCol: suffixEnd },
+      noteText: isScalaFilter ? `only for Scala ${fieldText}` : fieldText,
+    });
   }
 
   return results;
