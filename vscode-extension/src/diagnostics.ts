@@ -1,3 +1,5 @@
+import { walkDocument, objectDepFieldPattern, objectNoteFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern } from "./parser";
+
 export interface DiagnosticResult {
   message: string;
   severity: "error" | "warning";
@@ -5,31 +7,9 @@ export interface DiagnosticResult {
   range: { startLine: number; startCol: number; endLine: number; endCol: number };
 }
 
-/** Structural regexes for detecting dependency array contexts. */
-const simpleGroupStart = /^\s*[\w][\w.-]*\s*=\s*\[/;
-const advancedGroupStart = /^\s*[\w][\w.-]*\s*\{/;
-const dependenciesArrayStart = /^\s*dependencies\s*=\s*\[/;
-
-/** Matches a single-line object entry: `{ dependency = "...", note = "..." }` */
-const singleLineObjectPattern = /\{(?:[^}"{]*(?:"[^"]*")?)*\}/g;
-
-/** Extracts the `dependency` field value from an object entry string. */
-const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
-
-/** Checks for the presence of a `note` field in an object entry string. */
-const objectNoteFieldPattern = /note\s*=\s*"/;
-
-/** Checks for the presence of an `intransitive = true` field in an object entry string. */
-const objectIntransitiveFieldPattern = /intransitive\s*=\s*true/;
-
-/** Checks for the presence of a `scala-filter` field in an object entry string. */
-const objectScalaFilterFieldPattern = /scala-filter\s*=\s*"/;
-
 /** Regex mirroring Scala-side `Dependency.dependencyRegex`. */
 const dependencyValidationPattern =
   /^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$/;
-
-type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array" | "dependency_object";
 
 /**
  * Extracts a dependency key (`org + separator + artifact`) from a dependency
@@ -142,247 +122,101 @@ function validateObjectEntry(
  */
 export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
   const diagnostics: DiagnosticResult[] = [];
-  let state: ParserState = "outside";
-  /** State to return to after a multi-line dependency object closes. */
-  let preObjectState: "simple_array" | "dependencies_array" = "simple_array";
-  let inBlockComment = false;
   let seenInGroup = new Map<string, number>();
-  /** Tracks whether a multi-line object has a `dependency` field. */
-  let objectHasDep = false;
-  /** Tracks whether a multi-line object has a `note` field. */
-  let objectHasNote = false;
-  /** Tracks whether a multi-line object has an `intransitive = true` field. */
-  let objectHasIntransitive = false;
-  /** Tracks whether a multi-line object has a `scala-filter` field. */
-  let objectHasScalaFilter = false;
-  /** Start line of the current multi-line object. */
-  let objectStartLine = 0;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Track block comments
-    let pos = 0;
-    let effectiveLine = "";
-
-    while (pos < line.length) {
-      if (inBlockComment) {
-        const endIdx = line.indexOf("*/", pos);
-        if (endIdx === -1) {
-          pos = line.length;
-        } else {
-          inBlockComment = false;
-          pos = endIdx + 2;
-        }
-      } else {
-        const startIdx = line.indexOf("/*", pos);
-        if (startIdx === -1) {
-          effectiveLine += line.slice(pos);
-          pos = line.length;
-        } else {
-          effectiveLine += line.slice(pos, startIdx);
-          inBlockComment = true;
-          pos = startIdx + 2;
-        }
-      }
-    }
-
-    // Skip line comments
-    const commentIdx = Math.min(
-      effectiveLine.indexOf("//") === -1 ? Infinity : effectiveLine.indexOf("//"),
-      effectiveLine.indexOf("#") === -1 ? Infinity : effectiveLine.indexOf("#")
-    );
-    if (commentIdx !== Infinity) {
-      effectiveLine = effectiveLine.slice(0, commentIdx);
-    }
-
-    // State transitions — save previous state so closing-bracket lines are still validated
-    const prevState: ParserState = state;
-
-    if (state === "outside") {
-      if (simpleGroupStart.test(effectiveLine)) {
+  for (const event of walkDocument(lines)) {
+    switch (event.type) {
+      case "group-start": {
         seenInGroup = new Map();
-        state = effectiveLine.includes("]") ? "outside" : "simple_array";
-      } else if (advancedGroupStart.test(effectiveLine)) {
-        seenInGroup = new Map();
-        state = "advanced_block";
+        break;
       }
-    } else if (state === "advanced_block") {
-      if (dependenciesArrayStart.test(effectiveLine)) {
-        state = effectiveLine.includes("]") ? "advanced_block" : "dependencies_array";
-      } else if (effectiveLine.includes("}")) {
-        state = "outside";
-      }
-    } else if (state === "simple_array") {
-      if (effectiveLine.includes("]")) {
-        state = "outside";
-      }
-    } else if (state === "dependencies_array") {
-      if (effectiveLine.includes("]")) {
-        state = "advanced_block";
-      }
-    } else if (state === "dependency_object") {
-      // Inside a multi-line object — check for dependency/note fields
-      if (objectDepFieldPattern.test(effectiveLine)) {
-        objectHasDep = true;
-        // Validate the dependency value
-        const depMatch = objectDepFieldPattern.exec(line);
-        if (depMatch) {
-          const depContent = depMatch[1];
-          const depStartCol = depMatch.index + depMatch[0].indexOf('"') + 1;
-          const diag = validateDependencyString(depContent, i, depStartCol);
-          if (diag) {
-            diagnostics.push(diag);
-          } else {
-            const key = extractDepKey(depContent);
-            if (key) {
-              if (seenInGroup.has(key)) {
-                diagnostics.push({
-                  message: "Duplicate dependency in group",
-                  severity: "warning",
-                  source: "sbt-dependencies",
-                  range: { startLine: i, startCol: depStartCol, endLine: i, endCol: depStartCol + depContent.length },
-                });
-              } else {
-                seenInGroup.set(key, i);
-              }
-            }
-          }
-        }
-      }
-      if (objectNoteFieldPattern.test(effectiveLine)) {
-        objectHasNote = true;
-      }
-      if (objectIntransitiveFieldPattern.test(effectiveLine)) {
-        objectHasIntransitive = true;
-      }
-      if (objectScalaFilterFieldPattern.test(effectiveLine)) {
-        objectHasScalaFilter = true;
-      }
-      if (effectiveLine.includes("}")) {
-        if (!objectHasDep) {
-          diagnostics.push({
-            message: "Object entry must have a 'dependency' field",
-            severity: "error",
-            source: "sbt-dependencies",
-            range: { startLine: objectStartLine, startCol: 0, endLine: i, endCol: line.length },
-          });
-        } else if (!objectHasNote && !objectHasIntransitive && !objectHasScalaFilter) {
-          diagnostics.push({
-            message: "Object entry must have a 'note', 'intransitive', or 'scala-filter' field",
-            severity: "error",
-            source: "sbt-dependencies",
-            range: { startLine: objectStartLine, startCol: 0, endLine: i, endCol: line.length },
-          });
-        }
-        state = preObjectState;
-      }
-      continue;
-    }
-
-    // Validate in dependency contexts (including closing-bracket lines)
-    const inArrayContext = (s: ParserState) => s === "simple_array" || s === "dependencies_array";
-    const validateState: ParserState = inArrayContext(prevState) ? prevState : state;
-    if (validateState === "simple_array" || validateState === "dependencies_array") {
-      // Check for single-line object entries first
-      const lineWithoutObjects = processObjectEntries(line, effectiveLine, i, diagnostics, seenInGroup);
-
-      // Check for multi-line object start (opening brace without closing)
-      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
-        preObjectState = validateState;
-        objectHasDep = false;
-        objectHasNote = false;
-        objectHasIntransitive = false;
-        objectHasScalaFilter = false;
-        objectStartLine = i;
-        // Check if this line already contains a dependency, note, intransitive, or scala-filter field
-        if (objectDepFieldPattern.test(effectiveLine)) objectHasDep = true;
-        if (objectNoteFieldPattern.test(effectiveLine)) objectHasNote = true;
-        if (objectIntransitiveFieldPattern.test(effectiveLine)) objectHasIntransitive = true;
-        if (objectScalaFilterFieldPattern.test(effectiveLine)) objectHasScalaFilter = true;
-        state = "dependency_object";
-        continue;
-      }
-
-      // Validate remaining plain string entries (not inside objects)
-      const stringPattern = /"([^"]*)"/g;
-      let strMatch;
-      while ((strMatch = stringPattern.exec(lineWithoutObjects)) !== null) {
-        const content = strMatch[1];
-        const startCol = strMatch.index + 1; // skip opening quote
-        const diag = validateDependencyString(content, i, startCol);
+      case "dependency-string": {
+        const diag = validateDependencyString(event.content, event.lineIndex, event.startCol);
         if (diag) {
           diagnostics.push(diag);
         } else {
-          const key = extractDepKey(content);
+          const key = extractDepKey(event.content);
           if (key) {
             if (seenInGroup.has(key)) {
               diagnostics.push({
                 message: "Duplicate dependency in group",
                 severity: "warning",
                 source: "sbt-dependencies",
-                range: { startLine: i, startCol, endLine: i, endCol: startCol + content.length },
+                range: { startLine: event.lineIndex, startCol: event.startCol, endLine: event.lineIndex, endCol: event.startCol + event.content.length },
               });
             } else {
-              seenInGroup.set(key, i);
+              seenInGroup.set(key, event.lineIndex);
             }
           }
         }
+        break;
+      }
+      case "single-line-object": {
+        const { diagnostics: objDiags, depKey } = validateObjectEntry(event.objectText, event.lineIndex, event.objectStartCol);
+        diagnostics.push(...objDiags);
+        if (depKey) {
+          if (seenInGroup.has(depKey)) {
+            const depMatch = objectDepFieldPattern.exec(event.objectText);
+            if (depMatch) {
+              const depContent = depMatch[1];
+              const depStartCol = event.objectStartCol + depMatch.index + depMatch[0].indexOf('"') + 1;
+              diagnostics.push({
+                message: "Duplicate dependency in group",
+                severity: "warning",
+                source: "sbt-dependencies",
+                range: { startLine: event.lineIndex, startCol: depStartCol, endLine: event.lineIndex, endCol: depStartCol + depContent.length },
+              });
+            }
+          } else {
+            seenInGroup.set(depKey, event.lineIndex);
+          }
+        }
+        break;
+      }
+      case "multi-line-object-field": {
+        // Validate the dependency value on the line it appears
+        if (event.field === "dependency" && event.fieldValue !== undefined && event.fieldValueStartCol !== undefined) {
+          const diag = validateDependencyString(event.fieldValue, event.lineIndex, event.fieldValueStartCol);
+          if (diag) {
+            diagnostics.push(diag);
+          } else {
+            const key = extractDepKey(event.fieldValue);
+            if (key) {
+              if (seenInGroup.has(key)) {
+                diagnostics.push({
+                  message: "Duplicate dependency in group",
+                  severity: "warning",
+                  source: "sbt-dependencies",
+                  range: { startLine: event.lineIndex, startCol: event.fieldValueStartCol, endLine: event.lineIndex, endCol: event.fieldValueStartCol + event.fieldValue.length },
+                });
+              } else {
+                seenInGroup.set(key, event.lineIndex);
+              }
+            }
+          }
+        }
+        break;
+      }
+      case "multi-line-object-end": {
+        if (!event.hasDependency) {
+          diagnostics.push({
+            message: "Object entry must have a 'dependency' field",
+            severity: "error",
+            source: "sbt-dependencies",
+            range: { startLine: event.objectStartLine, startCol: 0, endLine: event.lineIndex, endCol: event.rawLine.length },
+          });
+        } else if (!event.hasNote && !event.hasIntransitive && !event.hasScalaFilter) {
+          diagnostics.push({
+            message: "Object entry must have a 'note', 'intransitive', or 'scala-filter' field",
+            severity: "error",
+            source: "sbt-dependencies",
+            range: { startLine: event.objectStartLine, startCol: 0, endLine: event.lineIndex, endCol: event.rawLine.length },
+          });
+        }
+        break;
       }
     }
   }
 
   return diagnostics;
-}
-
-/**
- * Processes single-line object entries on a line, validates them, and returns the line
- * with object entries replaced by spaces (so they don't get picked up by the plain string scanner).
- */
-function processObjectEntries(
-  line: string,
-  effectiveLine: string,
-  lineIndex: number,
-  diagnostics: DiagnosticResult[],
-  seenInGroup: Map<string, number>
-): string {
-  let result = line;
-  singleLineObjectPattern.lastIndex = 0;
-  let objMatch;
-
-  while ((objMatch = singleLineObjectPattern.exec(effectiveLine)) !== null) {
-    const objectText = objMatch[0];
-    const objectStartCol = objMatch.index;
-
-    // Skip {…} matches inside quoted strings (e.g. "org::art:{{var}}")
-    const quotesBefore = (effectiveLine.substring(0, objectStartCol).match(/"/g) || []).length;
-    if (quotesBefore % 2 === 1) continue;
-
-    const { diagnostics: objDiags, depKey } = validateObjectEntry(objectText, lineIndex, objectStartCol);
-    diagnostics.push(...objDiags);
-
-    if (depKey) {
-      if (seenInGroup.has(depKey)) {
-        // Find the dependency start position for a more precise range
-        const depMatch = objectDepFieldPattern.exec(objectText);
-        if (depMatch) {
-          const depContent = depMatch[1];
-          const depStartCol = objectStartCol + depMatch.index + depMatch[0].indexOf('"') + 1;
-          diagnostics.push({
-            message: "Duplicate dependency in group",
-            severity: "warning",
-            source: "sbt-dependencies",
-            range: { startLine: lineIndex, startCol: depStartCol, endLine: lineIndex, endCol: depStartCol + depContent.length },
-          });
-        }
-      } else {
-        seenInGroup.set(depKey, lineIndex);
-      }
-    }
-
-    // Replace the object entry in result so plain string scanner skips it
-    result = result.substring(0, objMatch.index) + " ".repeat(objectText.length) + result.substring(objMatch.index + objectText.length);
-  }
-
-  return result;
 }
