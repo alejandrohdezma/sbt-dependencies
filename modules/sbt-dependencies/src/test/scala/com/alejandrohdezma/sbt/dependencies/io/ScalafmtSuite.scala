@@ -55,7 +55,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
     assert(updated, "Should return true when version was updated")
 
-    val content = IO.read(dir / ".scalafmt.conf")
+    val content  = IO.read(dir / ".scalafmt.conf")
     val expected =
       """version = "3.8.0"
         |runner.dialect = scala213""".stripMargin
@@ -73,7 +73,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
     assert(updated, "Should return true when version was updated")
 
-    val content = IO.read(dir / ".scalafmt.conf")
+    val content  = IO.read(dir / ".scalafmt.conf")
     val expected =
       """version = 3.8.0
         |runner.dialect = scala213""".stripMargin
@@ -91,7 +91,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
     assert(!updated, "Should return false when already at latest version")
 
-    val content = IO.read(dir / ".scalafmt.conf")
+    val content  = IO.read(dir / ".scalafmt.conf")
     val expected =
       """version = "3.8.0"
         |runner.dialect = scala213""".stripMargin
@@ -128,7 +128,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
     assert(updated)
 
-    val content = IO.read(dir / ".scalafmt.conf")
+    val content  = IO.read(dir / ".scalafmt.conf")
     val expected =
       """  version = "3.8.0"
         |runner.dialect = scala213""".stripMargin
@@ -146,7 +146,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
     assert(updated)
 
-    val content = IO.read(dir / ".scalafmt.conf")
+    val content  = IO.read(dir / ".scalafmt.conf")
     val expected =
       """version="3.8.0"
         |runner.dialect = scala213""".stripMargin
@@ -165,7 +165,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
     assert(updated)
 
-    val content = IO.read(dir / ".scalafmt.conf")
+    val content  = IO.read(dir / ".scalafmt.conf")
     val expected =
       """runner.dialect = scala213
         |version = "3.8.0"
@@ -184,7 +184,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
     assert(updated)
 
-    val content = IO.read(dir / ".scalafmt.conf")
+    val content  = IO.read(dir / ".scalafmt.conf")
     val expected =
       """version = "3.7.0-RC2"
         |runner.dialect = scala213""".stripMargin
@@ -205,7 +205,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
     assert(updated)
 
-    val content = IO.read(dir / ".scalafmt.conf")
+    val content  = IO.read(dir / ".scalafmt.conf")
     val expected =
       """version = "3.8.0"
         |runner.dialect = scala213
@@ -228,7 +228,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
     assert(updated, "Should return true when version was updated")
 
-    val content = IO.read(dir / "subproject" / ".scalafmt.conf")
+    val content  = IO.read(dir / "subproject" / ".scalafmt.conf")
     val expected =
       """version = "3.8.0"
         |runner.dialect = scala213""".stripMargin

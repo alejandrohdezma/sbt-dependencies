@@ -2,9 +2,9 @@ lazy val myproject = project
 
 val catsVersion = "2.10.0"
 
-ThisBuild / dependencyVersionVariables := Map(
-  "catsVersion" -> { oa => oa % catsVersion }
-)
+import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
+
+ThisBuild / dependencyVersionVariables += "catsVersion" -> { (oa: OrganizationArtifactName) => oa % catsVersion }
 
 lazy val assertTest = taskKey[Unit]("Assert all test conditions")
 

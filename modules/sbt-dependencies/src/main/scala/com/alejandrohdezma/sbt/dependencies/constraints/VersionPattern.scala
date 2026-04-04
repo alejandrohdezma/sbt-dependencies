@@ -60,7 +60,7 @@ object VersionPattern {
     */
   implicit val configDecoder: ConfigDecoder[Option[VersionPattern]] = {
     case (config, path) if !config.hasPath(path) => Right(None)
-    case (config, path) =>
+    case (config, path)                          =>
       config.getValue(path).valueType() match {
         case ConfigValueType.STRING =>
           Right(Some(VersionPattern(prefix = Some(config.getString(path)))))

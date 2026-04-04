@@ -46,9 +46,9 @@ sealed abstract class Dependency {
 
   def configuration: String
 
-  override def hashCode: Int = (organization, name, version, isCross, configuration).hashCode // scalafix:ok
+  override def hashCode: Int = (organization, name, version, isCross, configuration).hashCode
 
-  override def equals(other: Any): Boolean = other match { // scalafix:ok
+  override def equals(other: Any): Boolean = other match {
     case other: Dependency =>
       organization === other.organization && name === other.name && version === other.version &&
       isCross === other.isCross && configuration === other.configuration
@@ -283,7 +283,7 @@ object Dependency {
     */
   sealed trait Version {
 
-    override def toString(): String = toVersionString // scalafix:ok
+    override def toString(): String = toVersionString
 
     /** Full string representation (with marker prefix for numeric, with braces for variable). */
     def show: String
