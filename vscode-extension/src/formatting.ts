@@ -1,22 +1,8 @@
-/** Structural regexes (same as diagnostics.ts / symbols.ts). */
-const simpleGroupStart = /^(\s*)([\w][\w.-]*)\s*=\s*\[/;
-const advancedGroupStart = /^(\s*)([\w][\w.-]*)\s*\{/;
-const dependenciesArrayStart = /^\s*dependencies\s*=\s*\[/;
-
-type ParserState = "outside" | "simple_array" | "advanced_block" | "dependencies_array" | "dependency_object";
+import { walkDocument, objectDepFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern } from "./parser";
 
 /** Regex mirroring Scala-side `Dependency.dependencyRegex`. */
 const dependencyPattern =
   /^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$/;
-
-/** Extracts the `dependency` field value from an object entry. */
-const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
-
-/** Checks for `intransitive = true` in an object entry. */
-const objectIntransitivePattern = /intransitive\s*=\s*true/;
-
-/** Extracts the `scala-filter` field value from an object entry. */
-const objectScalaFilterPattern = /scala-filter\s*=\s*"([^"]*)"/;
 
 /** Max line length for single-line object entries. */
 const maxObjectLineLength = 120;
@@ -32,6 +18,11 @@ interface DependencyEntry {
   sortKey: string;
 }
 
+/** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
+function groupSortKey(name: string): string {
+  return name === "sbt-build" ? `\0${name}` : name;
+}
+
 /**
  * Formats a `dependencies.conf` document by sorting groups (`sbt-build`
  * first, then alphabetically) and dependencies within each group.
@@ -42,215 +33,126 @@ interface DependencyEntry {
  * - All comments are stripped (the SBT plugin never writes them back)
  * - Object entries (`{ dependency = "...", note = "..." }`) are preserved
  */
-
-/** Strips quoted strings from a line so that brace checks ignore content inside `"..."`. */
-function stripQuotedStrings(line: string): string {
-  return line.replace(/"[^"]*"/g, "");
-}
-
-/** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
-function groupSortKey(name: string): string {
-  return name === "sbt-build" ? `\0${name}` : name;
-}
-
 export function formatDocument(lines: string[]): string {
-  /** Collected groups as (name, formatted lines). */
   const groups: { name: string; lines: string[] }[] = [];
-  /** Current group being built. */
   let currentGroup: { name: string; lines: string[] } | undefined;
-
-  let state: ParserState = "outside";
-  /** State to return to after a multi-line dependency object closes. */
-  let preObjectState: "simple_array" | "dependencies_array" = "simple_array";
-  let inBlockComment = false;
-
-  /** Indent for deps: 2 in simple groups, 4 in advanced blocks. */
   let depIndent = "  ";
-
-  /** Collected dependency entries in the current array. */
   let entries: DependencyEntry[] = [];
+  let inDepsArray = false;
 
-  /** Whether the opening bracket line has already been pushed. */
-  let headerPushed = false;
-
-  /** Accumulated lines for a multi-line object entry. */
   let objectLines: string[] = [];
-
-  /** Dependency string extracted from a multi-line object. */
   let objectDepString: string | undefined;
+  let inObject = false;
 
-  /** Helper to push a line to the current group's output. */
+  /** Tracks lines already handled as SBT conversions to skip duplicate events. */
+  let sbtConvertedLine = -1;
+
   const output = { push(line: string) { currentGroup!.lines.push(line); } };
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // --- compute effective line (strip block + line comments) ---
-    let pos = 0;
-    let effectiveLine = "";
-
-    while (pos < line.length) {
-      if (inBlockComment) {
-        const endIdx = line.indexOf("*/", pos);
-        if (endIdx === -1) {
-          pos = line.length;
-        } else {
-          inBlockComment = false;
-          pos = endIdx + 2;
-        }
-      } else {
-        const startIdx = line.indexOf("/*", pos);
-        if (startIdx === -1) {
-          effectiveLine += line.slice(pos);
-          pos = line.length;
-        } else {
-          effectiveLine += line.slice(pos, startIdx);
-          inBlockComment = true;
-          pos = startIdx + 2;
-        }
-      }
-    }
-
-    const commentIdx = Math.min(
-      effectiveLine.indexOf("//") === -1 ? Infinity : effectiveLine.indexOf("//"),
-      effectiveLine.indexOf("#") === -1 ? Infinity : effectiveLine.indexOf("#")
-    );
-    if (commentIdx !== Infinity) {
-      effectiveLine = effectiveLine.slice(0, commentIdx);
-    }
-
-    // --- state machine ---
-    if (state === "outside") {
-      const simpleMatch = simpleGroupStart.exec(effectiveLine);
-      const advancedMatch = !simpleMatch ? advancedGroupStart.exec(effectiveLine) : null;
-
-      if (simpleMatch || advancedMatch) {
-        const groupName = (simpleMatch ?? advancedMatch)![2];
-        currentGroup = { name: groupName, lines: [] };
+  for (const event of walkDocument(lines)) {
+    switch (event.type) {
+      case "group-start": {
+        currentGroup = { name: event.name, lines: [] };
         groups.push(currentGroup);
 
-        if (simpleMatch) {
+        if (event.groupKind === "simple") {
           depIndent = "  ";
-          if (effectiveLine.includes("]")) {
-            output.push(formatSingleLineGroup(line, depIndent));
+          if (event.singleLine) {
+            output.push(formatSingleLineGroup(event.rawLine, depIndent));
           } else {
-            output.push(line);
-            headerPushed = true;
+            output.push(event.rawLine);
             entries = [];
-            state = "simple_array";
+            inDepsArray = true;
           }
         } else {
           depIndent = "    ";
-          output.push(line);
-          state = "advanced_block";
+          output.push(event.rawLine);
+          inDepsArray = false;
         }
-        continue;
+        break;
       }
-
-      // Not a group start — comments and blanks outside groups are dropped
-      continue;
-    }
-
-    if (state === "simple_array") {
-      if (effectiveLine.includes("]")) {
-        // Closing bracket line — may contain a last dep on same line
-        const entry = extractDependencyEntry(line, depIndent);
-        if (entry) entries.push(entry);
-        flushEntries(output, entries);
-        output.push("]");
-        entries = [];
-        headerPushed = false;
-        state = "outside";
-        continue;
+      case "setting-line": {
+        output.push(`  ${event.rawLine.trim()}`);
+        break;
       }
-
-      // Check for multi-line object start (strip quoted strings to avoid matching `}}` in `{{var}}`)
-      const unquoted = stripQuotedStrings(effectiveLine);
-      if (unquoted.includes("{") && !unquoted.includes("}")) {
-        objectLines = [line];
-        objectDepString = undefined;
-        const depMatch = objectDepFieldPattern.exec(line);
-        if (depMatch) objectDepString = depMatch[1];
-        preObjectState = "simple_array";
-        state = "dependency_object";
-        continue;
-      }
-
-      const entry = extractDependencyEntry(line, depIndent);
-      if (entry) entries.push(entry);
-      // Comments and blank lines inside the array are dropped
-      continue;
-    }
-
-    if (state === "advanced_block") {
-      if (dependenciesArrayStart.test(effectiveLine)) {
-        if (effectiveLine.includes("]")) {
-          // Single-line dependencies array
-          output.push(formatSingleLineGroup(line, depIndent));
-        } else {
+      case "dependency-string": {
+        if (!inDepsArray && event.arrayKind === "dependencies") {
+          // First dep in advanced block's dependencies array
           output.push(`  dependencies = [`);
-          headerPushed = true;
           entries = [];
-          state = "dependencies_array";
+          inDepsArray = true;
         }
-        continue;
+        // SBT lines have multiple quoted strings; only process once per line
+        if (event.lineIndex === sbtConvertedLine) break;
+        const sbtDep = convertSbtDependency(event.rawLine);
+        if (sbtDep) {
+          sbtConvertedLine = event.lineIndex;
+          entries.push({ depLine: `${depIndent}"${sbtDep}"`, sortKey: buildSortKey(sbtDep) });
+        } else {
+          if (event.content.length > 0) {
+            entries.push({ depLine: `${depIndent}"${event.content}"`, sortKey: buildSortKey(event.content) });
+          }
+        }
+        break;
       }
-
-      if (effectiveLine.includes("}")) {
-        output.push(line);
-        state = "outside";
-        continue;
-      }
-
-      // Non-dependency fields (scala-versions, etc.) — normalize to 2-space indent
-      output.push(`  ${line.trim()}`);
-      continue;
-    }
-
-    if (state === "dependencies_array") {
-      if (effectiveLine.includes("]")) {
-        const entry = extractDependencyEntry(line, depIndent);
+      case "single-line-object": {
+        if (!inDepsArray && event.arrayKind === "dependencies") {
+          output.push(`  dependencies = [`);
+          entries = [];
+          inDepsArray = true;
+        }
+        const entry = extractDependencyEntryFromObject(event.objectText, depIndent);
         if (entry) entries.push(entry);
-        flushEntries(output, entries);
-        output.push("  ]");
-        entries = [];
-        headerPushed = false;
-        state = "advanced_block";
-        continue;
+        break;
       }
-
-      // Check for multi-line object start (strip quoted strings to avoid matching `}}` in `{{var}}`)
-      const unquotedDep = stripQuotedStrings(effectiveLine);
-      if (unquotedDep.includes("{") && !unquotedDep.includes("}")) {
-        objectLines = [line];
+      case "multi-line-object-start": {
+        if (!inDepsArray && event.arrayKind === "dependencies") {
+          output.push(`  dependencies = [`);
+          entries = [];
+          inDepsArray = true;
+        }
+        objectLines = [event.rawLine];
         objectDepString = undefined;
-        const depMatch = objectDepFieldPattern.exec(line);
+        const depMatch = objectDepFieldPattern.exec(event.rawLine);
         if (depMatch) objectDepString = depMatch[1];
-        preObjectState = "dependencies_array";
-        state = "dependency_object";
-        continue;
+        inObject = true;
+        break;
       }
-
-      const entry = extractDependencyEntry(line, depIndent);
-      if (entry) entries.push(entry);
-      // Comments and blank lines inside the array are dropped
-      continue;
-    }
-
-    if (state === "dependency_object") {
-      objectLines.push(line);
-      const depMatch = objectDepFieldPattern.exec(line);
-      if (depMatch) objectDepString = depMatch[1];
-
-      if (stripQuotedStrings(effectiveLine).includes("}")) {
-        // Object closed — reconstruct as a properly indented entry
+      case "multi-line-object-field": {
+        if (inObject && objectLines.length > 0 && objectLines[objectLines.length - 1] !== event.rawLine) {
+          objectLines.push(event.rawLine);
+        }
+        const depMatch = objectDepFieldPattern.exec(event.rawLine);
+        if (depMatch) objectDepString = depMatch[1];
+        break;
+      }
+      case "multi-line-object-end": {
+        if (inObject && objectLines.length > 0 && objectLines[objectLines.length - 1] !== event.rawLine) {
+          objectLines.push(event.rawLine);
+        }
         const entry = buildObjectEntry(objectLines, depIndent, objectDepString);
         entries.push(entry);
         objectLines = [];
         objectDepString = undefined;
-        state = preObjectState;
+        inObject = false;
+        break;
       }
-      continue;
+      case "group-end": {
+        if (inDepsArray) {
+          flushEntries(output, entries);
+          if (event.groupKind === "simple") {
+            output.push("]");
+          } else {
+            output.push("  ]");
+          }
+          entries = [];
+          inDepsArray = false;
+        }
+        if (event.groupKind === "advanced") {
+          output.push(event.rawLine);
+        }
+        break;
+      }
     }
   }
 
@@ -264,51 +166,27 @@ export function formatDocument(lines: string[]): string {
 }
 
 /**
- * Extracts a dependency entry from a line, handling both plain string and
- * single-line object format.
- *
- * Returns the formatted dep line and sort key, or undefined if the line
- * doesn't contain a dependency.
+ * Extracts a dependency entry from a single-line object text.
  */
-function extractDependencyEntry(
-  line: string,
+function extractDependencyEntryFromObject(
+  objectText: string,
   indent: string
-): { depLine: string; sortKey: string } | undefined {
-  // Check for single-line object entry first (handles quoted strings that may contain `}`)
-  const objectMatch = /\{(?:[^}"]*(?:"[^"]*")?)*\}/.exec(line);
-  if (objectMatch) {
-    const objectText = objectMatch[0];
-    const depMatch = objectDepFieldPattern.exec(objectText);
-    if (depMatch) {
-      const depString = depMatch[1];
-      const noteMatch = /note\s*=\s*"([^"]*)"/.exec(objectText);
-      const note = noteMatch?.[1];
-      const isIntransitive = objectIntransitivePattern.test(objectText);
-      const scalaFilterMatch = objectScalaFilterPattern.exec(objectText);
-      const scalaFilter = scalaFilterMatch?.[1];
+): DependencyEntry | undefined {
+  const depMatch = objectDepFieldPattern.exec(objectText);
+  if (!depMatch) return undefined;
 
-      if (note || isIntransitive || scalaFilter) {
-        return formatObjectFields(depString, note, isIntransitive, scalaFilter, indent);
-      } else {
-        // Object without note or intransitive — preserve as-is with normalized indent
-        return { depLine: `${indent}${objectText.trim()}`, sortKey: buildSortKey(depString) };
-      }
-    }
+  const depString = depMatch[1];
+  const noteMatch = /note\s*=\s*"([^"]*)"/.exec(objectText);
+  const note = noteMatch?.[1];
+  const isIntransitive = objectIntransitiveFieldPattern.test(objectText);
+  const scalaFilterMatch = objectScalaFilterFieldPattern.exec(objectText);
+  const scalaFilter = scalaFilterMatch?.[1];
+
+  if (note || isIntransitive || scalaFilter) {
+    return formatObjectFields(depString, note, isIntransitive, scalaFilter, indent);
+  } else {
+    return { depLine: `${indent}${objectText.trim()}`, sortKey: buildSortKey(depString) };
   }
-
-  // SBT format: "org" %% "art" % "ver" [% "config"]
-  const sbtDep = convertSbtDependency(line);
-  if (sbtDep) {
-    return { depLine: `${indent}"${sbtDep}"`, sortKey: buildSortKey(sbtDep) };
-  }
-
-  // Plain string entry
-  const quoted = extractQuotedString(line);
-  if (quoted) {
-    return { depLine: `${indent}"${quoted}"`, sortKey: buildSortKey(quoted) };
-  }
-
-  return undefined;
 }
 
 /**
@@ -318,24 +196,22 @@ function buildObjectEntry(
   objectLines: string[],
   indent: string,
   depString: string | undefined
-): { depLine: string; sortKey: string } {
+): DependencyEntry {
   if (!depString) {
-    // No dependency field found — preserve as-is
     return {
       depLine: objectLines.map(l => `${indent}${l.trim()}`).join("\n"),
       sortKey: "",
     };
   }
 
-  // Extract note, intransitive, and scala-filter from the multi-line object
   let note: string | undefined;
   let isIntransitive = false;
   let scalaFilter: string | undefined;
   for (const l of objectLines) {
     const noteMatch = /note\s*=\s*"([^"]*)"/.exec(l);
     if (noteMatch) note = noteMatch[1];
-    if (objectIntransitivePattern.test(l)) isIntransitive = true;
-    const scalaFilterMatch = objectScalaFilterPattern.exec(l);
+    if (objectIntransitiveFieldPattern.test(l)) isIntransitive = true;
+    const scalaFilterMatch = objectScalaFilterFieldPattern.exec(l);
     if (scalaFilterMatch) scalaFilter = scalaFilterMatch[1];
   }
 
@@ -343,7 +219,6 @@ function buildObjectEntry(
     return formatObjectFields(depString, note, isIntransitive, scalaFilter, indent);
   }
 
-  // No extras — preserve with normalized indent
   return {
     depLine: objectLines.map(l => `${indent}${l.trim()}`).join("\n"),
     sortKey: buildSortKey(depString),
@@ -360,7 +235,7 @@ function formatObjectFields(
   isIntransitive: boolean,
   scalaFilter: string | undefined,
   indent: string
-): { depLine: string; sortKey: string } {
+): DependencyEntry {
   const noteField = note ? `note = "${note}"` : undefined;
   const intransitiveField = isIntransitive ? "intransitive = true" : undefined;
   const scalaFilterField = scalaFilter ? `scala-filter = "${scalaFilter}"` : undefined;
@@ -378,12 +253,6 @@ function formatObjectFields(
       sortKey: buildSortKey(depString),
     };
   }
-}
-
-/** Extracts the content of the first quoted string on a line, or undefined. */
-function extractQuotedString(line: string): string | undefined {
-  const match = /"([^"]*)"/.exec(line);
-  return match?.[1];
 }
 
 /** Converts an SBT-style dependency line to the canonical HOCON format, or undefined. */
@@ -436,7 +305,6 @@ function flushEntries(
 ): void {
   entries.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
   for (const entry of entries) {
-    // depLine may contain newlines for multi-line objects
     for (const line of entry.depLine.split("\n")) {
       output.push(line);
     }
@@ -457,6 +325,5 @@ function formatSingleLineGroup(line: string, indent: string): string {
   if (deps.length === 0) return line;
 
   deps.sort((a, b) => { const ka = buildSortKey(a), kb = buildSortKey(b); return ka < kb ? -1 : ka > kb ? 1 : 0; });
-  // Reconstruct — but for single-line we keep it as-is
   return line;
 }
