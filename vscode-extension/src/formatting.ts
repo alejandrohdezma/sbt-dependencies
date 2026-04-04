@@ -43,6 +43,11 @@ interface DependencyEntry {
  * - Object entries (`{ dependency = "...", note = "..." }`) are preserved
  */
 
+/** Strips quoted strings from a line so that brace checks ignore content inside `"..."`. */
+function stripQuotedStrings(line: string): string {
+  return line.replace(/"[^"]*"/g, "");
+}
+
 /** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
 function groupSortKey(name: string): string {
   return name === "sbt-build" ? `\0${name}` : name;
@@ -159,8 +164,9 @@ export function formatDocument(lines: string[]): string {
         continue;
       }
 
-      // Check for multi-line object start
-      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
+      // Check for multi-line object start (strip quoted strings to avoid matching `}}` in `{{var}}`)
+      const unquoted = stripQuotedStrings(effectiveLine);
+      if (unquoted.includes("{") && !unquoted.includes("}")) {
         objectLines = [line];
         objectDepString = undefined;
         const depMatch = objectDepFieldPattern.exec(line);
@@ -213,8 +219,9 @@ export function formatDocument(lines: string[]): string {
         continue;
       }
 
-      // Check for multi-line object start
-      if (effectiveLine.includes("{") && !effectiveLine.includes("}")) {
+      // Check for multi-line object start (strip quoted strings to avoid matching `}}` in `{{var}}`)
+      const unquotedDep = stripQuotedStrings(effectiveLine);
+      if (unquotedDep.includes("{") && !unquotedDep.includes("}")) {
         objectLines = [line];
         objectDepString = undefined;
         const depMatch = objectDepFieldPattern.exec(line);
@@ -235,7 +242,7 @@ export function formatDocument(lines: string[]): string {
       const depMatch = objectDepFieldPattern.exec(line);
       if (depMatch) objectDepString = depMatch[1];
 
-      if (effectiveLine.includes("}")) {
+      if (stripQuotedStrings(effectiveLine).includes("}")) {
         // Object closed — reconstruct as a properly indented entry
         const entry = buildObjectEntry(objectLines, depIndent, objectDepString);
         entries.push(entry);
@@ -267,8 +274,8 @@ function extractDependencyEntry(
   line: string,
   indent: string
 ): { depLine: string; sortKey: string } | undefined {
-  // Check for single-line object entry first
-  const objectMatch = /\{[^}]*\}/.exec(line);
+  // Check for single-line object entry first (handles quoted strings that may contain `}`)
+  const objectMatch = /\{(?:[^}"]*(?:"[^"]*")?)*\}/.exec(line);
   if (objectMatch) {
     const objectText = objectMatch[0];
     const depMatch = objectDepFieldPattern.exec(objectText);
