@@ -79,7 +79,9 @@ object AnnotatedDependency {
 
   final case class NoteKey(organization: String, name: String, configuration: String)
 
-  /** Holds the annotation data (note + intransitive flag + scala-filter) for a dependency, used during write preservation. */
+  /** Holds the annotation data (note + intransitive flag + scala-filter) for a dependency, used during write
+    * preservation.
+    */
   final case class AnnotationData(note: Option[String], intransitive: Boolean, scalaFilter: Option[String] = None)
 
   /** Parses a dependency list that may contain both plain strings and annotated objects. */
