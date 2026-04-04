@@ -122,9 +122,10 @@ class Settings {
       dependenciesFile.value
         .readAnnotated(currentGroup.value, Keys.dependencyVersionVariables.value)
         .filter(_._1.matchesScalaVersion(scalaV))
+        .filter { case (_, _, scalaFilter) => scalaFilter.forall(scalaV.startsWith) }
         .map {
-          case (dep, true)  => dep.toModuleID(sbtV, scalaV).intransitive()
-          case (dep, false) => dep.toModuleID(sbtV, scalaV)
+          case (dep, true, _)  => dep.toModuleID(sbtV, scalaV).intransitive()
+          case (dep, false, _) => dep.toModuleID(sbtV, scalaV)
         }
     }
 

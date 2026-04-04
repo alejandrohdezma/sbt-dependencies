@@ -72,9 +72,9 @@ final case class DependenciesFile(file: File) {
     */
   def readAnnotated(group: String, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
       logger: Logger
-  ): List[(Dependency, Boolean)] =
+  ): List[(Dependency, Boolean, Option[String])] =
     readRaw(file).get(group).toList.flatMap(_.dependencies).map { ad =>
-      Dependency.parse(ad.line, variableResolvers) -> ad.intransitive
+      (Dependency.parse(ad.line, variableResolvers), ad.intransitive, ad.scalaFilter)
     }
 
   /** Writes dependencies for a specific group to the given HOCON file.
@@ -100,8 +100,8 @@ final case class DependenciesFile(file: File) {
         .toList
         .flatMap(_.dependencies)
         .collect {
-          case ad if ad.note.isDefined || ad.intransitive =>
-            ad.line -> AnnotatedDependency.AnnotationData(ad.note, ad.intransitive)
+          case ad if ad.note.isDefined || ad.intransitive || ad.scalaFilter.isDefined =>
+            ad.line -> AnnotatedDependency.AnnotationData(ad.note, ad.intransitive, ad.scalaFilter)
         }
         .toMap
         .collect { case (Dependency.dependencyRegex(org, _, name, _, config), data) =>

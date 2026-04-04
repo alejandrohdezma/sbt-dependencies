@@ -23,14 +23,19 @@ import com.typesafe.config.Config
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType
 
-/** A dependency entry that may optionally carry a note and/or intransitive flag. */
-final case class AnnotatedDependency(line: String, note: Option[String] = None, intransitive: Boolean = false) {
+/** A dependency entry that may optionally carry a note, intransitive flag, and/or scala-filter. */
+final case class AnnotatedDependency(
+    line: String,
+    note: Option[String] = None,
+    intransitive: Boolean = false,
+    scalaFilter: Option[String] = None
+) {
 
   /** Formats a single dependency entry as HOCON, using single-line object format if it fits within the max line length
     * (120 characters), or multi-line otherwise.
     */
   def format: String =
-    if (note.isEmpty && !intransitive) s""""$line""""
+    if (note.isEmpty && !intransitive && scalaFilter.isEmpty) s""""$line""""
     else if (singleLine.length <= 120) singleLine
     else multiLine
 
@@ -38,10 +43,11 @@ final case class AnnotatedDependency(line: String, note: Option[String] = None, 
   lazy val multiLine = {
     val noteField         = note.map(n => s"""  note = "$n"\n""").getOrElse("")
     val intransitiveField = if (intransitive) "  intransitive = true\n" else ""
+    val scalaFilterField  = scalaFilter.map(f => s"""  scala-filter = "$f"\n""").getOrElse("")
 
     s"""{
        |  dependency = "$line"
-       |$noteField$intransitiveField}""".stripMargin
+       |$noteField$intransitiveField$scalaFilterField}""".stripMargin
   }
 
   /** Formats a single dependency entry as a single-line object. */
@@ -50,8 +56,9 @@ final case class AnnotatedDependency(line: String, note: Option[String] = None, 
   private def extraFields: String = {
     val noteField         = note.map(n => s"""note = "$n"""")
     val intransitiveField = if (intransitive) Some("intransitive = true") else None
+    val scalaFilterField  = scalaFilter.map(f => s"""scala-filter = "$f"""")
 
-    List(noteField, intransitiveField).flatten.mkString(", ")
+    List(noteField, intransitiveField, scalaFilterField).flatten.mkString(", ")
   }
 
 }
@@ -72,8 +79,8 @@ object AnnotatedDependency {
 
   final case class NoteKey(organization: String, name: String, configuration: String)
 
-  /** Holds the annotation data (note + intransitive flag) for a dependency, used during write preservation. */
-  final case class AnnotationData(note: Option[String], intransitive: Boolean)
+  /** Holds the annotation data (note + intransitive flag + scala-filter) for a dependency, used during write preservation. */
+  final case class AnnotationData(note: Option[String], intransitive: Boolean, scalaFilter: Option[String] = None)
 
   /** Parses a dependency list that may contain both plain strings and annotated objects. */
   def parse(config: Config, path: String): Either[String, List[AnnotatedDependency]] =
@@ -92,16 +99,18 @@ object AnnotatedDependency {
             case ConfigValueType.STRING =>
               Right(acc :+ AnnotatedDependency(value.unwrapped().asInstanceOf[String]))
 
-            // If the value is an object, check for 'dependency' and at least 'note' or 'intransitive'
+            // If the value is an object, check for 'dependency' and at least one annotation field
             case ConfigValueType.OBJECT =>
               val obj = value.asInstanceOf[ConfigObject].toConfig
               if (!obj.hasPath("dependency")) Left("object entry must have a 'dependency' field")
               else {
                 val note           = if (obj.hasPath("note")) Some(obj.getString("note")) else None
                 val isIntransitive = obj.hasPath("intransitive") && obj.getBoolean("intransitive")
+                val scalaFilter    = if (obj.hasPath("scala-filter")) Some(obj.getString("scala-filter")) else None
 
-                if (note.isEmpty && !isIntransitive) Left("object entry must have a 'note' or 'intransitive' field")
-                else Right(acc :+ AnnotatedDependency(obj.getString("dependency"), note, isIntransitive))
+                if (note.isEmpty && !isIntransitive && scalaFilter.isEmpty)
+                  Left("object entry must have a 'note', 'intransitive', or 'scala-filter' field")
+                else Right(acc :+ AnnotatedDependency(obj.getString("dependency"), note, isIntransitive, scalaFilter))
               }
 
             // If the value is anything else, return an error
@@ -115,7 +124,7 @@ object AnnotatedDependency {
     val key  = NoteKey(dep.organization, dep.name, dep.configuration)
     val data = annotations.get(key)
 
-    AnnotatedDependency(dep.toLine, data.flatMap(_.note), data.exists(_.intransitive))
+    AnnotatedDependency(dep.toLine, data.flatMap(_.note), data.exists(_.intransitive), data.flatMap(_.scalaFilter))
   }
 
 }
