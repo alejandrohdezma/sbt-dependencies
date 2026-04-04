@@ -21,7 +21,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.20.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.21.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -157,6 +157,24 @@ my-project = [
 ```
 
 This is useful for dependencies that are published with Scala-specific variants but aren't cross-compiled in the usual way (e.g., some native libraries or Java libraries with Scala-specific modules).
+
+For dependencies without a Scala suffix in their name (e.g., `scala-reflect` where the Scala version is in the version field), use the `scala-filter` annotation to restrict them to specific Scala major versions:
+
+```hocon
+my-project {
+  scala-versions = ["2.13.16", "3.3.7"]
+  dependencies = [
+    "org.typelevel::cats-core:2.10.0"
+    { dependency = "org.scala-lang:scala-reflect:{{scala}}", scala-filter = "2" }
+  ]
+}
+```
+
+The `scala-filter` value is matched as a prefix against the Scala binary version — `"2"` matches `2.13`, `"2.13"` matches only `2.13`, `"3"` matches `3`, etc. You can combine it with `note` and `intransitive`:
+
+```hocon
+{ dependency = "org.scala-lang:scala-reflect:{{scala}}", scala-filter = "2", note = "Not available for Scala 3" }
+```
 
 ---
 
