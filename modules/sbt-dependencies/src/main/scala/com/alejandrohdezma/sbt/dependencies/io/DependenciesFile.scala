@@ -80,7 +80,7 @@ final case class DependenciesFile(file: File) {
   /** Writes dependencies for a specific group to the given HOCON file.
     *
     * Other groups in the file are preserved. The format (simple vs advanced) of existing groups is preserved, unless
-    * scalaVersions is provided, in which case Advanced format is used.
+    * scalaVersions or javaVersion is provided, in which case Advanced format is used.
     *
     * @param group
     *   The group to write dependencies for.
@@ -88,11 +88,17 @@ final case class DependenciesFile(file: File) {
     *   The list of dependencies to write.
     * @param scalaVersions
     *   Optional list of Scala versions to write. If non-empty, Advanced format is used.
+    * @param javaVersion
+    *   Optional Java target version to write. If defined, Advanced format is used. When the group already exists with a
+    *   `java-version`, passing `None` preserves the existing value; passing `Some(v)` overrides it.
     */
-  def write(group: String, dependencies: List[Dependency], scalaVersions: List[String] = Nil)(implicit
-      logger: Logger
-  ): Unit =
-    if (dependencies.nonEmpty || scalaVersions.nonEmpty) {
+  def write(
+      group: String,
+      dependencies: List[Dependency],
+      scalaVersions: List[String] = Nil,
+      javaVersion: Option[String] = None
+  )(implicit logger: Logger): Unit =
+    if (dependencies.nonEmpty || scalaVersions.nonEmpty || javaVersion.nonEmpty) {
       val existingConfigs = readRaw(file)
 
       val annotations = existingConfigs
@@ -115,13 +121,21 @@ final case class DependenciesFile(file: File) {
         .sorted
         .map(AnnotatedDependency.from(annotations))
 
+      val versions = Option(scalaVersions).filter(_.nonEmpty)
+
       val newConfig =
-        if (scalaVersions.nonEmpty) GroupConfig.Advanced(dependencyLines, scalaVersions)
-        else
-          existingConfigs.get(group) match {
-            case Some(adv: GroupConfig.Advanced) => GroupConfig.Advanced(dependencyLines, adv.scalaVersions)
-            case _                               => GroupConfig.Simple(dependencyLines)
-          }
+        existingConfigs.get(group) match {
+          case Some(adv: GroupConfig.Advanced) =>
+            GroupConfig.Advanced(
+              dependencyLines,
+              versions.getOrElse(adv.scalaVersions),
+              javaVersion.orElse(adv.javaVersion)
+            )
+          case _ if versions.nonEmpty || javaVersion.nonEmpty =>
+            GroupConfig.Advanced(dependencyLines, versions.getOrElse(Nil), javaVersion)
+          case _ =>
+            GroupConfig.Simple(dependencyLines)
+        }
 
       val updated = existingConfigs + (group -> newConfig)
 
@@ -156,7 +170,8 @@ final case class DependenciesFile(file: File) {
 
   /** Writes Scala versions for a specific group to the given HOCON file.
     *
-    * Other groups and dependencies in the file are preserved. Version markers are preserved when writing.
+    * Other groups and dependencies in the file are preserved. Version markers are preserved when writing. Existing
+    * `java-version` is preserved.
     *
     * @param group
     *   The group to write Scala versions for.
@@ -167,8 +182,9 @@ final case class DependenciesFile(file: File) {
     val existingConfigs = readRaw(file)
 
     val newConfig = existingConfigs.get(group) match {
-      case Some(existing) => GroupConfig.Advanced(existing.dependencies, scalaVersions.map(_.show))
-      case None           => GroupConfig.Advanced(Nil, scalaVersions.map(_.show))
+      case Some(existing) =>
+        GroupConfig.Advanced(existing.dependencies, scalaVersions.map(_.show), existing.javaVersion)
+      case None => GroupConfig.Advanced(Nil, scalaVersions.map(_.show))
     }
 
     val updated = existingConfigs + (group -> newConfig)
@@ -180,6 +196,16 @@ final case class DependenciesFile(file: File) {
 
     IO.write(file, content + "\n")
   }
+
+  /** Reads the `java-version` for a specific group from the given HOCON file.
+    *
+    * @param group
+    *   The group to read `java-version` for.
+    * @return
+    *   The configured Java version for the group, or `None` if not set.
+    */
+  def readJavaVersion(group: String)(implicit logger: Logger): Option[String] =
+    readRaw(file).get(group).flatMap(_.javaVersion)
 
   /** Sorts dependencies within each group and rewrites the file with consistent formatting.
     *

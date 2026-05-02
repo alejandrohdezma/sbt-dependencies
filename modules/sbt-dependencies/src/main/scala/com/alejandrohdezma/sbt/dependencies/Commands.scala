@@ -55,14 +55,16 @@ class Commands {
     *
     * Accepts optional flags:
     *   - `--scala-versions` — include scala versions in the output
+    *   - `--java-version` — include the Java target version (read from `javacOptions`) in the output
     *   - `--compiler-plugins` — include compiler plugin dependencies
-    *   - `--all` — enables both of the above
+    *   - `--all` — enables all of the above
     */
   lazy val initDependenciesFile = Command.args("initDependenciesFile", "<options>") { (state, args) =>
     implicit val logger: Logger = state.log
 
     val includeAll             = args.contains("--all")
     val includeScalaVersions   = includeAll || args.contains("--scala-versions")
+    val includeJavaVersion     = includeAll || args.contains("--java-version")
     val includeCompilerPlugins = includeAll || args.contains("--compiler-plugins")
 
     val project = Project.extract(state)
@@ -100,28 +102,46 @@ class Commands {
           project.get(ref / name) -> project.get(ref / crossScalaVersions).toList
         }.toMap
 
+    // Gather Java target version for each group from `javacOptions` (skip in meta-build)
+    val javaVersionByGroup: Map[String, Option[String]] =
+      if (!includeJavaVersion || isSbtBuild) Map.empty
+      else
+        project.structure.allProjectRefs.map { ref =>
+          val options = Try(project.runTask(ref / javacOptions, state)).toOption.map(_._2).getOrElse(Seq.empty)
+          project.get(ref / name) -> javaVersionFromOptions(options)
+        }.toMap
+
     // Check if all projects share the same Scala versions
     val uniqueVersionSets = scalaVersionsByGroup.values.map(_.sorted).toSet
     val sharedVersions    = if (uniqueVersionSets.size === 1) uniqueVersionSets.head else Nil
+
+    // Check if all projects share the same Java version
+    val uniqueJavaVersions = javaVersionByGroup.values.toSet
+    val sharedJavaVersion  = if (uniqueJavaVersions.size === 1) uniqueJavaVersions.head else None
 
     val file = DependenciesFile {
       if (isSbtBuild) base / "dependencies.conf"
       else base / "project" / "dependencies.conf"
     }
 
-    // Write sbt-build group with shared scala versions (if any)
+    // Write sbt-build group with shared scala versions and shared java version (if any)
     val sbtBuildDeps = dependenciesByGroup.getOrElse(`sbt-build`, Nil)
 
-    if (sharedVersions.nonEmpty || (newGroups.contains(`sbt-build`) && sbtBuildDeps.nonEmpty)) {
-      file.write(`sbt-build`, sbtBuildDeps, sharedVersions)
+    if (
+      sharedVersions.nonEmpty ||
+      sharedJavaVersion.nonEmpty ||
+      (newGroups.contains(`sbt-build`) && sbtBuildDeps.nonEmpty)
+    ) {
+      file.write(`sbt-build`, sbtBuildDeps, sharedVersions, sharedJavaVersion)
     }
 
-    // Write each group's dependencies (and scala versions if not shared)
+    // Write each group's dependencies (and scala/java versions if not shared)
     newGroups.filterNot(_ === `sbt-build`).foreach { group =>
       val deps          = dependenciesByGroup.getOrElse(group, Nil)
       val scalaVersions = if (sharedVersions.isEmpty) scalaVersionsByGroup.getOrElse(group, Nil) else Nil
+      val javaVersion   = if (sharedJavaVersion.isEmpty) javaVersionByGroup.getOrElse(group, None) else None
 
-      file.write(group, deps, scalaVersions)
+      file.write(group, deps, scalaVersions, javaVersion)
     }
 
     logger.info("✎ Created project/dependencies.conf file with your dependencies")
@@ -748,6 +768,19 @@ class Commands {
 
       f(versionFinder)(migrationFinder)(retractionFinder)(project, dependenciesFile)
     }
+  }
+
+  /** Extracts a Java target version from a list of `javacOptions`, by scanning for `--release N`, `-release N`, or
+    * `-target N` (a digit-only token following the flag). Returns `None` if no recognised flag is present.
+    */
+  private def javaVersionFromOptions(options: Seq[String]): Option[String] = {
+    val flagRegex = """--?release|-target""".r
+
+    options
+      .sliding(2)
+      .collectFirst {
+        case Seq(flag, value) if flagRegex.pattern.matcher(flag).matches() && value.forall(_.isDigit) => value
+      }
   }
 
   val `sbt-build` = "sbt-build"

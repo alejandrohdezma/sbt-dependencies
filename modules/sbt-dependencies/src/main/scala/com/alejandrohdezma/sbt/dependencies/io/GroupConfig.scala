@@ -33,9 +33,14 @@ sealed trait GroupConfig {
   /** The list of Scala versions for this group. */
   def scalaVersions: List[String] = Nil
 
+  /** Optional Java target version for this group (e.g. `"17"`, `"25"`). When set, controls the bytecode level produced
+    * for this group's modules.
+    */
+  def javaVersion: Option[String] = None
+
   def sorted: GroupConfig = this match {
-    case GroupConfig.Simple(deps)             => GroupConfig.Simple(deps.sorted)
-    case GroupConfig.Advanced(deps, versions) => GroupConfig.Advanced(deps.sorted, versions)
+    case GroupConfig.Simple(deps)           => GroupConfig.Simple(deps.sorted)
+    case GroupConfig.Advanced(deps, sv, jv) => GroupConfig.Advanced(deps.sorted, sv, jv)
   }
 
   /** Formats a group with its configuration for HOCON output. */
@@ -43,7 +48,12 @@ sealed trait GroupConfig {
     case GroupConfig.Simple(deps) =>
       s"""$group = [\n${deps.map(d => indent(d.format, 2)).mkString("\n")}\n]"""
 
-    case GroupConfig.Advanced(deps, versions) =>
+    case GroupConfig.Advanced(deps, versions, javaVersion) =>
+      val javaVersionSection = javaVersion match {
+        case Some(v) => s"""  java-version = "$v"\n"""
+        case None    => ""
+      }
+
       val scalaVersionsSection = versions match {
         case Nil           => ""
         case single :: Nil => s"""  scala-version = "$single"\n"""
@@ -56,7 +66,7 @@ sealed trait GroupConfig {
           s"""  dependencies = [\n${deps.map(d => indent(d.format, 4)).mkString("\n")}\n  ]"""
         else "  dependencies = []"
 
-      s"$group {\n$scalaVersionsSection$depsSection\n}"
+      s"$group {\n$javaVersionSection$scalaVersionsSection$depsSection\n}"
   }
 
   private def indent(s: String, n: Int): String = s.linesIterator.map((" " * n) + _).mkString("\n")
@@ -101,7 +111,19 @@ object GroupConfig {
           case (false, false) => Right(Nil)
         }
 
-        dependencies.flatMap(deps => scalaVersions.map(Advanced(deps, _)))
+        val javaVersion: Either[String, Option[String]] =
+          if (groupConfig.hasPath("java-version"))
+            groupConfig.getValue("java-version").valueType() match {
+              case ConfigValueType.STRING => Right(Some(groupConfig.getString("java-version")))
+              case other                  => Left(s"'java-version' must be a string, got $other")
+            }
+          else Right(None)
+
+        for {
+          deps <- dependencies
+          sv   <- scalaVersions
+          jv   <- javaVersion
+        } yield Advanced(deps, sv, jv)
 
       case other =>
         Left(s"expected list or object, got $other")
@@ -124,6 +146,7 @@ object GroupConfig {
     * HOCON representation:
     * {{{
     * my-project {
+    *   java-version = "25"
     *   scala-versions = ["2.13.12", "2.12.18"]
     *   dependencies = [
     *     "org::name:version"
@@ -132,7 +155,10 @@ object GroupConfig {
     * }
     * }}}
     */
-  final case class Advanced(dependencies: List[AnnotatedDependency], override val scalaVersions: List[String] = Nil)
-      extends GroupConfig
+  final case class Advanced(
+      dependencies: List[AnnotatedDependency],
+      override val scalaVersions: List[String] = Nil,
+      override val javaVersion: Option[String] = None
+  ) extends GroupConfig
 
 }

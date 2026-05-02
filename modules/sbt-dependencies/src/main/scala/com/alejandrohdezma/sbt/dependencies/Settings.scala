@@ -76,6 +76,24 @@ class Settings {
     else dependenciesFile.value.readScalaVersions(currentGroup.value).map(_.toVersionString)
   }
 
+  /** Java target version from the `sbt-build` group, used as a fallback for normal projects (not the meta-build
+    * itself).
+    */
+  val buildJavaVersion: Def.Initialize[Option[String]] = Def.setting {
+    implicit val logger: Logger = sLog.value
+
+    if (isSbtBuild.value) None
+    else dependenciesFile.value.readJavaVersion("sbt-build")
+  }
+
+  /** Java target version from the current project's group. */
+  val projectJavaVersion: Def.Initialize[Option[String]] = Def.setting {
+    implicit val logger: Logger = sLog.value
+
+    if (isSbtBuild.value) None
+    else dependenciesFile.value.readJavaVersion(currentGroup.value)
+  }
+
   /** Gets the inherited dependencies from other projects (recursively). */
   val inheritedDependencies = Def.settingDyn {
     thisProject.value.dependencies.foldLeft(Def.setting(Seq.empty[ModuleID])) { (acc, classPathDependency) =>

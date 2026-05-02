@@ -12,7 +12,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 - Automatically exclude [retracted versions](#user-content-configure-retracted-versions) from updates using Scala Steward's retraction list.
 - [Pin updates to allowed versions](#user-content-configure-update-pins) using Scala Steward's pin list.
 - Generate [post-update hooks](#user-content-configure-post-update-hooks) and [scalafix migrations](#user-content-configure-scalafix-migrations) for CI automation using Scala Steward's configuration.
-- Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
+- Manage [Scala versions](#user-content-configure-scala-versions), [Java target version](#user-content-configure-java-version), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
 - Share versions across dependencies with [version variables](#user-content-use-shared-version-variables), including [BOM support](https://github.com/heremaps/here-sbt-bom).
 - [VS Code / Cursor extension](#vs-code--cursor-extension) with syntax highlighting for `dependencies.conf`.
 
@@ -59,6 +59,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Mark a dependency as intransitive](#user-content-mark-a-dependency-as-intransitive)
   + [Use shared version variables](#user-content-use-shared-version-variables)
   + [Configure Scala versions](#user-content-configure-scala-versions)
+  + [Configure Java target version](#user-content-configure-java-version)
   + [Use the advanced group format](#user-content-use-advanced-group-format)
   + [Install a new dependency](#user-content-install-a-new-dependency)
   + [Install a build dependency](#user-content-install-a-build-dependency)
@@ -343,6 +344,35 @@ Use `scala-version` (singular) for a single version or `scala-versions` (plural)
 - `scala-version`/`scala-versions` in individual project groups overrides the build-level settings for that project
 
 This allows you to set a default Scala version for all projects while letting specific projects use different versions.
+
+---
+
+</details>
+
+<details><summary><b id="configure-java-version">Configure Java target version</b></summary><br/>
+
+You can pin the Java bytecode target directly in `dependencies.conf` using the [advanced format](#user-content-use-advanced-group-format):
+
+```hocon
+sbt-build {
+  java-version = "17"
+  dependencies = []
+}
+
+myproject {
+  java-version = "21"
+  dependencies = [
+    "org.typelevel::cats-core:2.10.0"
+  ]
+}
+```
+
+**Behavior:**
+- The plugin appends `--release <java-version>` to `javacOptions` and `-release:<java-version>` to `scalacOptions` for each project.
+- `java-version` in the `sbt-build` group acts as a default that applies to all normal projects (it does not affect the meta-build itself, which always runs on sbt's pinned JVM).
+- `java-version` in an individual project's group overrides the build-level default for that project.
+
+The `--release` flag is preferred over the older `-source`/`-target` pair because it locks the standard-library API surface to the chosen JDK, preventing accidental use of newer APIs that would crash at runtime on older JVMs.
 
 ---
 

@@ -111,6 +111,26 @@ object DependenciesPlugin extends AutoPlugin {
         if (versions.nonEmpty) versions else crossScalaVersions.value
       }
       else Def.setting(crossScalaVersions.value)
+    }.value,
+    javacOptions ++= Def.settingDyn {
+      val file = Settings.dependenciesFile.value
+      if (file.exists()) Def.setting {
+        Settings.projectJavaVersion.value
+          .orElse(Settings.buildJavaVersion.value)
+          .toSeq
+          .flatMap(v => Seq("--release", v))
+      }
+      else Def.setting(Seq.empty[String])
+    }.value,
+    scalacOptions ++= Def.settingDyn {
+      val file = Settings.dependenciesFile.value
+      if (file.exists()) Def.setting {
+        Settings.projectJavaVersion.value
+          .orElse(Settings.buildJavaVersion.value)
+          .toSeq
+          .map(v => s"-release:$v")
+      }
+      else Def.setting(Seq.empty[String])
     }.value
   )
 

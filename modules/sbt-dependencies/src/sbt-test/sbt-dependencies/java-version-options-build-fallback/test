@@ -1,0 +1,4 @@
+# Verify sbt-build's java-version applies to projects without their own,
+# and per-project java-version overrides the build-level fallback.
+> compile
+> assertTest
