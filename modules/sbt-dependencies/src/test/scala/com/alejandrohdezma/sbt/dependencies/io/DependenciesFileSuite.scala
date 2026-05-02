@@ -1094,6 +1094,108 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(deps.head.name, "cats-core")
   }
 
+  // --- readJavaVersion tests ---
+
+  withDependenciesFile {
+    """|my-project {
+       |  java-version = "25"
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
+       |""".stripMargin
+  }.test("readJavaVersion returns java-version from advanced format") { file =>
+    val result = DependenciesFile(file).readJavaVersion("my-project")
+
+    assertEquals(result, Some("25"))
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
+       |""".stripMargin
+  }.test("readJavaVersion returns None for simple format") { file =>
+    val result = DependenciesFile(file).readJavaVersion("my-project")
+
+    assertEquals(result, None)
+  }
+
+  withDependenciesFile {
+    """|my-project {
+       |  scala-versions = ["2.13.12"]
+       |  dependencies = []
+       |}
+       |""".stripMargin
+  }.test("readJavaVersion returns None when not specified in advanced format") { file =>
+    val result = DependenciesFile(file).readJavaVersion("my-project")
+
+    assertEquals(result, None)
+  }
+
+  nonExistentFile.test("readJavaVersion returns None for non-existent file") { file =>
+    val result = DependenciesFile(file).readJavaVersion("my-project")
+
+    assertEquals(result, None)
+  }
+
+  // --- write/writeScalaVersions preserve java-version ---
+
+  withDependenciesFile {
+    """|my-project {
+       |  java-version = "25"
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
+       |""".stripMargin
+  }.test("write preserves java-version through dependency update") { file =>
+    DependenciesFile(file).write(
+      "my-project",
+      List(Dependency.parse("org.typelevel::cats-core:2.11.0", variableResolvers))
+    )
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project {
+         |  java-version = "25"
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.11.0"
+         |  ]
+         |}
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project {
+       |  java-version = "25"
+       |  scala-versions = ["2.13.12"]
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
+       |""".stripMargin
+  }.test("writeScalaVersions preserves java-version") { file =>
+    DependenciesFile(file).writeScalaVersions("my-project", List(v("2.13.14"), v("3.3.3")))
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project {
+         |  java-version = "25"
+         |  scala-versions = ["~2.13.14", "~3.3.3"]
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
   // --- Dependency notes tests ---
 
   withDependenciesFile {

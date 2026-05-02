@@ -131,6 +131,46 @@ class GroupConfigSuite extends munit.FunSuite {
     assertEquals(result, Right(GroupConfig.Advanced(List("org.typelevel::cats-core:2.10.0"), List("3.3.1"))))
   }
 
+  // --- parse() tests: java-version ---
+
+  test("parse advanced format with java-version") {
+    val result = parseGroup(
+      """|my-group {
+         |  java-version = "25"
+         |  dependencies = ["dep1"]
+         |}""".stripMargin,
+      "my-group"
+    )
+
+    assertEquals(result, Right(GroupConfig.Advanced(List("dep1"), Nil, Some("25"))))
+  }
+
+  test("parse advanced format with both java-version and scala-versions") {
+    val result = parseGroup(
+      """|my-group {
+         |  java-version = "25"
+         |  scala-versions = ["2.13.12", "3.3.1"]
+         |  dependencies = ["dep1"]
+         |}""".stripMargin,
+      "my-group"
+    )
+
+    assertEquals(result, Right(GroupConfig.Advanced(List("dep1"), List("2.13.12", "3.3.1"), Some("25"))))
+  }
+
+  test("parse advanced format without java-version returns None") {
+    val result = parseGroup("""my-group { dependencies = ["dep1"] }""", "my-group")
+
+    assertEquals(result, Right(GroupConfig.Advanced(List("dep1"), Nil, None)))
+  }
+
+  test("parse returns error when java-version is not a string") {
+    val result = parseGroup("""my-group { java-version = 25 }""", "my-group")
+
+    assert(result.isLeft)
+    assert(result.left.exists(_.contains("must be a string")))
+  }
+
   test("parse returns error when both scala-versions and scala-version are present") {
     val result = parseGroup(
       """|my-group {
@@ -330,6 +370,52 @@ class GroupConfigSuite extends munit.FunSuite {
          |  dependencies = [
          |    "dep1"
          |  ]
+         |}""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  // --- format() tests: java-version ---
+
+  test("format Advanced with java-version only") {
+    val config = GroupConfig.Advanced(List("dep1"), Nil, Some("25"))
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project {
+         |  java-version = "25"
+         |  dependencies = [
+         |    "dep1"
+         |  ]
+         |}""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Advanced with both java-version and scala-versions") {
+    val config = GroupConfig.Advanced(List("dep1"), List("2.13.12", "3.3.1"), Some("25"))
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project {
+         |  java-version = "25"
+         |  scala-versions = ["2.13.12", "3.3.1"]
+         |  dependencies = [
+         |    "dep1"
+         |  ]
+         |}""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Advanced with java-version and no dependencies") {
+    val config = GroupConfig.Advanced(Nil, Nil, Some("25"))
+    val result = config.format("my-project")
+
+    val expected =
+      """|my-project {
+         |  java-version = "25"
+         |  dependencies = []
          |}""".stripMargin
 
     assertEquals(result, expected)
@@ -662,6 +748,60 @@ class GroupConfigSuite extends munit.FunSuite {
     val config = GroupConfig.Advanced(List("dep1"), Nil)
 
     assertEquals(config.scalaVersions, Nil)
+  }
+
+  // --- javaVersion property tests ---
+
+  test("Simple.javaVersion returns None") {
+    val config = GroupConfig.Simple(List("dep1"))
+
+    assertEquals(config.javaVersion, None)
+  }
+
+  test("Advanced.javaVersion returns the configured version") {
+    val config = GroupConfig.Advanced(List("dep1"), Nil, Some("25"))
+
+    assertEquals(config.javaVersion, Some("25"))
+  }
+
+  test("Advanced.javaVersion returns None when not configured") {
+    val config = GroupConfig.Advanced(List("dep1"), Nil)
+
+    assertEquals(config.javaVersion, None)
+  }
+
+  // --- parse/format round-trip tests for java-version ---
+
+  test("parse then format round-trips advanced format with java-version") {
+    val hocon =
+      """|my-group {
+         |  java-version = "25"
+         |  dependencies = [
+         |    "dep1"
+         |    "dep2"
+         |  ]
+         |}""".stripMargin
+
+    val parsed    = parseGroup(hocon, "my-group")
+    val formatted = parsed.map(_.format("my-group"))
+
+    assertEquals(formatted, Right(hocon))
+  }
+
+  test("parse then format round-trips advanced format with java-version and scala-versions") {
+    val hocon =
+      """|my-group {
+         |  java-version = "25"
+         |  scala-versions = ["2.13.12", "3.3.1"]
+         |  dependencies = [
+         |    "dep1"
+         |  ]
+         |}""".stripMargin
+
+    val parsed    = parseGroup(hocon, "my-group")
+    val formatted = parsed.map(_.format("my-group"))
+
+    assertEquals(formatted, Right(hocon))
   }
 
   // --- dependencyLines property tests ---
