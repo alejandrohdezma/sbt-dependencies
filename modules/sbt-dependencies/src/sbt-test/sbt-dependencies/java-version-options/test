@@ -1,0 +1,3 @@
+# Verify java-version sets scalacOptions/javacOptions
+> compile
+> assertTest
