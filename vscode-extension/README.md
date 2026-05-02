@@ -8,6 +8,7 @@ Syntax highlighting for [`sbt-dependencies`](https://github.com/alejandrohdezma/
 
 - Syntax highlighting for dependency strings (organization, artifact, version, configuration)
 - Support for both simple and advanced group formats
+- Syntax highlighting for advanced group settings (`scala-version`, `scala-versions`, `java-version`)
 - Support for object format with notes (`{ dependency = "...", note = "..." }`)
 - Version marker highlighting (`=`, `^`, `~`)
 - Variable reference highlighting (`{{name}}`)
