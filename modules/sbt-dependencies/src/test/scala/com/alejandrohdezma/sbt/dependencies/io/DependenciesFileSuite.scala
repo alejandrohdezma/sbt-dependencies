@@ -1195,6 +1195,76 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertNoDiff(content, expected)
   }
 
+  withDependenciesFile("").test("write to a new group with javaVersion produces advanced format") { file =>
+    val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0", variableResolvers))
+
+    DependenciesFile(file).write("my-project", newDeps, javaVersion = Some("25"))
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project {
+         |  java-version = "25"
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project {
+       |  java-version = "17"
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
+       |""".stripMargin
+  }.test("write with explicit javaVersion overrides existing java-version") { file =>
+    DependenciesFile(file).write(
+      "my-project",
+      List(Dependency.parse("org.typelevel::cats-core:2.10.0", variableResolvers)),
+      javaVersion = Some("21")
+    )
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project {
+         |  java-version = "21"
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile("").test(
+    "write to a new group with both scalaVersions and javaVersion produces advanced format"
+  ) { file =>
+    val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0", variableResolvers))
+
+    DependenciesFile(file).write("my-project", newDeps, List("2.13.12"), javaVersion = Some("17"))
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project {
+         |  java-version = "17"
+         |  scala-version = "2.13.12"
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
   withDependenciesFile {
     """|my-project {
        |  java-version = "25"
