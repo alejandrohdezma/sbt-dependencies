@@ -121,7 +121,8 @@ final case class DependenciesFile(file: File) {
         existingConfigs.get(group) match {
           case Some(adv: GroupConfig.Advanced) =>
             GroupConfig.Advanced(dependencyLines, versions.getOrElse(adv.scalaVersions), adv.javaVersion)
-
+          case _ if versions.nonEmpty =>
+            GroupConfig.Advanced(dependencyLines, versions.getOrElse(Nil))
           case _ =>
             GroupConfig.Simple(dependencyLines)
         }

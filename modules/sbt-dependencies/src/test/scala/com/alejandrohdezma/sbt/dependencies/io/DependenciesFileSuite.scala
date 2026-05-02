@@ -934,6 +934,32 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertNoDiff(content, expected)
   }
 
+  withDependenciesFile("").test("write to a new group with scalaVersions produces advanced format") { file =>
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
+        isCross = true
+      )
+    )
+
+    DependenciesFile(file).write("my-project", newDeps, List("2.13.12"))
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project {
+         |  scala-version = "2.13.12"
+         |  dependencies = [
+         |    "org.typelevel::cats-core:2.10.0"
+         |  ]
+         |}
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
   withDependenciesFile {
     """|my-project {
        |  scala-version = "2.13.12"
