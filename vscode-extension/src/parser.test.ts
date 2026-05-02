@@ -122,6 +122,15 @@ describe("walkDocument", () => {
       expect(settings[0].effectiveLine).toContain("scala-version");
     });
 
+    it("emits setting-line for java-version", () => {
+      const settings = eventsOfType(
+        `api {\n  java-version = "17"\n  dependencies = [\n    "org:art:1.0"\n  ]\n}`,
+        "setting-line"
+      );
+      expect(settings).toHaveLength(1);
+      expect(settings[0].effectiveLine).toContain("java-version");
+    });
+
     it("emits dependency-string with arrayKind 'dependencies'", () => {
       const deps = eventsOfType(
         `api {\n  dependencies = [\n    "org:art:1.0"\n  ]\n}`,

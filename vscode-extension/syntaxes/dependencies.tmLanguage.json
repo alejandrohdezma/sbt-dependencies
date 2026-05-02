@@ -60,7 +60,7 @@
       ]
     },
     "advanced-group-keys": {
-      "match": "\\b(scala-versions|scala-version)\\b",
+      "match": "\\b(scala-versions|scala-version|java-version)\\b",
       "name": "support.type.property-name.sbt-dependencies"
     },
     "dependencies-array": {
