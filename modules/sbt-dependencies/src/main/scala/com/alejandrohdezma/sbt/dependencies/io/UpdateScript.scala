@@ -20,6 +20,7 @@ import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff.ProjectDiff
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Group
 
 /** A script to be run after updating dependencies, with a human-readable message.
   *
@@ -37,7 +38,7 @@ object UpdateScript {
     * For each hook, finds updated dependencies matching its groupId/artifactId filter. Generates one script per
     * matching (hook, dep) pair with variable substitution in the commit message.
     */
-  def fromHooks(hooks: List[PostUpdateHook], diffs: Map[String, ProjectDiff]): List[UpdateScript] = {
+  def fromHooks(hooks: List[PostUpdateHook], diffs: Map[Group, ProjectDiff]): List[UpdateScript] = {
     val allUpdated = diffs.values.flatMap(_.updated).toList
 
     hooks.flatMap { hook =>
@@ -68,10 +69,10 @@ object UpdateScript {
     *   - `sbt-build` (plugins, sbt itself) → runs `scalafix` CLI directly on build files
     *   - any other project → runs `sbt "scalafixEnable; project/scalafixAll rule"` on source files
     */
-  def fromMigrations(migrations: List[ScalafixMigration], diffs: Map[String, ProjectDiff]): List[UpdateScript] =
-    diffs.toList.flatMap { case (project, diff) =>
+  def fromMigrations(migrations: List[ScalafixMigration], diffs: Map[Group, ProjectDiff]): List[UpdateScript] =
+    diffs.toList.flatMap { case (group, diff) =>
       migrations.flatMap {
-        case migration if diff.updated.exists(migration.matches(_)) => List(migration.toScript(project))
+        case migration if diff.updated.exists(migration.matches(_)) => List(migration.toScript(group))
         case _                                                      => Nil
       }
     }.distinctBy(_.script)

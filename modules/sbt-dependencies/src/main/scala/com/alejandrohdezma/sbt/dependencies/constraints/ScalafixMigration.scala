@@ -27,7 +27,8 @@ import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff.UpdatedDep
 import com.alejandrohdezma.sbt.dependencies.io.UpdateScript
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import com.alejandrohdezma.sbt.dependencies.model.Groups._
+import com.alejandrohdezma.sbt.dependencies.model.Group
+import com.alejandrohdezma.sbt.dependencies.model.Group._
 import com.typesafe.config.Config
 
 /** Represents an entry from the `migrations` section of a Scala Steward scalafix migrations configuration file.
@@ -54,9 +55,9 @@ final case class ScalafixMigration(
     scalacOptions: List[String] = Nil
 ) {
 
-  /** Converts this migration to a script for the given project. */
-  def toScript(project: String): UpdateScript =
-    if (project === `sbt-build`) {
+  /** Converts this migration to a script for the given group. */
+  def toScript(group: Group): UpdateScript =
+    if (group === `sbt-build`) {
       val docSuffix = doc.map(url => s" (see $url)").getOrElse("")
 
       UpdateScript(
@@ -70,11 +71,11 @@ final case class ScalafixMigration(
 
       val docSuffix = doc.map(url => s" (see $url)").getOrElse("")
 
-      val scalafixCmds = rewriteRules.map(rule => s"$project/scalafixAll $rule").mkString("; ")
+      val scalafixCmds = rewriteRules.map(rule => s"${group.name}/scalafixAll $rule").mkString("; ")
 
       UpdateScript(
         script = s"""sbt "scalafixEnable$scalacOptCmd; $scalafixCmds"""",
-        message = s"Run scalafix migration in $project: ${rewriteRules.mkString(", ")}$docSuffix"
+        message = s"Run scalafix migration in ${group.name}: ${rewriteRules.mkString(", ")}$docSuffix"
       )
     }
 

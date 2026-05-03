@@ -18,6 +18,7 @@ package com.alejandrohdezma.sbt.dependencies.io
 
 import scala.jdk.CollectionConverters._
 
+import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigValueType
 
@@ -44,9 +45,9 @@ sealed trait GroupConfig {
   }
 
   /** Formats a group with its configuration for HOCON output. */
-  def format(group: String): String = this match {
+  def format(group: Group): String = this match {
     case GroupConfig.Simple(deps) =>
-      s"""$group = [\n${deps.map(d => indent(d.format, 2)).mkString("\n")}\n]"""
+      s"""${group.name} = [\n${deps.map(d => indent(d.format, 2)).mkString("\n")}\n]"""
 
     case GroupConfig.Advanced(deps, versions, javaVersion) =>
       val javaVersionSection = javaVersion match {
@@ -66,7 +67,7 @@ sealed trait GroupConfig {
           s"""  dependencies = [\n${deps.map(d => indent(d.format, 4)).mkString("\n")}\n  ]"""
         else "  dependencies = []"
 
-      s"$group {\n$javaVersionSection$scalaVersionsSection$depsSection\n}"
+      s"${group.name} {\n$javaVersionSection$scalaVersionsSection$depsSection\n}"
   }
 
   private def indent(s: String, n: Int): String = s.linesIterator.map((" " * n) + _).mkString("\n")
@@ -76,13 +77,13 @@ sealed trait GroupConfig {
 object GroupConfig {
 
   /** Parses a group from a Config, detecting whether it's simple or advanced format. */
-  def parse(config: Config, group: String): Either[String, GroupConfig] =
-    config.getValue(group).valueType() match {
+  def parse(config: Config, group: Group): Either[String, GroupConfig] =
+    config.getValue(group.name).valueType() match {
       case ConfigValueType.LIST =>
-        AnnotatedDependency.parse(config, group).map(GroupConfig.Simple(_))
+        AnnotatedDependency.parse(config, group.name).map(GroupConfig.Simple(_))
 
       case ConfigValueType.OBJECT =>
-        val groupConfig = config.getConfig(group)
+        val groupConfig = config.getConfig(group.name)
 
         val dependencies =
           if (groupConfig.hasPath("dependencies"))

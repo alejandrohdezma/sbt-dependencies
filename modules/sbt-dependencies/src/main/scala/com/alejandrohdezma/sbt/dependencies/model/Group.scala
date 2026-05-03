@@ -16,23 +16,42 @@
 
 package com.alejandrohdezma.sbt.dependencies.model
 
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
+
+sealed abstract class Group(val name: String) {
+
+  override def toString: String = name
+
+}
+
 /** Reserved group names in `dependencies.conf` and the canonical ordering used when writing the file. */
-object Groups {
+object Group {
 
   /** Group whose dependencies become the meta-build (`project/project/plugins.sbt`). */
-  val `sbt-build`: String = "sbt-build"
+  object `sbt-build` extends Group("sbt-build")
 
   /** Group whose `scala-version[s]` / `java-version` / `dependencies` apply to every non-meta project as defaults. */
-  val `common-settings`: String = "common-settings"
+  object `common-settings` extends Group("common-settings")
+
+  case class Custom(override val name: String) extends Group(name)
+
+  /** Builds a `Group` from a raw name, canonicalising reserved names to their singletons. */
+  def apply(name: String): Group = name match {
+    case `sbt-build`.name       => `sbt-build`
+    case `common-settings`.name => `common-settings`
+    case other                  => Custom(other)
+  }
 
   /** Group names that cannot be used as SBT project names. */
-  val Reserved: Set[String] = Set(`sbt-build`, `common-settings`)
+  val Reserved: Set[String] = Set(`sbt-build`.name, `common-settings`.name)
 
   /** Ordering used when serialising groups to HOCON: `sbt-build` first, then `common-settings`, then alphabetical. */
-  val ordering: Ordering[String] = Ordering.by {
+  implicit val ordering: Ordering[Group] = Ordering.by {
     case `sbt-build`       => (0, "")
     case `common-settings` => (1, "")
-    case other          => (2, other)
+    case Custom(other)     => (2, other)
   }
+
+  implicit val GroupEq: Eq[Group] = (a, b) => a.name === b.name
 
 }

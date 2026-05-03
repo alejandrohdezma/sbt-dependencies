@@ -39,7 +39,8 @@ import com.alejandrohdezma.sbt.dependencies.io.UpdateScript
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import com.alejandrohdezma.sbt.dependencies.model.Groups._
+import com.alejandrohdezma.sbt.dependencies.model.Group
+import com.alejandrohdezma.sbt.dependencies.model.Group._
 import coursier.MavenRepository
 import coursier.Repository
 
@@ -77,13 +78,13 @@ class Commands {
     val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
     val pluginName = project.get(Keys.sbtDependenciesPluginName)
 
-    val newGroups = project.structure.allProjectRefs.map { ref =>
-      if (isSbtBuild) `sbt-build` else project.get(ref / name)
+    val newGroups: Set[Group] = project.structure.allProjectRefs.map { ref =>
+      if (isSbtBuild) `sbt-build` else Group(project.get(ref / name))
     }.toSet
 
-    val dependenciesByGroup: Map[String, List[Dependency]] =
+    val dependenciesByGroup: Map[Group, List[Dependency]] =
       project.structure.allProjectRefs.flatMap { ref =>
-        val group = if (isSbtBuild) `sbt-build` else project.get(ref / name)
+        val group: Group = if (isSbtBuild) `sbt-build` else Group(project.get(ref / name))
 
         project
           .get(ref / libraryDependencies)
@@ -96,20 +97,20 @@ class Commands {
         .mapValues(_.filterNot(dep => dep.organization === pluginOrg && dep.name === pluginName))
 
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
-    val scalaVersionsByGroup: Map[String, List[String]] =
+    val scalaVersionsByGroup: Map[Group, List[String]] =
       if (!includeScalaVersions || isSbtBuild) Map.empty
       else
         project.structure.allProjectRefs.map { ref =>
-          project.get(ref / name) -> project.get(ref / crossScalaVersions).toList
+          Group(project.get(ref / name)) -> project.get(ref / crossScalaVersions).toList
         }.toMap
 
     // Gather Java target version for each group from `javacOptions` (skip in meta-build)
-    val javaVersionByGroup: Map[String, Option[String]] =
+    val javaVersionByGroup: Map[Group, Option[String]] =
       if (!includeJavaVersion || isSbtBuild) Map.empty
       else
         project.structure.allProjectRefs.map { ref =>
           val options = Try(project.runTask(ref / javacOptions, state)).toOption.map(_._2).getOrElse(Seq.empty)
-          project.get(ref / name) -> javaVersionFromOptions(options)
+          Group(project.get(ref / name)) -> javaVersionFromOptions(options)
         }.toMap
 
     // Check if all projects share the same Scala versions
@@ -484,7 +485,7 @@ class Commands {
         val dependencies = file.read(`sbt-build`, Map.empty)
 
         if (dependencies.nonEmpty) {
-          val snapshot = Map(
+          val snapshot: Map[Group, Set[DependencyDiff.ResolvedDep]] = Map(
             `sbt-build` -> dependencies.map(DependencyDiff.ResolvedDep.from).toSet
           )
 
@@ -516,7 +517,10 @@ class Commands {
         val outputFile =
           Project.extract(state).get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-plugin-snapshot"
 
-        DependencyDiff.writeSnapshot(outputFile, Map(`sbt-build` -> Set(pluginDep)))
+        DependencyDiff.writeSnapshot(
+          outputFile,
+          Map[Group, Set[DependencyDiff.ResolvedDep]](`sbt-build` -> Set(pluginDep))
+        )
       }
     }.onError { case e =>
       state.log.trace(e)
@@ -540,7 +544,10 @@ class Commands {
             .extract(state)
             .get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-version-snapshot"
 
-        DependencyDiff.writeSnapshot(outputFile, Map(`sbt-build` -> Set(sbtDep)))
+        DependencyDiff.writeSnapshot(
+          outputFile,
+          Map[Group, Set[DependencyDiff.ResolvedDep]](`sbt-build` -> Set(sbtDep))
+        )
       }
     }.onError { case e =>
       state.log.trace(e)
@@ -711,19 +718,19 @@ class Commands {
       }
   }
 
-  private def generateSnapshot(state: State): Map[String, Set[DependencyDiff.ResolvedDep]] = {
+  private def generateSnapshot(state: State): Map[Group, Set[DependencyDiff.ResolvedDep]] = {
     val project = Project.extract(state)
 
     val snapshot = project.structure.allProjectRefs.flatMap { ref =>
-      val projectId = ref.project
+      val group = Group(ref.project)
 
       Try(project.runTask(ref / Keys.allProjectDependencies, state)).toOption.toList.map { case (_, deps) =>
-        projectId -> deps.map(DependencyDiff.ResolvedDep.fromModuleID).toSet
+        group -> deps.map(DependencyDiff.ResolvedDep.fromModuleID).toSet
       }
     }.toMap
 
-    snapshot.foreach { case (proj, deps) =>
-      state.log.info(s"Generated snapshot for `$proj` with ${deps.size} dependencies")
+    snapshot.foreach { case (group, deps) =>
+      state.log.info(s"Generated snapshot for `${group.name}` with ${deps.size} dependencies")
     }
 
     snapshot

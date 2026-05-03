@@ -24,7 +24,8 @@ import sbt.{Keys => _, _}
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import com.alejandrohdezma.sbt.dependencies.model.Groups._
+import com.alejandrohdezma.sbt.dependencies.model.Group
+import com.alejandrohdezma.sbt.dependencies.model.Group._
 
 class Settings {
 
@@ -34,8 +35,8 @@ class Settings {
   }
 
   /** The current group of the build. */
-  val currentGroup: Def.Initialize[String] = Def.setting {
-    if (isSbtBuild.value) `sbt-build` else name.value
+  val currentGroup: Def.Initialize[Group] = Def.setting {
+    if (isSbtBuild.value) `sbt-build` else Group(name.value)
   }
 
   /** The path to the dependencies.conf file. */

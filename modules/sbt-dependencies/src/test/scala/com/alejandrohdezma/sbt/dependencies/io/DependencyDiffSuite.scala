@@ -22,6 +22,7 @@ import java.nio.file.Files
 import sbt.librarymanagement.ModuleID
 
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff._
+import com.alejandrohdezma.sbt.dependencies.model.Group
 
 class DependencyDiffSuite extends munit.FunSuite {
 
@@ -37,11 +38,11 @@ class DependencyDiffSuite extends munit.FunSuite {
 
   fileFixture.test("writeSnapshot / readSnapshot round-trip preserves data") { file =>
     val snapshot = Map(
-      "core" -> Set(
+      Group("core") -> Set(
         ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0"),
         ResolvedDep("org.typelevel", "cats-kernel_2.13", "2.9.0")
       ),
-      "web" -> Set(
+      Group("web") -> Set(
         ResolvedDep("org.http4s", "http4s-core_2.13", "0.23.0")
       )
     )
@@ -80,7 +81,7 @@ class DependencyDiffSuite extends munit.FunSuite {
   }
 
   fileFixture.test("writeSnapshot / readSnapshot round-trip with empty snapshot") { file =>
-    val snapshot = Map.empty[String, Set[ResolvedDep]]
+    val snapshot = Map.empty[Group, Set[ResolvedDep]]
 
     writeSnapshot(file, snapshot)
     val result = readSnapshot(file)
@@ -90,7 +91,7 @@ class DependencyDiffSuite extends munit.FunSuite {
 
   fileFixture.test("writeSnapshot / readSnapshot round-trip with single project") { file =>
     val snapshot = Map(
-      "myproject" -> Set(ResolvedDep("com.example", "lib_2.13", "1.0.0"))
+      Group("myproject") -> Set(ResolvedDep("com.example", "lib_2.13", "1.0.0"))
     )
 
     writeSnapshot(file, snapshot)
@@ -102,13 +103,13 @@ class DependencyDiffSuite extends munit.FunSuite {
   // --- compute ---
 
   test("compute detects updated dependencies") {
-    val before = Map("core" -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")))
-    val after  = Map("core" -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")))
+    val before = Map(Group("core") -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")))
+    val after  = Map(Group("core") -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")))
 
     val result = compute(before, after)
 
     val expected = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
@@ -119,13 +120,13 @@ class DependencyDiffSuite extends munit.FunSuite {
   }
 
   test("compute detects added dependencies") {
-    val before = Map("core" -> Set.empty[ResolvedDep])
-    val after  = Map("core" -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")))
+    val before = Map(Group("core") -> Set.empty[ResolvedDep])
+    val after  = Map(Group("core") -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")))
 
     val result = compute(before, after)
 
     val expected = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = Nil,
         added = List(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")),
         removed = Nil
@@ -136,13 +137,13 @@ class DependencyDiffSuite extends munit.FunSuite {
   }
 
   test("compute detects removed dependencies") {
-    val before = Map("core" -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")))
-    val after  = Map("core" -> Set.empty[ResolvedDep])
+    val before = Map(Group("core") -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")))
+    val after  = Map(Group("core") -> Set.empty[ResolvedDep])
 
     val result = compute(before, after)
 
     val expected = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = Nil,
         added = Nil,
         removed = List(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0"))
@@ -154,13 +155,13 @@ class DependencyDiffSuite extends munit.FunSuite {
 
   test("compute handles mixed changes") {
     val before = Map(
-      "core" -> Set(
+      Group("core") -> Set(
         ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0"),
         ResolvedDep("org.typelevel", "cats-macros_2.13", "2.9.0")
       )
     )
     val after = Map(
-      "core" -> Set(
+      Group("core") -> Set(
         ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0"),
         ResolvedDep("org.typelevel", "cats-parse_2.13", "1.1.0")
       )
@@ -169,7 +170,7 @@ class DependencyDiffSuite extends munit.FunSuite {
     val result = compute(before, after)
 
     val expected = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = List(ResolvedDep("org.typelevel", "cats-parse_2.13", "1.1.0")),
         removed = List(ResolvedDep("org.typelevel", "cats-macros_2.13", "2.9.0"))
@@ -180,27 +181,27 @@ class DependencyDiffSuite extends munit.FunSuite {
   }
 
   test("compute returns empty map when no changes") {
-    val snapshot = Map("core" -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")))
+    val snapshot = Map(Group("core") -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")))
 
     val result = compute(snapshot, snapshot)
 
-    assertEquals(result, Map.empty[String, ProjectDiff])
+    assertEquals(result, Map.empty[Group, ProjectDiff])
   }
 
   test("compute handles multiple projects") {
     val before = Map(
-      "core" -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")),
-      "web"  -> Set(ResolvedDep("org.http4s", "http4s-core_2.13", "0.23.0"))
+      Group("core") -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")),
+      Group("web")  -> Set(ResolvedDep("org.http4s", "http4s-core_2.13", "0.23.0"))
     )
     val after = Map(
-      "core" -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")),
-      "web"  -> Set(ResolvedDep("org.http4s", "http4s-core_2.13", "0.23.0"))
+      Group("core") -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")),
+      Group("web")  -> Set(ResolvedDep("org.http4s", "http4s-core_2.13", "0.23.0"))
     )
 
     val result = compute(before, after)
 
     val expected = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
@@ -211,13 +212,13 @@ class DependencyDiffSuite extends munit.FunSuite {
   }
 
   test("compute handles project only in after") {
-    val before = Map.empty[String, Set[ResolvedDep]]
-    val after  = Map("core" -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")))
+    val before = Map.empty[Group, Set[ResolvedDep]]
+    val after  = Map(Group("core") -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")))
 
     val result = compute(before, after)
 
     val expected = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = Nil,
         added = List(ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0")),
         removed = Nil
@@ -228,13 +229,13 @@ class DependencyDiffSuite extends munit.FunSuite {
   }
 
   test("compute handles project only in before") {
-    val before = Map("core" -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")))
-    val after  = Map.empty[String, Set[ResolvedDep]]
+    val before = Map(Group("core") -> Set(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")))
+    val after  = Map.empty[Group, Set[ResolvedDep]]
 
     val result = compute(before, after)
 
     val expected = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = Nil,
         added = Nil,
         removed = List(ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0"))
@@ -248,7 +249,7 @@ class DependencyDiffSuite extends munit.FunSuite {
 
   test("toHocon renders all change types") {
     val diffs = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = List(ResolvedDep("org.typelevel", "cats-parse_2.13", "1.1.0")),
         removed = List(ResolvedDep("org.typelevel", "cats-macros_2.13", "2.9.0"))
@@ -289,12 +290,12 @@ class DependencyDiffSuite extends munit.FunSuite {
 
   test("toHocon renders multiple projects") {
     val diffs = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
       ),
-      "web" -> ProjectDiff(
+      Group("web") -> ProjectDiff(
         updated = Nil,
         added = List(ResolvedDep("org.http4s", "http4s-core_2.13", "0.23.1")),
         removed = Nil
@@ -334,7 +335,7 @@ class DependencyDiffSuite extends munit.FunSuite {
 
   test("toHocon renders empty lists within a project diff") {
     val diffs = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
@@ -368,13 +369,13 @@ class DependencyDiffSuite extends munit.FunSuite {
     val pluginDep   = ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0")
     val updatedPlug = ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "2.0.0")
 
-    val before = Map("sbt-build" -> (buildDeps + pluginDep))
-    val after  = Map("sbt-build" -> (buildDeps + updatedPlug))
+    val before = Map[Group, Set[ResolvedDep]](Group.`sbt-build` -> (buildDeps + pluginDep))
+    val after  = Map[Group, Set[ResolvedDep]](Group.`sbt-build` -> (buildDeps + updatedPlug))
 
     val result = compute(before, after)
 
-    val expected = Map(
-      "sbt-build" -> ProjectDiff(
+    val expected = Map[Group, ProjectDiff](
+      Group.`sbt-build` -> ProjectDiff(
         updated = List(UpdatedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0", "2.0.0")),
         added = Nil,
         removed = Nil
@@ -389,12 +390,12 @@ class DependencyDiffSuite extends munit.FunSuite {
       ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0"),
       ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0")
     )
-    val before = Map("sbt-build" -> deps)
-    val after  = Map("sbt-build" -> deps)
+    val before = Map[Group, Set[ResolvedDep]](Group.`sbt-build` -> deps)
+    val after  = Map[Group, Set[ResolvedDep]](Group.`sbt-build` -> deps)
 
     val result = compute(before, after)
 
-    assertEquals(result, Map.empty[String, ProjectDiff])
+    assertEquals(result, Map.empty[Group, ProjectDiff])
   }
 
   test("compute detects sbt version update when merged into sbt-build group") {
@@ -402,13 +403,13 @@ class DependencyDiffSuite extends munit.FunSuite {
     val sbtDep     = ResolvedDep("org.scala-sbt", "sbt", "1.9.0")
     val updatedSbt = ResolvedDep("org.scala-sbt", "sbt", "1.10.0")
 
-    val before = Map("sbt-build" -> (buildDeps + sbtDep))
-    val after  = Map("sbt-build" -> (buildDeps + updatedSbt))
+    val before = Map[Group, Set[ResolvedDep]](Group.`sbt-build` -> (buildDeps + sbtDep))
+    val after  = Map[Group, Set[ResolvedDep]](Group.`sbt-build` -> (buildDeps + updatedSbt))
 
     val result = compute(before, after)
 
-    val expected = Map(
-      "sbt-build" -> ProjectDiff(
+    val expected = Map[Group, ProjectDiff](
+      Group.`sbt-build` -> ProjectDiff(
         updated = List(UpdatedDep("org.scala-sbt", "sbt", "1.9.0", "1.10.0")),
         added = Nil,
         removed = Nil
@@ -419,13 +420,15 @@ class DependencyDiffSuite extends munit.FunSuite {
   }
 
   test("compute detects plugin as added when only in after") {
-    val before = Map("sbt-build" -> Set.empty[ResolvedDep])
-    val after  = Map("sbt-build" -> Set(ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0")))
+    val before = Map[Group, Set[ResolvedDep]](Group.`sbt-build` -> Set.empty[ResolvedDep])
+    val after  = Map[Group, Set[ResolvedDep]](
+      Group.`sbt-build` -> Set(ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0"))
+    )
 
     val result = compute(before, after)
 
-    val expected = Map(
-      "sbt-build" -> ProjectDiff(
+    val expected = Map[Group, ProjectDiff](
+      Group.`sbt-build` -> ProjectDiff(
         updated = Nil,
         added = List(ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "1.0.0")),
         removed = Nil
@@ -439,7 +442,7 @@ class DependencyDiffSuite extends munit.FunSuite {
 
   fileFixture.test("readDiff round-trips with toHocon") { file =>
     val diffs = Map(
-      "core" -> ProjectDiff(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = List(ResolvedDep("org.typelevel", "cats-parse_2.13", "1.1.0")),
         removed = List(ResolvedDep("org.typelevel", "cats-macros_2.13", "2.9.0"))
@@ -458,7 +461,7 @@ class DependencyDiffSuite extends munit.FunSuite {
 
     val result = readDiff(file)
 
-    assertEquals(result, Map.empty[String, ProjectDiff])
+    assertEquals(result, Map.empty[Group, ProjectDiff])
   }
 
   def fileFixture: FunFixture[File] = FunFixture[File](

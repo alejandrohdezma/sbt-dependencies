@@ -16,6 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.io
 
+import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.ConfigFactory
 
 class GroupConfigSuite extends munit.FunSuite {
@@ -28,7 +29,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   def parseGroup(hocon: String, group: String): Either[String, GroupConfig] = {
     val config = ConfigFactory.parseString(hocon)
-    GroupConfig.parse(config, group)
+    GroupConfig.parse(config, Group(group))
   }
 
   // --- parse() tests: Simple format ---
@@ -278,7 +279,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Simple produces correct HOCON") {
     val config = GroupConfig.Simple(List("dep1", "dep2", "dep3"))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project = [
@@ -292,7 +293,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Simple with single dependency") {
     val config = GroupConfig.Simple(List("org.typelevel::cats-core:2.10.0"))
-    val result = config.format("sbt-build")
+    val result = config.format(Group.`sbt-build`)
 
     val expected =
       """|sbt-build = [
@@ -306,7 +307,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Advanced with dependencies only") {
     val config = GroupConfig.Advanced(List("dep1", "dep2"), Nil)
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project {
@@ -321,7 +322,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Advanced with scalaVersions only") {
     val config = GroupConfig.Advanced(Nil, List("2.13.12", "2.12.18"))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project {
@@ -334,7 +335,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Advanced with both dependencies and scalaVersions") {
     val config = GroupConfig.Advanced(List("dep1", "dep2"), List("2.13.12", "3.3.1"))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project {
@@ -350,7 +351,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Advanced with empty dependencies shows empty array") {
     val config = GroupConfig.Advanced(Nil, Nil)
-    val result = config.format("empty-project")
+    val result = config.format(Group("empty-project"))
 
     val expected =
       """|empty-project {
@@ -362,7 +363,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Advanced with single scalaVersion uses singular key") {
     val config = GroupConfig.Advanced(List("dep1"), List("2.13.12"))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project {
@@ -379,7 +380,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Advanced with java-version only") {
     val config = GroupConfig.Advanced(List("dep1"), Nil, Some("25"))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project {
@@ -394,7 +395,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Advanced with both java-version and scala-versions") {
     val config = GroupConfig.Advanced(List("dep1"), List("2.13.12", "3.3.1"), Some("25"))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project {
@@ -410,7 +411,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Advanced with java-version and no dependencies") {
     val config = GroupConfig.Advanced(Nil, Nil, Some("25"))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project {
@@ -425,7 +426,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Simple with short note uses single-line object") {
     val config = GroupConfig.Simple(List(dep("org::name:^1.0.0", "v2 drops Scala 2.12")))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project = [
@@ -439,7 +440,7 @@ class GroupConfigSuite extends munit.FunSuite {
     val longNote =
       "This dependency is pinned because the next major version drops support for Scala 2.12 and we still need cross-building"
     val config = GroupConfig.Simple(List(dep("org.typelevel::cats-core:^2.10.0", longNote)))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       s"""|my-project = [
@@ -459,7 +460,7 @@ class GroupConfigSuite extends munit.FunSuite {
         "org2::name2:2.0.0"
       )
     )
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project = [
@@ -475,7 +476,7 @@ class GroupConfigSuite extends munit.FunSuite {
       List(dep("org::name:=1.0.0", "Exact pin for compat"), "org2::name2:2.0.0"),
       List("2.13.12")
     )
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project {
@@ -493,7 +494,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Simple with intransitive only uses single-line object") {
     val config = GroupConfig.Simple(List(AnnotatedDependency("org::name:=1.0.0", None, intransitive = true)))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project = [
@@ -506,7 +507,7 @@ class GroupConfigSuite extends munit.FunSuite {
   test("format Simple with note and intransitive uses single-line object") {
     val config =
       GroupConfig.Simple(List(AnnotatedDependency("org::name:=1.0.0", Some("reason"), intransitive = true)))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project = [
@@ -521,7 +522,7 @@ class GroupConfigSuite extends munit.FunSuite {
       "This dependency is pinned because the next major version drops support for Scala 2.12 and we still need cross-building"
     val config =
       GroupConfig.Simple(List(AnnotatedDependency("org.typelevel::cats-core:^2.10.0", Some(longNote), true)))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       s"""|my-project = [
@@ -610,7 +611,7 @@ class GroupConfigSuite extends munit.FunSuite {
 
   test("format Simple with scala-filter only uses single-line object") {
     val config = GroupConfig.Simple(List(AnnotatedDependency("org:name:1.0", scalaFilter = Some("2"))))
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project = [
@@ -625,7 +626,7 @@ class GroupConfigSuite extends munit.FunSuite {
       List(AnnotatedDependency("org:name:1.0", scalaFilter = Some("2")), "org2::name2:2.0.0"),
       List("2.13.16", "3.3.7")
     )
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project {
@@ -643,7 +644,7 @@ class GroupConfigSuite extends munit.FunSuite {
     val config = GroupConfig.Simple(
       List(AnnotatedDependency("org:name:1.0", Some("reason"), intransitive = true, scalaFilter = Some("2")))
     )
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       """|my-project = [
@@ -659,7 +660,7 @@ class GroupConfigSuite extends munit.FunSuite {
     val config = GroupConfig.Simple(
       List(AnnotatedDependency("org.typelevel::cats-core:^2.10.0", Some(longNote), scalaFilter = Some("2")))
     )
-    val result = config.format("my-project")
+    val result = config.format(Group("my-project"))
 
     val expected =
       s"""|my-project = [
@@ -683,7 +684,7 @@ class GroupConfigSuite extends munit.FunSuite {
          |]""".stripMargin
 
     val parsed    = parseGroup(hocon, "my-group")
-    val formatted = parsed.map(_.format("my-group"))
+    val formatted = parsed.map(_.format(Group("my-group")))
 
     assertEquals(formatted, Right(hocon))
   }
@@ -696,7 +697,7 @@ class GroupConfigSuite extends munit.FunSuite {
          |]""".stripMargin
 
     val parsed    = parseGroup(hocon, "my-group")
-    val formatted = parsed.map(_.format("my-group"))
+    val formatted = parsed.map(_.format(Group("my-group")))
 
     assertEquals(formatted, Right(hocon))
   }
@@ -709,7 +710,7 @@ class GroupConfigSuite extends munit.FunSuite {
          |]""".stripMargin
 
     val parsed    = parseGroup(hocon, "my-group")
-    val formatted = parsed.map(_.format("my-group"))
+    val formatted = parsed.map(_.format(Group("my-group")))
 
     assertEquals(formatted, Right(hocon))
   }
@@ -725,7 +726,7 @@ class GroupConfigSuite extends munit.FunSuite {
          |}""".stripMargin
 
     val parsed    = parseGroup(hocon, "my-group")
-    val formatted = parsed.map(_.format("my-group"))
+    val formatted = parsed.map(_.format(Group("my-group")))
 
     assertEquals(formatted, Right(hocon))
   }
@@ -783,7 +784,7 @@ class GroupConfigSuite extends munit.FunSuite {
          |}""".stripMargin
 
     val parsed    = parseGroup(hocon, "my-group")
-    val formatted = parsed.map(_.format("my-group"))
+    val formatted = parsed.map(_.format(Group("my-group")))
 
     assertEquals(formatted, Right(hocon))
   }
@@ -799,7 +800,7 @@ class GroupConfigSuite extends munit.FunSuite {
          |}""".stripMargin
 
     val parsed    = parseGroup(hocon, "my-group")
-    val formatted = parsed.map(_.format("my-group"))
+    val formatted = parsed.map(_.format(Group("my-group")))
 
     assertEquals(formatted, Right(hocon))
   }

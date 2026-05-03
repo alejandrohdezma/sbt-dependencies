@@ -25,6 +25,7 @@ import sbt.librarymanagement.ModuleID
 
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigRenderOptions
 import com.typesafe.config.ConfigValueFactory
@@ -61,10 +62,10 @@ object DependencyDiff {
   }
 
   /** Writes a snapshot of resolved dependencies to a HOCON file. */
-  def writeSnapshot(file: File, snapshot: Map[String, Set[ResolvedDep]]): Unit = {
+  def writeSnapshot(file: File, snapshot: Map[Group, Set[ResolvedDep]]): Unit = {
     val rootMap = snapshot.toList
       .sortBy(_._1)
-      .map { case (project, deps) =>
+      .map { case (group, deps) =>
         val depsList = deps.toList
           .sortBy(d => (d.organization, d.name, d.revision))
           .map { dep =>
@@ -72,7 +73,7 @@ object DependencyDiff {
           }
           .asJava
 
-        project -> ConfigValueFactory.fromAnyRef(depsList)
+        group.name -> ConfigValueFactory.fromAnyRef(depsList)
       }
       .toMap
       .asJava
@@ -84,33 +85,33 @@ object DependencyDiff {
   }
 
   /** Reads a dependency snapshot from a HOCON file previously written by `writeSnapshot`. */
-  def readSnapshot(file: File): Map[String, Set[ResolvedDep]] =
+  def readSnapshot(file: File): Map[Group, Set[ResolvedDep]] =
     if (!file.exists()) Map.empty
     else {
       val config = ConfigFactory.parseFile(file)
 
-      def readProject(project: String): Set[ResolvedDep] =
+      def readGroup(group: Group): Set[ResolvedDep] =
         config
-          .getConfigList(project)
+          .getConfigList(group.name)
           .asScala
           .map { entry =>
             ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("revision"))
           }
           .toSet
 
-      val projects = config.root().keySet().asScala
+      val groups = config.root().keySet().asScala.map(Group(_))
 
-      projects.map(project => project -> readProject(project)).toMap
+      groups.map(group => group -> readGroup(group)).toMap
     }
 
   /** Computes the diff between two dependency snapshots.
     *
-    * Keys on `(organization, artifact name)`, ignoring configurations. Returns only projects with non-empty diffs.
+    * Keys on `(organization, artifact name)`, ignoring configurations. Returns only groups with non-empty diffs.
     */
   def compute(
-      before: Map[String, Set[ResolvedDep]],
-      after: Map[String, Set[ResolvedDep]]
-  ): Map[String, ProjectDiff] = {
+      before: Map[Group, Set[ResolvedDep]],
+      after: Map[Group, Set[ResolvedDep]]
+  ): Map[Group, ProjectDiff] = {
     val allProjects = (before.keySet ++ after.keySet).toList.sorted
 
     allProjects
@@ -143,16 +144,16 @@ object DependencyDiff {
   }
 
   /** Reads a dependency diff from a HOCON file previously written by `toHocon`. */
-  def readDiff(file: File): Map[String, ProjectDiff] =
+  def readDiff(file: File): Map[Group, ProjectDiff] =
     if (!file.exists()) Map.empty
     else {
-      val config   = ConfigFactory.parseFile(file)
-      val projects = config.root().keySet().asScala
+      val config = ConfigFactory.parseFile(file)
+      val groups = config.root().keySet().asScala.map(Group(_))
 
-      projects.map { project =>
-        val projectConfig = config.getConfig(project)
+      groups.map { group =>
+        val groupConfig = config.getConfig(group.name)
 
-        val updated = projectConfig.getConfigList("updated").asScala.toList.map { entry =>
+        val updated = groupConfig.getConfigList("updated").asScala.toList.map { entry =>
           UpdatedDep(
             entry.getString("organization"),
             entry.getString("name"),
@@ -161,23 +162,23 @@ object DependencyDiff {
           )
         }
 
-        val added = projectConfig.getConfigList("added").asScala.toList.map { entry =>
+        val added = groupConfig.getConfigList("added").asScala.toList.map { entry =>
           ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("version"))
         }
 
-        val removed = projectConfig.getConfigList("removed").asScala.toList.map { entry =>
+        val removed = groupConfig.getConfigList("removed").asScala.toList.map { entry =>
           ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("version"))
         }
 
-        project -> ProjectDiff(updated, added, removed)
+        group -> ProjectDiff(updated, added, removed)
       }.toMap
     }
 
   /** Renders a diff map as HOCON, parseable by `ConfigFactory.parseString`. */
-  def toHocon(diffs: Map[String, ProjectDiff]): String = {
+  def toHocon(diffs: Map[Group, ProjectDiff]): String = {
     val rootMap = diffs.toList
       .sortBy(_._1)
-      .map { case (project, diff) =>
+      .map { case (group, diff) =>
         val updatedList = diff.updated.map { u =>
           Map("organization" -> u.organization, "name" -> u.name, "from" -> u.from, "to" -> u.to).asJava
         }.asJava
@@ -190,13 +191,13 @@ object DependencyDiff {
           Map("organization" -> r.organization, "name" -> r.name, "version" -> r.revision).asJava
         }.asJava
 
-        val projectMap = Map(
+        val groupMap = Map(
           "updated" -> ConfigValueFactory.fromAnyRef(updatedList),
           "added"   -> ConfigValueFactory.fromAnyRef(addedList),
           "removed" -> ConfigValueFactory.fromAnyRef(removedList)
         ).asJava
 
-        project -> ConfigValueFactory.fromMap(projectMap)
+        group.name -> ConfigValueFactory.fromMap(groupMap)
       }
       .toMap
       .asJava
