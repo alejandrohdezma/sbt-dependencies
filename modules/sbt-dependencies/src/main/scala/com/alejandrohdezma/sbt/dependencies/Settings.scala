@@ -54,26 +54,36 @@ class Settings {
     dependenciesFile.value.read(currentGroup.value, variableResolvers)
   }
 
-  /** Scala versions from the sbt-build group (only in normal build, not meta-build).
+  /** Scala versions from the `sbt-build` group, used as a fallback for normal projects.
     *
-    * Returns `Nil` when in the meta-build to avoid cyclic references with `crossScalaVersions`.
+    * Returns `Nil` when in the meta-build: `common-settings`/`sbt-build` defaults describe the *main* build, and the
+    * meta-build (`project/`) layer must keep using SBT's plugin convention (2.12).
     */
   val buildScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
     implicit val logger: Logger = sLog.value
 
-    // Return Nil in meta-build to avoid cyclic reference with crossScalaVersions
     if (isSbtBuild.value) Nil
     else dependenciesFile.value.readScalaVersions(`sbt-build`).map(_.toVersionString)
   }
 
+  /** Scala versions from the `common-settings` group, used as defaults for every non-meta project.
+    *
+    * Returns `Nil` when in the meta-build for the same reason as [[buildScalaVersions]].
+    */
+  val commonScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
+    implicit val logger: Logger = sLog.value
+
+    if (isSbtBuild.value) Nil
+    else dependenciesFile.value.readScalaVersions(`common-settings`).map(_.toVersionString)
+  }
+
   /** Scala versions from the current project's group (only in normal build, not meta-build).
     *
-    * Returns `Nil` when in the meta-build to avoid cyclic references with `crossScalaVersions`.
+    * Returns `Nil` when in the meta-build for the same reason as [[buildScalaVersions]].
     */
   val projectScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
     implicit val logger: Logger = sLog.value
 
-    // Return Nil in meta-build to avoid cyclic reference with crossScalaVersions
     if (isSbtBuild.value) Nil
     else dependenciesFile.value.readScalaVersions(currentGroup.value).map(_.toVersionString)
   }
@@ -86,6 +96,14 @@ class Settings {
 
     if (isSbtBuild.value) None
     else dependenciesFile.value.readJavaVersion(`sbt-build`)
+  }
+
+  /** Java target version from the `common-settings` group, used as a default for every non-meta project. */
+  val commonJavaVersion: Def.Initialize[Option[String]] = Def.setting {
+    implicit val logger: Logger = sLog.value
+
+    if (isSbtBuild.value) None
+    else dependenciesFile.value.readJavaVersion(`common-settings`)
   }
 
   /** Java target version from the current project's group. */
@@ -131,30 +149,45 @@ class Settings {
     }
   }
 
-  /** The list of library dependencies to add to the project. */
+  /** The list of library dependencies to add to the project.
+    *
+    * Merges `common-settings.dependencies` with the project group's own dependencies. When both groups declare a
+    * dependency with the same `(organization, name)`, the project entry wins regardless of configuration.
+    *
+    * In the meta-build, only the project group is read — `common-settings.dependencies` are not for plugins.
+    */
   val libraryDependencies: Def.Initialize[Seq[ModuleID]] = Def.setting {
-    val sbtV   = (pluginCrossBuild / sbtBinaryVersion).value
-    val scalaV = (update / scalaBinaryVersion).value
+    val sbtV                    = (pluginCrossBuild / sbtBinaryVersion).value
+    val scalaV                  = (update / scalaBinaryVersion).value
+    implicit val logger: Logger = sLog.value
 
-    val dependencies = {
-      implicit val logger: Logger = sLog.value
+    val variableResolvers = Keys.dependencyVersionVariables.value
+    val file              = dependenciesFile.value
 
-      dependenciesFile.value
-        .readAnnotated(currentGroup.value, Keys.dependencyVersionVariables.value)
+    def readGroup(group: Group): Seq[ModuleID] =
+      file
+        .readAnnotated(group, variableResolvers)
         .filter(_._1.matchesScalaVersion(scalaV))
         .filter { case (_, _, scalaFilter) => scalaFilter.forall(scalaV.startsWith) }
         .map {
           case (dep, true, _)  => dep.toModuleID(sbtV, scalaV).intransitive()
           case (dep, false, _) => dep.toModuleID(sbtV, scalaV)
         }
-    }
+
+    val projectDeps = readGroup(currentGroup.value)
+
+    val commonDeps =
+      if (isSbtBuild.value) Seq.empty
+      else readGroup(`common-settings`)
+
+    val projectKeys = projectDeps.map(m => (m.organization, m.name)).toSet
+    val merged      = commonDeps.filterNot(m => projectKeys.contains((m.organization, m.name))) ++ projectDeps
 
     lazy val self =
       sbtPluginExtra("com.alejandrohdezma" % "sbt-dependencies" % BuildInfo.version, sbtV, scalaV)
 
-    // Add self when in meta-build so the plugin is available
-    // in the build definition
-    dependencies ++ (if (isSbtBuild.value) Seq(self) else Seq.empty)
+    // Add self when in meta-build so the plugin is available in the build definition
+    merged ++ (if (isSbtBuild.value) Seq(self) else Seq.empty)
   }
 
   /** Regex to match configuration transformations like `test->test`. */
