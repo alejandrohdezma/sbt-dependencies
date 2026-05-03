@@ -26,6 +26,7 @@ import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.ConfigFactory
 
 /** Handles reading and writing dependencies to/from the dependencies.conf file.
@@ -61,7 +62,7 @@ final case class DependenciesFile(file: File) {
     * @return
     *   List of parsed dependencies for the specified group.
     */
-  def read(group: String, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
+  def read(group: Group, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
       logger: Logger
   ): List[Dependency] =
     readRaw(file).get(group).map(_.dependencyLines).toList.flatten.map(Dependency.parse(_, variableResolvers))
@@ -70,7 +71,7 @@ final case class DependenciesFile(file: File) {
     *
     * This is used by Settings to apply `.intransitive()` on the resulting ModuleID when the flag is set.
     */
-  def readAnnotated(group: String, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
+  def readAnnotated(group: Group, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
       logger: Logger
   ): List[(Dependency, Boolean, Option[String])] =
     readRaw(file).get(group).toList.flatMap(_.dependencies).map { ad =>
@@ -93,7 +94,7 @@ final case class DependenciesFile(file: File) {
     *   `java-version`, passing `None` preserves the existing value; passing `Some(v)` overrides it.
     */
   def write(
-      group: String,
+      group: Group,
       dependencies: List[Dependency],
       scalaVersions: List[String] = Nil,
       javaVersion: Option[String] = None
@@ -140,7 +141,7 @@ final case class DependenciesFile(file: File) {
       val updated = existingConfigs + (group -> newConfig)
 
       val content = updated.toList
-        .sortBy(_._1)(DependenciesFile.GroupOrdering)
+        .sortBy(_._1)
         .map { case (g, config) => config.format(g) }
         .mkString("\n\n")
 
@@ -157,7 +158,7 @@ final case class DependenciesFile(file: File) {
     * @return
     *   List of valid Scala versions, or empty list if not defined.
     */
-  def readScalaVersions(group: String)(implicit logger: Logger): List[Numeric] =
+  def readScalaVersions(group: Group)(implicit logger: Logger): List[Numeric] =
     readRaw(file).get(group).map(_.scalaVersions).getOrElse(Nil).flatMap {
       case Numeric(v) =>
         // Default to Minor marker for Scala versions without explicit marker (safer than NoMarker)
@@ -178,7 +179,7 @@ final case class DependenciesFile(file: File) {
     * @param scalaVersions
     *   The list of Scala versions to write (including markers).
     */
-  def writeScalaVersions(group: String, scalaVersions: List[Numeric])(implicit logger: Logger): Unit = {
+  def writeScalaVersions(group: Group, scalaVersions: List[Numeric])(implicit logger: Logger): Unit = {
     val existingConfigs = readRaw(file)
 
     val newConfig = existingConfigs.get(group) match {
@@ -190,7 +191,7 @@ final case class DependenciesFile(file: File) {
     val updated = existingConfigs + (group -> newConfig)
 
     val content = updated.toList
-      .sortBy(_._1)(DependenciesFile.GroupOrdering)
+      .sortBy(_._1)
       .map { case (g, config) => config.format(g) }
       .mkString("\n\n")
 
@@ -204,7 +205,7 @@ final case class DependenciesFile(file: File) {
     * @return
     *   The configured Java version for the group, or `None` if not set.
     */
-  def readJavaVersion(group: String)(implicit logger: Logger): Option[String] =
+  def readJavaVersion(group: Group)(implicit logger: Logger): Option[String] =
     readRaw(file).get(group).flatMap(_.javaVersion)
 
   /** Sorts dependencies within each group and rewrites the file with consistent formatting.
@@ -215,7 +216,7 @@ final case class DependenciesFile(file: File) {
     */
   def format()(implicit logger: Logger): Unit = {
     val content = readRaw(file).toList
-      .sortBy(_._1)(DependenciesFile.GroupOrdering)
+      .sortBy(_._1)
       .map { case (g, c) => c.sorted.format(g) }
       .mkString("\n\n")
 
@@ -229,16 +230,16 @@ final case class DependenciesFile(file: File) {
     * @return
     *   `true` if the group exists in the file, `false` otherwise.
     */
-  def hasGroup(group: String)(implicit logger: Logger): Boolean =
+  def hasGroup(group: Group)(implicit logger: Logger): Boolean =
     readRaw(file).contains(group)
 
-  /** Reads the raw HOCON file as a map of group names to group configurations.
+  /** Reads the raw HOCON file as a map of groups to group configurations.
     *
     * Supports two formats:
     *   - Simple: group maps to list of strings
     *   - Advanced: group maps to object with "dependencies" key
     */
-  private def readRaw(file: File)(implicit logger: Logger): Map[String, GroupConfig] =
+  private def readRaw(file: File)(implicit logger: Logger): Map[Group, GroupConfig] =
     if (!file.exists()) Map.empty
     else {
       val content = IO.read(file)
@@ -250,10 +251,11 @@ final case class DependenciesFile(file: File) {
           .root()
           .keySet()
           .asScala
-          .map { group =>
+          .map { name =>
+            val group = Group(name)
             GroupConfig.parse(config, group) match {
               case Right(groupConfig) => group -> groupConfig
-              case Left(error)        => Utils.fail(s"Failed to parse group `$group`: $error")
+              case Left(error)        => Utils.fail(s"Failed to parse group `$name`: $error")
             }
           }
           .toMap
@@ -265,8 +267,5 @@ final case class DependenciesFile(file: File) {
 object DependenciesFile {
 
   def apply(file: File): DependenciesFile = new DependenciesFile(file)
-
-  /** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
-  val GroupOrdering: Ordering[String] = Ordering.by(name => (name !== "sbt-build", name))
 
 }

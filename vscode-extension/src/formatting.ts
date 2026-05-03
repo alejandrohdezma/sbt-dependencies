@@ -1,4 +1,5 @@
 import { walkDocument, objectDepFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern } from "./parser";
+import { groupSortKey } from "./groups";
 
 /** Regex mirroring Scala-side `Dependency.dependencyRegex`. */
 const dependencyPattern =
@@ -18,14 +19,9 @@ interface DependencyEntry {
   sortKey: string;
 }
 
-/** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
-function groupSortKey(name: string): string {
-  return name === "sbt-build" ? `\0${name}` : name;
-}
-
 /**
  * Formats a `dependencies.conf` document by sorting groups (`sbt-build`
- * first, then alphabetically) and dependencies within each group.
+ * first, then `common-settings`, then alphabetically) and dependencies within each group.
  *
  * - Simple groups: 2-space indent for dependencies
  * - Advanced blocks: 2-space indent for fields, 4-space indent for

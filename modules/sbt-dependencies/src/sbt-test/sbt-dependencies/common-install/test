@@ -1,0 +1,4 @@
+# Verify installCommonDependencies adds dependencies to the common-settings group
+> compile
+> installCommonDependencies org.scalameta::munit:1.2.1:test
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

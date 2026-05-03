@@ -28,6 +28,7 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Group
 
 class DependenciesFileSuite extends munit.FunSuite {
 
@@ -80,18 +81,18 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("read HOCON file returns only specified group") { file =>
-    val sbtBuildDeps = DependenciesFile(file).read("sbt-build", variableResolvers)
+    val sbtBuildDeps = DependenciesFile(file).read(Group.`sbt-build`, variableResolvers)
     assertEquals(sbtBuildDeps.length, 2)
     assertEquals(sbtBuildDeps.map(_.name).sorted, List("coursier", "sbt-scalafix"))
 
-    val sbtDepsDeps = DependenciesFile(file).read("sbt-dependencies", variableResolvers)
+    val sbtDepsDeps = DependenciesFile(file).read(Group("sbt-dependencies"), variableResolvers)
     assertEquals(sbtDepsDeps.length, 1)
     assertEquals(sbtDepsDeps.head.name, "munit")
     assertEquals(sbtDepsDeps.head.configuration, "test")
   }
 
   withDependenciesFile("").test("read empty HOCON file returns empty list") { file =>
-    val result = DependenciesFile(file).read("any-group", variableResolvers)
+    val result = DependenciesFile(file).read(Group("any-group"), variableResolvers)
 
     assertEquals(result, List.empty)
   }
@@ -99,7 +100,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   nonExistentFile.test("read non-existent file returns empty list without creating file") { file =>
     assert(!file.exists(), "File should not exist before read")
 
-    val result = DependenciesFile(file).read("any-group", variableResolvers)
+    val result = DependenciesFile(file).read(Group("any-group"), variableResolvers)
 
     assertEquals(result, List.empty)
     assert(!file.exists(), "File should not be created by read")
@@ -111,7 +112,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("read HOCON file with single group") { file =>
-    val result = DependenciesFile(file).read("my-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     assertEquals(result.length, 1)
     assertEquals(result.head.organization, "org.typelevel")
@@ -126,7 +127,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("read HOCON file with non-existent group returns empty list") { file =>
-    val result = DependenciesFile(file).read("other-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("other-project"), variableResolvers)
 
     assertEquals(result, List.empty)
   }
@@ -157,8 +158,8 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", myProjectDeps)
-    DependenciesFile(file).write("sbt-build", sbtBuildDeps)
+    DependenciesFile(file).write(Group("my-project"), myProjectDeps)
+    DependenciesFile(file).write(Group.`sbt-build`, sbtBuildDeps)
 
     val content = IO.read(file)
 
@@ -208,7 +209,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("group", dependencies)
+    DependenciesFile(file).write(Group("group"), dependencies)
 
     val content  = IO.read(file)
     val depOrder =
@@ -234,7 +235,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("group", dependencies)
+    DependenciesFile(file).write(Group("group"), dependencies)
 
     val content  = IO.read(file)
     val depOrder =
@@ -254,7 +255,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       Dependency.WithNumericVersion("com.squareup", "kotlinpoet", v, isCross = false)
     )
 
-    DependenciesFile(file).write("group", dependencies)
+    DependenciesFile(file).write(Group("group"), dependencies)
 
     val content  = IO.read(file)
     val depOrder =
@@ -295,11 +296,11 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("project-a", projectADeps)
-    DependenciesFile(file).write("project-b", projectBDeps)
+    DependenciesFile(file).write(Group("project-a"), projectADeps)
+    DependenciesFile(file).write(Group("project-b"), projectBDeps)
 
-    val resultA = DependenciesFile(file).read("project-a", variableResolvers)
-    val resultB = DependenciesFile(file).read("project-b", variableResolvers)
+    val resultA = DependenciesFile(file).read(Group("project-a"), variableResolvers)
+    val resultB = DependenciesFile(file).read(Group("project-b"), variableResolvers)
 
     assertEquals(resultA.length, projectADeps.length)
     assertEquals(resultB.length, projectBDeps.length)
@@ -319,7 +320,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   withDependenciesFile("").test("write sorts groups alphabetically") { file =>
     // Write groups in reverse alphabetical order
     DependenciesFile(file).write(
-      "z-group",
+      Group("z-group"),
       List(
         Dependency.WithNumericVersion(
           "org",
@@ -330,7 +331,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
     DependenciesFile(file).write(
-      "a-group",
+      Group("a-group"),
       List(
         Dependency.WithNumericVersion(
           "org",
@@ -341,7 +342,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
     DependenciesFile(file).write(
-      "m-group",
+      Group("m-group"),
       List(
         Dependency.WithNumericVersion(
           "org",
@@ -380,7 +381,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("group", dependencies)
+    DependenciesFile(file).write(Group("group"), dependencies)
 
     val content  = IO.read(file)
     val depOrder =
@@ -397,7 +398,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("read preserves version markers") { file =>
-    val result = DependenciesFile(file).read("my-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     val catsCore = result.find(_.name === "cats-core").get
     catsCore.version match {
@@ -440,7 +441,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", dependencies)
+    DependenciesFile(file).write(Group("my-project"), dependencies)
 
     val content = IO.read(file)
 
@@ -458,7 +459,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   // --- Edge cases ---
 
   withDependenciesFile("").test("write empty list does nothing") { file =>
-    DependenciesFile(file).write("empty-group", List.empty)
+    DependenciesFile(file).write(Group("empty-group"), List.empty)
 
     val content = IO.read(file)
 
@@ -472,7 +473,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("read ignores HOCON comments") { file =>
-    val result = DependenciesFile(file).read("my-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     assertEquals(result.length, 1)
     assertEquals(result.head.name, "cats-core")
@@ -488,8 +489,8 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("read handles HOCON without blank lines between groups") { file =>
-    val myProjectDeps   = DependenciesFile(file).read("my-project", variableResolvers)
-    val anotherProjDeps = DependenciesFile(file).read("another-project", variableResolvers)
+    val myProjectDeps   = DependenciesFile(file).read(Group("my-project"), variableResolvers)
+    val anotherProjDeps = DependenciesFile(file).read(Group("another-project"), variableResolvers)
 
     assertEquals(myProjectDeps.length, 2)
     assertEquals(anotherProjDeps.length, 1)
@@ -511,7 +512,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("new-group", newDeps)
+    DependenciesFile(file).write(Group("new-group"), newDeps)
 
     val content = IO.read(file)
 
@@ -550,7 +551,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("group", dependencies)
+    DependenciesFile(file).write(Group("group"), dependencies)
 
     val content  = IO.read(file)
     val depCount = content.linesIterator.count(_.trim.startsWith("\""))
@@ -575,7 +576,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("group", dependencies)
+    DependenciesFile(file).write(Group("group"), dependencies)
 
     val content = IO.read(file)
 
@@ -600,7 +601,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("read advanced format HOCON file") { file =>
-    val result = DependenciesFile(file).read("my-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     assertEquals(result.length, 2)
     assertEquals(result.map(_.name).sorted, List("cats-core", "munit"))
@@ -618,8 +619,8 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("read mixed format HOCON file") { file =>
-    val simple   = DependenciesFile(file).read("simple-project", variableResolvers)
-    val advanced = DependenciesFile(file).read("advanced-project", variableResolvers)
+    val simple   = DependenciesFile(file).read(Group("simple-project"), variableResolvers)
+    val advanced = DependenciesFile(file).read(Group("advanced-project"), variableResolvers)
 
     assertEquals(simple.length, 1)
     assertEquals(simple.head.name, "cats-core")
@@ -633,7 +634,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("read advanced format with empty dependencies") { file =>
-    val result = DependenciesFile(file).read("my-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     assertEquals(result, List.empty)
   }
@@ -653,7 +654,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps)
+    DependenciesFile(file).write(Group("my-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -683,7 +684,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps)
+    DependenciesFile(file).write(Group("my-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -728,8 +729,8 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("simple-project", simpleDeps)
-    DependenciesFile(file).write("advanced-project", advancedDeps)
+    DependenciesFile(file).write(Group("simple-project"), simpleDeps)
+    DependenciesFile(file).write(Group("advanced-project"), advancedDeps)
 
     val content = IO.read(file)
 
@@ -759,7 +760,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     )
 
     // First write in simple format (default)
-    DependenciesFile(file).write("my-project", deps)
+    DependenciesFile(file).write(Group("my-project"), deps)
 
     // Now manually create an advanced format file
     IO.write(
@@ -773,7 +774,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     )
 
     // Write again - should preserve advanced format
-    DependenciesFile(file).write("my-project", deps)
+    DependenciesFile(file).write(Group("my-project"), deps)
 
     val content = IO.read(file)
 
@@ -787,7 +788,7 @@ class DependenciesFileSuite extends munit.FunSuite {
 
     assertNoDiff(content, expected)
 
-    val result = DependenciesFile(file).read("my-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
     assertEquals(result.length, 1)
     assertEquals(result.head.name, "cats-core")
   }
@@ -802,7 +803,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("new-project", deps)
+    DependenciesFile(file).write(Group("new-project"), deps)
 
     val content = IO.read(file)
 
@@ -824,7 +825,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("read ignores unknown fields in advanced format") { file =>
-    val result = DependenciesFile(file).read("my-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     assertEquals(result.length, 1)
     assertEquals(result.head.name, "cats-core")
@@ -839,7 +840,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("read advanced format preserves version markers") { file =>
-    val result = DependenciesFile(file).read("my-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     val catsCore = result.find(_.name === "cats-core").get
     catsCore.version match {
@@ -865,7 +866,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("readScalaVersions returns scala versions from advanced format") { file =>
-    val result = DependenciesFile(file).readScalaVersions("my-project")
+    val result = DependenciesFile(file).readScalaVersions(Group("my-project"))
 
     assertEquals(result, List(v("2.13.12"), v("2.12.18"), v("3.3.1")))
   }
@@ -876,7 +877,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("readScalaVersions returns empty list for simple format") { file =>
-    val result = DependenciesFile(file).readScalaVersions("my-project")
+    val result = DependenciesFile(file).readScalaVersions(Group("my-project"))
 
     assertEquals(result, List.empty)
   }
@@ -889,13 +890,13 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("readScalaVersions returns empty list when not specified in advanced format") { file =>
-    val result = DependenciesFile(file).readScalaVersions("my-project")
+    val result = DependenciesFile(file).readScalaVersions(Group("my-project"))
 
     assertEquals(result, List.empty)
   }
 
   nonExistentFile.test("readScalaVersions returns empty list for non-existent file") { file =>
-    val result = DependenciesFile(file).readScalaVersions("my-project")
+    val result = DependenciesFile(file).readScalaVersions(Group("my-project"))
 
     assertEquals(result, List.empty)
   }
@@ -918,7 +919,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps)
+    DependenciesFile(file).write(Group("my-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -944,7 +945,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps, List("2.13.12"))
+    DependenciesFile(file).write(Group("my-project"), newDeps, List("2.13.12"))
 
     val content = IO.read(file)
 
@@ -969,11 +970,11 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("readScalaVersions then write round-trip preserves scalaVersions") { file =>
-    val versions = DependenciesFile(file).readScalaVersions("my-project")
+    val versions = DependenciesFile(file).readScalaVersions(Group("my-project"))
     assertEquals(versions, List(v("2.13.12")))
 
-    val deps = DependenciesFile(file).read("my-project", variableResolvers)
-    DependenciesFile(file).write("my-project", deps)
+    val deps = DependenciesFile(file).read(Group("my-project"), variableResolvers)
+    DependenciesFile(file).write(Group("my-project"), deps)
 
     val content = IO.read(file)
 
@@ -1002,8 +1003,8 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("readScalaVersions works with mixed format file") { file =>
-    val simpleVersions   = DependenciesFile(file).readScalaVersions("simple-project")
-    val advancedVersions = DependenciesFile(file).readScalaVersions("advanced-project")
+    val simpleVersions   = DependenciesFile(file).readScalaVersions(Group("simple-project"))
+    val advancedVersions = DependenciesFile(file).readScalaVersions(Group("advanced-project"))
 
     assertEquals(simpleVersions, List.empty[Numeric])
     assertEquals(advancedVersions, List(v("3.3.1")))
@@ -1012,7 +1013,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   // --- writeScalaVersions tests ---
 
   withDependenciesFile("").test("writeScalaVersions creates advanced format with scala-versions") { file =>
-    DependenciesFile(file).writeScalaVersions("my-project", List(v("2.13.12"), v("2.12.18")))
+    DependenciesFile(file).writeScalaVersions(Group("my-project"), List(v("2.13.12"), v("2.12.18")))
 
     val content = IO.read(file)
 
@@ -1032,7 +1033,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("writeScalaVersions preserves existing dependencies from simple format") { file =>
-    DependenciesFile(file).writeScalaVersions("my-project", List(v("2.13.12")))
+    DependenciesFile(file).writeScalaVersions(Group("my-project"), List(v("2.13.12")))
 
     val content = IO.read(file)
 
@@ -1057,7 +1058,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("writeScalaVersions updates existing scala-versions") { file =>
-    DependenciesFile(file).writeScalaVersions("my-project", List(v("2.13.14"), v("3.3.3")))
+    DependenciesFile(file).writeScalaVersions(Group("my-project"), List(v("2.13.14"), v("3.3.3")))
 
     val content = IO.read(file)
 
@@ -1079,7 +1080,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("writeScalaVersions preserves other groups") { file =>
-    DependenciesFile(file).writeScalaVersions("my-project", List(v("2.13.12")))
+    DependenciesFile(file).writeScalaVersions(Group("my-project"), List(v("2.13.12")))
 
     val content = IO.read(file)
 
@@ -1106,16 +1107,16 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("writeScalaVersions then readScalaVersions round-trip") { file =>
-    val originalVersions = DependenciesFile(file).readScalaVersions("my-project")
+    val originalVersions = DependenciesFile(file).readScalaVersions(Group("my-project"))
     assertEquals(originalVersions, List(v("2.13.12")))
 
-    DependenciesFile(file).writeScalaVersions("my-project", List(v("2.13.14"), v("3.3.3")))
+    DependenciesFile(file).writeScalaVersions(Group("my-project"), List(v("2.13.14"), v("3.3.3")))
 
-    val updatedVersions = DependenciesFile(file).readScalaVersions("my-project")
+    val updatedVersions = DependenciesFile(file).readScalaVersions(Group("my-project"))
     assertEquals(updatedVersions, List(v("2.13.14"), v("3.3.3")))
 
     // Verify dependencies are still preserved
-    val deps = DependenciesFile(file).read("my-project", variableResolvers)
+    val deps = DependenciesFile(file).read(Group("my-project"), variableResolvers)
     assertEquals(deps.length, 1)
     assertEquals(deps.head.name, "cats-core")
   }
@@ -1131,7 +1132,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("readJavaVersion returns java-version from advanced format") { file =>
-    val result = DependenciesFile(file).readJavaVersion("my-project")
+    val result = DependenciesFile(file).readJavaVersion(Group("my-project"))
 
     assertEquals(result, Some("25"))
   }
@@ -1142,7 +1143,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("readJavaVersion returns None for simple format") { file =>
-    val result = DependenciesFile(file).readJavaVersion("my-project")
+    val result = DependenciesFile(file).readJavaVersion(Group("my-project"))
 
     assertEquals(result, None)
   }
@@ -1154,13 +1155,13 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("readJavaVersion returns None when not specified in advanced format") { file =>
-    val result = DependenciesFile(file).readJavaVersion("my-project")
+    val result = DependenciesFile(file).readJavaVersion(Group("my-project"))
 
     assertEquals(result, None)
   }
 
   nonExistentFile.test("readJavaVersion returns None for non-existent file") { file =>
-    val result = DependenciesFile(file).readJavaVersion("my-project")
+    val result = DependenciesFile(file).readJavaVersion(Group("my-project"))
 
     assertEquals(result, None)
   }
@@ -1177,7 +1178,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves java-version through dependency update") { file =>
     DependenciesFile(file).write(
-      "my-project",
+      Group("my-project"),
       List(Dependency.parse("org.typelevel::cats-core:2.11.0", variableResolvers))
     )
 
@@ -1198,7 +1199,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   withDependenciesFile("").test("write to a new group with javaVersion produces advanced format") { file =>
     val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0", variableResolvers))
 
-    DependenciesFile(file).write("my-project", newDeps, javaVersion = Some("25"))
+    DependenciesFile(file).write(Group("my-project"), newDeps, javaVersion = Some("25"))
 
     val content = IO.read(file)
 
@@ -1224,7 +1225,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write with explicit javaVersion overrides existing java-version") { file =>
     DependenciesFile(file).write(
-      "my-project",
+      Group("my-project"),
       List(Dependency.parse("org.typelevel::cats-core:2.10.0", variableResolvers)),
       javaVersion = Some("21")
     )
@@ -1248,7 +1249,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   ) { file =>
     val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0", variableResolvers))
 
-    DependenciesFile(file).write("my-project", newDeps, List("2.13.12"), javaVersion = Some("17"))
+    DependenciesFile(file).write(Group("my-project"), newDeps, List("2.13.12"), javaVersion = Some("17"))
 
     val content = IO.read(file)
 
@@ -1275,7 +1276,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("writeScalaVersions preserves java-version") { file =>
-    DependenciesFile(file).writeScalaVersions("my-project", List(v("2.13.14"), v("3.3.3")))
+    DependenciesFile(file).writeScalaVersions(Group("my-project"), List(v("2.13.14"), v("3.3.3")))
 
     val content = IO.read(file)
 
@@ -1301,7 +1302,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("read parses dependencies from object entries with notes") { file =>
-    val result = DependenciesFile(file).read("my-project", variableResolvers)
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     val expected = List(
       Dependency.WithNumericVersion(
@@ -1345,7 +1346,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps)
+    DependenciesFile(file).write(Group("my-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -1377,7 +1378,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps)
+    DependenciesFile(file).write(Group("my-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -1416,7 +1417,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps)
+    DependenciesFile(file).write(Group("my-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -1455,7 +1456,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps)
+    DependenciesFile(file).write(Group("my-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -1475,7 +1476,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("write then read round-trip with notes") { file =>
-    val deps = DependenciesFile(file).read("my-project", variableResolvers)
+    val deps = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     val expected = List(
       Dependency.WithNumericVersion(
@@ -1489,7 +1490,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(deps, expected)
 
     // Write back the same deps
-    DependenciesFile(file).write("my-project", deps)
+    DependenciesFile(file).write(Group("my-project"), deps)
 
     val content = IO.read(file)
 
@@ -1522,7 +1523,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("other-project", newDeps)
+    DependenciesFile(file).write(Group("other-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -1545,7 +1546,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("writeScalaVersions preserves notes in existing dependencies") { file =>
-    DependenciesFile(file).writeScalaVersions("my-project", List(v("2.13.12")))
+    DependenciesFile(file).writeScalaVersions(Group("my-project"), List(v("2.13.12")))
 
     val content = IO.read(file)
 
@@ -1586,7 +1587,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps)
+    DependenciesFile(file).write(Group("my-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -1615,7 +1616,7 @@ class DependenciesFileSuite extends munit.FunSuite {
       )
     )
 
-    DependenciesFile(file).write("my-project", newDeps)
+    DependenciesFile(file).write(Group("my-project"), newDeps)
 
     val content = IO.read(file)
 
@@ -1640,8 +1641,8 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("hasGroup returns true for existing group") { file =>
-    assert(DependenciesFile(file).hasGroup("my-project"))
-    assert(DependenciesFile(file).hasGroup("other-project"))
+    assert(DependenciesFile(file).hasGroup(Group("my-project")))
+    assert(DependenciesFile(file).hasGroup(Group("other-project")))
   }
 
   withDependenciesFile {
@@ -1650,15 +1651,15 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test("hasGroup returns false for non-existent group") { file =>
-    assert(!DependenciesFile(file).hasGroup("non-existent"))
+    assert(!DependenciesFile(file).hasGroup(Group("non-existent")))
   }
 
   nonExistentFile.test("hasGroup returns false for non-existent file") { file =>
-    assert(!DependenciesFile(file).hasGroup("any-group"))
+    assert(!DependenciesFile(file).hasGroup(Group("any-group")))
   }
 
   withDependenciesFile("").test("hasGroup returns false for empty file") { file =>
-    assert(!DependenciesFile(file).hasGroup("any-group"))
+    assert(!DependenciesFile(file).hasGroup(Group("any-group")))
   }
 
   withDependenciesFile {
@@ -1667,7 +1668,7 @@ class DependenciesFileSuite extends munit.FunSuite {
        |}
        |""".stripMargin
   }.test("hasGroup returns true for group with empty dependencies") { file =>
-    assert(DependenciesFile(file).hasGroup("my-project"))
+    assert(DependenciesFile(file).hasGroup(Group("my-project")))
   }
 
   // --- format tests ---

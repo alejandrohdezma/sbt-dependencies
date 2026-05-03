@@ -4,6 +4,7 @@ import { parseCodeLenses } from "./codelens";
 import { parsePinnedWithoutNote } from "./dep-codelens";
 import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
+import { COMMON_SETTINGS, SBT_BUILD } from "./groups";
 import { parseDependency, buildHoverMarkdown } from "./hover";
 import { parseDocumentLinks } from "./links";
 import { parseNoteDecorations } from "./note-decorations";
@@ -403,11 +404,14 @@ function runUpdateSpecificDependency(org: string, artifact: string): void {
 
 /**
  * Returns the correct sbtn command for installing a dependency in a group.
- * The `sbt-build` group uses a separate global command.
+ * The `sbt-build` and `common-settings` groups use separate global commands.
  */
 function getInstallCommand(groupName: string, dependency: string): string {
-  if (groupName === "sbt-build") {
+  if (groupName === SBT_BUILD) {
     return `sbtn installBuildDependencies ${dependency}`;
+  }
+  if (groupName === COMMON_SETTINGS) {
+    return `sbtn installCommonDependencies ${dependency}`;
   }
   return `sbtn ${groupName}/install ${dependency}`;
 }

@@ -19,6 +19,7 @@ package com.alejandrohdezma.sbt.dependencies.io
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff._
+import com.alejandrohdezma.sbt.dependencies.model.Group
 
 class UpdateScriptSuite extends munit.FunSuite {
 
@@ -32,8 +33,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       commitMessage = "Reorganize imports with OrganizeImports ${nextVersion}"
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("com.github.liancheng", "organize-imports", "0.5.0", "0.6.0")),
         added = Nil,
         removed = Nil
@@ -53,8 +54,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       commitMessage = "Reorganize imports"
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
@@ -74,8 +75,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       commitMessage = "Recompile after updating ${artifactName}"
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
@@ -95,8 +96,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       commitMessage = "Update ${artifactName} from ${currentVersion} to ${nextVersion}"
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
@@ -116,8 +117,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       commitMessage = "Run scalafix for ${artifactName}"
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(
           UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0"),
           UpdatedDep("org.typelevel", "cats-kernel_2.13", "2.9.0", "2.10.0")
@@ -144,8 +145,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("replace:fs2.text.utf8Decode/fs2.text.utf8.decode")
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("co.fs2", "fs2-core_2.13", "2.5.0", "3.1.0")),
         added = Nil,
         removed = Nil
@@ -170,8 +171,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("some-rule")
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("co.fs2", "fs2-core_2.13", "3.0.7", "3.1.0")),
         added = Nil,
         removed = Nil
@@ -191,8 +192,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("some-rule")
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("co.fs2", "fs2-core_2.13", "2.5.0", "3.0.6")),
         added = Nil,
         removed = Nil
@@ -212,8 +213,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("rule1")
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(
           UpdatedDep("co.fs2", "fs2-core_2.13", "0.9.0", "1.0.0"),
           UpdatedDep("co.fs2", "fs2-io_2.13", "0.9.0", "1.0.0")
@@ -238,8 +239,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("CatsRule")
     )
 
-    val diffs = Map(
-      "myproject" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("myproject") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
@@ -260,13 +261,13 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("CatsRule")
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
       ),
-      "web" -> ProjectDiff(
+      Group("web") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
         added = Nil,
         removed = Nil
@@ -288,8 +289,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("Sbt0_13BuildSyntax")
     )
 
-    val diffs = Map(
-      "sbt-build" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group.`sbt-build` -> ProjectDiff(
         updated = List(UpdatedDep("ch.epfl.scala", "sbt-scalafix", "0.9.0", "0.9.21")),
         added = Nil,
         removed = Nil
@@ -309,8 +310,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("CatsRule"), scalacOptions = List("-P:semanticdb:synthetics:on")
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.1.0", "2.2.0")),
         added = Nil,
         removed = Nil
@@ -332,8 +333,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("CatsRule"), doc = Some("https://github.com/typelevel/cats/blob/v2.2.0/scalafix/README.md")
     )
 
-    val diffs = Map(
-      "core" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
         updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.1.0", "2.2.0")),
         added = Nil,
         removed = Nil
@@ -355,8 +356,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("BuildRule"), scalacOptions = List("-P:semanticdb:synthetics:on")
     )
 
-    val diffs = Map(
-      "sbt-build" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group.`sbt-build` -> ProjectDiff(
         updated = List(UpdatedDep("ch.epfl.scala", "sbt-scalafix", "0.9.0", "0.9.21")),
         added = Nil,
         removed = Nil
@@ -378,8 +379,8 @@ class UpdateScriptSuite extends munit.FunSuite {
       rewriteRules = List("Rule1", "Rule2")
     )
 
-    val diffs = Map(
-      "sbt-build" -> ProjectDiff(
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group.`sbt-build` -> ProjectDiff(
         updated = List(UpdatedDep("ch.epfl.scala", "sbt-scalafix", "0.9.0", "0.9.21")),
         added = Nil,
         removed = Nil

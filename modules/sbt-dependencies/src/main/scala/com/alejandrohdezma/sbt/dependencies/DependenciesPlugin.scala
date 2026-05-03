@@ -67,7 +67,7 @@ object DependenciesPlugin extends AutoPlugin {
     scalaVersion                      := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
-        val versions = Settings.buildScalaVersions.value
+        val versions = Settings.commonScalaVersions.value
         if (versions.nonEmpty) versions.head else scalaVersion.value
       }
       else Def.setting(scalaVersion.value)
@@ -75,8 +75,8 @@ object DependenciesPlugin extends AutoPlugin {
     crossScalaVersions := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
-        val versions = Settings.buildScalaVersions.value
-        if (versions.nonEmpty) versions else crossScalaVersions.value
+        val common = Settings.commonScalaVersions.value
+        if (common.nonEmpty) common else crossScalaVersions.value
       }
       else Def.setting(crossScalaVersions.value)
     }.value
@@ -99,7 +99,10 @@ object DependenciesPlugin extends AutoPlugin {
     scalaVersion               := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
-        val versions = Settings.projectScalaVersions.value
+        val versions =
+          Settings.projectScalaVersions.value.toList ++
+            Settings.commonScalaVersions.value.toList
+
         if (versions.nonEmpty) versions.head else scalaVersion.value
       }
       else Def.setting(scalaVersion.value)
@@ -107,8 +110,11 @@ object DependenciesPlugin extends AutoPlugin {
     crossScalaVersions := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
-        val versions = Settings.projectScalaVersions.value
-        if (versions.nonEmpty) versions else crossScalaVersions.value
+        val project = Settings.projectScalaVersions.value
+        val common  = Settings.commonScalaVersions.value
+        if (project.nonEmpty) project
+        else if (common.nonEmpty) common
+        else crossScalaVersions.value
       }
       else Def.setting(crossScalaVersions.value)
     }.value,
@@ -116,7 +122,7 @@ object DependenciesPlugin extends AutoPlugin {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
         Settings.projectJavaVersion.value
-          .orElse(Settings.buildJavaVersion.value)
+          .orElse(Settings.commonJavaVersion.value)
           .toSeq
           .flatMap(v => Seq("--release", v))
       }
@@ -126,7 +132,7 @@ object DependenciesPlugin extends AutoPlugin {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
         Settings.projectJavaVersion.value
-          .orElse(Settings.buildJavaVersion.value)
+          .orElse(Settings.commonJavaVersion.value)
           .toSeq
           .map(v => s"-release:$v")
       }

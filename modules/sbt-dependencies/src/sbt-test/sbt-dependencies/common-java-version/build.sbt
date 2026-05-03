@@ -9,14 +9,14 @@ assertTest := {
   val otherJavac = (otherproject / Compile / javacOptions).value
   val otherScalac = (otherproject / Compile / scalacOptions).value
 
-  // myproject inherits from sbt-build's java-version = "17"
+  // myproject inherits from common-settings's java-version = "17"
   assert(
     myJavac.containsSlice(Seq("--release", "17")),
-    s"myproject javacOptions should contain '--release 17' (sbt-build fallback), got: $myJavac"
+    s"myproject javacOptions should contain '--release 17' (common-settings default), got: $myJavac"
   )
   assert(
     myScalac.contains("-release:17"),
-    s"myproject scalacOptions should contain '-release:17' (sbt-build fallback), got: $myScalac"
+    s"myproject scalacOptions should contain '-release:17' (common-settings default), got: $myScalac"
   )
 
   // otherproject overrides with its own java-version = "21"

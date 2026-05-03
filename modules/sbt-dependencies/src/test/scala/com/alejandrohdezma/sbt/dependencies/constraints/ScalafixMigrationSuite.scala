@@ -25,6 +25,7 @@ import sbt.IO
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff.UpdatedDep
 import com.alejandrohdezma.sbt.dependencies.io.UpdateScript
+import com.alejandrohdezma.sbt.dependencies.model.Group
 
 class ScalafixMigrationSuite extends munit.FunSuite {
 
@@ -267,7 +268,7 @@ class ScalafixMigrationSuite extends munit.FunSuite {
       message = "Run scalafix migration in core: replace:fs2.text.utf8Decode/fs2.text.utf8.decode"
     )
 
-    assertEquals(migration.toScript("core"), expected)
+    assertEquals(migration.toScript(Group("core")), expected)
   }
 
   test("toScript generates scalafix CLI command for sbt-build project") {
@@ -283,7 +284,7 @@ class ScalafixMigrationSuite extends munit.FunSuite {
       message = "Run scalafix migration (build): Sbt0_13BuildSyntax"
     )
 
-    assertEquals(migration.toScript("sbt-build"), expected)
+    assertEquals(migration.toScript(Group.`sbt-build`), expected)
   }
 
   test("toScript includes scalacOptions in sbt command") {
@@ -297,7 +298,7 @@ class ScalafixMigrationSuite extends munit.FunSuite {
       message = "Run scalafix migration in core: CatsRule"
     )
 
-    assertEquals(migration.toScript("core"), expected)
+    assertEquals(migration.toScript(Group("core")), expected)
   }
 
   test("toScript ignores scalacOptions for sbt-build project") {
@@ -311,7 +312,7 @@ class ScalafixMigrationSuite extends munit.FunSuite {
       message = "Run scalafix migration (build): BuildRule"
     )
 
-    assertEquals(migration.toScript("sbt-build"), expected)
+    assertEquals(migration.toScript(Group.`sbt-build`), expected)
   }
 
   test("toScript handles multiple rewrite rules for sbt-build") {
@@ -327,7 +328,7 @@ class ScalafixMigrationSuite extends munit.FunSuite {
       message = "Run scalafix migration (build): Rule1, Rule2"
     )
 
-    assertEquals(migration.toScript("sbt-build"), expected)
+    assertEquals(migration.toScript(Group.`sbt-build`), expected)
   }
 
   test("toScript appends doc URL to message") {
@@ -341,7 +342,7 @@ class ScalafixMigrationSuite extends munit.FunSuite {
       message = "Run scalafix migration in core: CatsRule (see https://github.com/typelevel/cats/blob/v2.2.0/scalafix/README.md)"
     )
 
-    assertEquals(migration.toScript("core"), expected)
+    assertEquals(migration.toScript(Group("core")), expected)
   }
 
   //////////////
