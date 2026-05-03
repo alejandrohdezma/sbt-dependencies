@@ -54,21 +54,10 @@ class Settings {
     dependenciesFile.value.read(currentGroup.value, variableResolvers)
   }
 
-  /** Scala versions from the `sbt-build` group, used as a fallback for normal projects.
-    *
-    * Returns `Nil` when in the meta-build: `common-settings`/`sbt-build` defaults describe the *main* build, and the
-    * meta-build (`project/`) layer must keep using SBT's plugin convention (2.12).
-    */
-  val buildScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
-    implicit val logger: Logger = sLog.value
-
-    if (isSbtBuild.value) Nil
-    else dependenciesFile.value.readScalaVersions(`sbt-build`).map(_.toVersionString)
-  }
-
   /** Scala versions from the `common-settings` group, used as defaults for every non-meta project.
     *
-    * Returns `Nil` when in the meta-build for the same reason as [[buildScalaVersions]].
+    * Returns `Nil` when in the meta-build: `common-settings` describes defaults for main-build projects, and the
+    * meta-build (`project/`) layer must keep using SBT's plugin convention (2.12).
     */
   val commonScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
     implicit val logger: Logger = sLog.value
@@ -79,23 +68,13 @@ class Settings {
 
   /** Scala versions from the current project's group (only in normal build, not meta-build).
     *
-    * Returns `Nil` when in the meta-build for the same reason as [[buildScalaVersions]].
+    * Returns `Nil` when in the meta-build for the same reason as [[commonScalaVersions]].
     */
   val projectScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
     implicit val logger: Logger = sLog.value
 
     if (isSbtBuild.value) Nil
     else dependenciesFile.value.readScalaVersions(currentGroup.value).map(_.toVersionString)
-  }
-
-  /** Java target version from the `sbt-build` group, used as a fallback for normal projects (not the meta-build
-    * itself).
-    */
-  val buildJavaVersion: Def.Initialize[Option[String]] = Def.setting {
-    implicit val logger: Logger = sLog.value
-
-    if (isSbtBuild.value) None
-    else dependenciesFile.value.readJavaVersion(`sbt-build`)
   }
 
   /** Java target version from the `common-settings` group, used as a default for every non-meta project. */

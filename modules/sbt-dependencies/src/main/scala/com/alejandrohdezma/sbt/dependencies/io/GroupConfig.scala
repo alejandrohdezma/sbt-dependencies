@@ -18,6 +18,7 @@ package com.alejandrohdezma.sbt.dependencies.io
 
 import scala.jdk.CollectionConverters._
 
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigValueType
@@ -85,6 +86,16 @@ object GroupConfig {
       case ConfigValueType.OBJECT =>
         val groupConfig = config.getConfig(group.name)
 
+        val sbtBuildOnlyDependencies =
+          List("scala-version", "scala-versions", "java-version")
+            .find(groupConfig.hasPath(_) && group === Group.`sbt-build`)
+            .toLeft(())
+            .left
+            .map { key =>
+              s"`sbt-build` cannot define `$key`. Move it to the `common-settings` group " +
+                "(build-wide default) or to a per-project group (project-specific value)."
+            }
+
         val dependencies =
           if (groupConfig.hasPath("dependencies"))
             groupConfig.getValue("dependencies").valueType() match {
@@ -121,6 +132,7 @@ object GroupConfig {
           else Right(None)
 
         for {
+          _    <- sbtBuildOnlyDependencies
           deps <- dependencies
           sv   <- scalaVersions
           jv   <- javaVersion

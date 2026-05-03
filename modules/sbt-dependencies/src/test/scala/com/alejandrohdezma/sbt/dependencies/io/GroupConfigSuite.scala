@@ -819,4 +819,56 @@ class GroupConfigSuite extends munit.FunSuite {
     assertEquals(config.dependencyLines, List("dep1", "dep2"))
   }
 
+  // --- sbt-build cannot carry scala/java settings ---
+
+  test("parse rejects sbt-build with scala-version") {
+    val result = parseGroup("""sbt-build { scala-version = "2.13.16", dependencies = [] }""", "sbt-build")
+
+    assert(result.isLeft, s"expected Left, got $result")
+    assert(
+      result.swap.exists(msg => msg.contains("scala-version") && msg.contains("common-settings")),
+      s"expected migration message, got: $result"
+    )
+  }
+
+  test("parse rejects sbt-build with scala-versions") {
+    val result =
+      parseGroup("""sbt-build { scala-versions = ["2.13.16"], dependencies = [] }""", "sbt-build")
+
+    assert(result.isLeft, s"expected Left, got $result")
+    assert(
+      result.swap.exists(msg => msg.contains("scala-versions") && msg.contains("common-settings")),
+      s"expected migration message, got: $result"
+    )
+  }
+
+  test("parse rejects sbt-build with java-version") {
+    val result = parseGroup("""sbt-build { java-version = "17", dependencies = [] }""", "sbt-build")
+
+    assert(result.isLeft, s"expected Left, got $result")
+    assert(
+      result.swap.exists(msg => msg.contains("java-version") && msg.contains("common-settings")),
+      s"expected migration message, got: $result"
+    )
+  }
+
+  test("parse accepts sbt-build with dependencies only (simple format)") {
+    val result = parseGroup("""sbt-build = ["org:plugin:1.0.0:sbt-plugin"]""", "sbt-build")
+
+    assertEquals(result, Right(GroupConfig.Simple(List("org:plugin:1.0.0:sbt-plugin"))))
+  }
+
+  test("parse accepts sbt-build with dependencies only (advanced format)") {
+    val result = parseGroup("""sbt-build { dependencies = ["org:plugin:1.0.0:sbt-plugin"] }""", "sbt-build")
+
+    assertEquals(result, Right(GroupConfig.Advanced(List("org:plugin:1.0.0:sbt-plugin"))))
+  }
+
+  test("parse accepts common-settings with scala-version") {
+    val result =
+      parseGroup("""common-settings { scala-version = "2.13.16" }""", "common-settings")
+
+    assertEquals(result, Right(GroupConfig.Advanced(Nil, List("2.13.16"))))
+  }
+
 }
