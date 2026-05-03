@@ -21,7 +21,7 @@ interface DependencyEntry {
 
 /**
  * Formats a `dependencies.conf` document by sorting groups (`sbt-build`
- * first, then alphabetically) and dependencies within each group.
+ * first, then `common-settings`, then alphabetically) and dependencies within each group.
  *
  * - Simple groups: 2-space indent for dependencies
  * - Advanced blocks: 2-space indent for fields, 4-space indent for
