@@ -3,6 +3,7 @@
 <img src="vscode-extension/images/demo.svg" alt="sbt-dependencies" width="600" />
 
 - Manage all dependencies in a single [`project/dependencies.conf`](#user-content-define-dependencies) file (HOCON format).
+- Share Scala/Java versions and base dependencies across every project with the [`common-settings`](#user-content-use-the-common-settings-group) group.
 - [Update dependencies](#user-content-update-project-dependencies) to their latest versions with a single command.
 - Control updates with [version markers](#user-content-pin-a-dependency): pin, restrict to major, or restrict to minor.
 - Document pinning decisions with [dependency notes](#user-content-add-a-note-to-a-pinned-dependency).
@@ -52,6 +53,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
 - [How to...](#how-to)
   + [Migrate an existing project](#user-content-migrate-an-existing-project)
   + [Define dependencies](#user-content-define-dependencies)
+  + [Use the `common-settings` group](#user-content-use-the-common-settings-group)
   + [Use cross-compiled (Scala) dependencies](#user-content-use-cross-compiled-dependencies)
   + [Filter dependencies by Scala version](#user-content-filter-by-scala-version)
   + [Pin a dependency to a specific version](#user-content-pin-a-dependency)
@@ -62,9 +64,11 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Use the advanced group format](#user-content-use-advanced-group-format)
   + [Install a new dependency](#user-content-install-a-new-dependency)
   + [Install a build dependency](#user-content-install-a-build-dependency)
+  + [Install a common dependency](#user-content-install-a-common-dependency)
   + [Update project dependencies](#user-content-update-project-dependencies)
   + [Update only specific dependencies](#user-content-update-specific-dependencies)
   + [Update build dependencies](#user-content-update-build-dependencies)
+  + [Update common dependencies](#user-content-update-common-dependencies)
   + [Update Scala versions](#user-content-update-scala-versions)
   + [Update the SBT version](#user-content-update-sbt-version)
   + [Update the scalafmt version](#user-content-update-scalafmt-version)
@@ -108,8 +112,9 @@ After running this command, remove the `libraryDependencies +=` and `addSbtPlugi
 
 Create a `project/dependencies.conf` file listing your dependencies. Groups correspond to:
 
-- `sbt-build`: Dependencies for your build definition (plugins and libraries used in `build.sbt`)
-- `<project-name>`: Dependencies for a specific project (matches the SBT project name)
+- `sbt-build`: Dependencies for your build definition (plugins and libraries used in `build.sbt`). Cannot define `scala-version`, `scala-versions`, or `java-version` — those belong in `common-settings` or a per-project group.
+- `common-settings`: Build-wide defaults — `scala-version[s]`, `java-version`, and `dependencies` shared by every non-meta project. See [Use the `common-settings` group](#user-content-use-the-common-settings-group).
+- `<project-name>`: Dependencies for a specific project (matches the SBT project name). Per-project values override `common-settings`.
 
 Dependencies follow this format:
 
@@ -123,6 +128,40 @@ org:name                   # Java, latest version resolved automatically
 ```
 
 Supported configurations: `compile` (default), `test`, `provided`, `sbt-plugin`, etc.
+
+---
+
+</details>
+
+<details><summary><b id="use-the-common-settings-group">Use the `common-settings` group</b></summary><br/>
+
+The `common-settings` group declares values shared by every non-meta project: a default Scala version, a default Java target version, and a list of base dependencies merged into every project. Per-project groups override these values; `sbt-build` (the meta-build) is unaffected.
+
+```hocon
+common-settings {
+  scala-version = "2.13.16"
+  java-version  = "17"
+  dependencies = [
+    "org.typelevel::cats-core:2.10.0"
+    "org.scalameta::munit:1.2.1:test"
+  ]
+}
+
+myproject = []
+
+otherproject {
+  scala-version = "3.3.7"               # overrides common-settings for this project only
+  dependencies = [
+    "org.typelevel::cats-core:2.11.0"   # overrides the common-settings entry by (org, name)
+  ]
+}
+```
+
+**Scala/Java version precedence** — for each project, the plugin picks the first defined value: project group → `common-settings` → existing SBT default. Use `scala-version` for a single version or `scala-versions` for cross-building.
+
+**Dependency merging** — `common-settings.dependencies` are merged into every non-meta project's `libraryDependencies`. When the project group declares a dependency with the same `(organization, name)`, the project entry replaces the `common-settings` one regardless of configuration. Run `showLibraryDependencies` to see the resolved list per project.
+
+> **Note:** `sbt-build` is dependency-only. Putting `scala-version`, `scala-versions`, or `java-version` under `sbt-build` fails at parse time with a message pointing here.
 
 ---
 
@@ -316,15 +355,16 @@ dependencyVersionVariables := Map(
 
 <details><summary><b id="configure-scala-versions">Configure Scala versions</b></summary><br/>
 
-You can configure `scalaVersion` and `crossScalaVersions` directly in `dependencies.conf` using the [advanced format](#user-content-use-advanced-group-format):
+Configure `scalaVersion` and `crossScalaVersions` from `dependencies.conf` using the `common-settings` group (build-wide default) and per-project groups (project-specific overrides):
 
 ```hocon
-sbt-build {
+common-settings {
   scala-versions = ["2.13.12", "2.12.18"]
-  dependencies = [
-    "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
-  ]
 }
+
+sbt-build = [
+  "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"
+]
 
 my-project {
   scala-version = "3.3.1"
@@ -337,12 +377,10 @@ my-project {
 Use `scala-version` (singular) for a single version or `scala-versions` (plural) for cross-building.
 
 **Behavior:**
-- The first version becomes `scalaVersion`
-- All versions become `crossScalaVersions`
-- `scala-version`/`scala-versions` in the `sbt-build` group applies at the build level (`ThisBuild / scalaVersion` and `ThisBuild / crossScalaVersions`)
-- `scala-version`/`scala-versions` in individual project groups overrides the build-level settings for that project
-
-This allows you to set a default Scala version for all projects while letting specific projects use different versions.
+- The first version becomes `scalaVersion`; all versions become `crossScalaVersions`.
+- `scala-version`/`scala-versions` in `common-settings` applies at the build level (`ThisBuild / scalaVersion` and `ThisBuild / crossScalaVersions`).
+- `scala-version`/`scala-versions` in a per-project group overrides the build-level value for that project.
+- The `sbt-build` group cannot define `scala-version`/`scala-versions` — putting them there fails at parse time. Move them to `common-settings` (or to a per-project group).
 
 ---
 
@@ -394,6 +432,18 @@ sbt> installBuildDependencies ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin
 
 </details>
 
+<details><summary><b id="install-a-common-dependency">Install a common dependency</b></summary><br/>
+
+Use `installCommonDependencies` to add a new dependency to the [`common-settings`](#user-content-use-the-common-settings-group) group, making it available to every non-meta project:
+
+```bash
+sbt> installCommonDependencies org.typelevel::cats-core:2.10.0
+```
+
+---
+
+</details>
+
 <details><summary><b id="update-project-dependencies">Update project dependencies</b></summary><br/>
 
 Use `updateDependencies` to update dependencies in the current project to their latest versions (respecting [version markers](#user-content-pin-a-dependency)):
@@ -432,6 +482,20 @@ sbt> updateBuildDependencies
 
 </details>
 
+<details><summary><b id="update-common-dependencies">Update common dependencies</b></summary><br/>
+
+Use `updateCommonDependencies` to update dependencies in the [`common-settings`](#user-content-use-the-common-settings-group) group of `project/dependencies.conf`:
+
+```bash
+sbt> updateCommonDependencies
+```
+
+This is also part of `updateAllDependencies`, which updates the common-settings group alongside the main and meta builds.
+
+---
+
+</details>
+
 <details><summary><b id="update-scala-versions">Update Scala versions</b></summary><br/>
 
 Use `updateScalaVersions` to update Scala versions in the current project to their latest versions within the same minor line:
@@ -445,10 +509,10 @@ Each version is updated within its minor line:
 - `2.12.18` → latest `2.12.x`
 - `3.3.1` → latest `3.3.x`
 
-Use `updateBuildScalaVersions` to update Scala versions in the `sbt-build` group (build-level settings):
+Use `updateCommonScalaVersions` to update Scala versions in the [`common-settings`](#user-content-use-the-common-settings-group) group (build-wide defaults):
 
 ```bash
-sbt> updateBuildScalaVersions
+sbt> updateCommonScalaVersions
 ```
 
 ---
@@ -500,7 +564,7 @@ sbtDependenciesPluginName         := "sbt-my-plugin"
 
 <details><summary><b id="update-everything">Update everything at once</b></summary><br/>
 
-Use `updateAllDependencies` to update the plugin itself, Scala versions, dependencies, scalafmt version, and the SBT version all at once:
+Use `updateAllDependencies` to update the plugin itself, the `common-settings` and `sbt-build` groups, Scala versions, dependencies, scalafmt version, and the SBT version all at once:
 
 ```bash
 sbt> updateAllDependencies
