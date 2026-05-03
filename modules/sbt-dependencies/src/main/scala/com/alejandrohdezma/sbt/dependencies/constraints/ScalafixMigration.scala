@@ -27,6 +27,7 @@ import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff.UpdatedDep
 import com.alejandrohdezma.sbt.dependencies.io.UpdateScript
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Groups._
 import com.typesafe.config.Config
 
 /** Represents an entry from the `migrations` section of a Scala Steward scalafix migrations configuration file.
@@ -55,7 +56,7 @@ final case class ScalafixMigration(
 
   /** Converts this migration to a script for the given project. */
   def toScript(project: String): UpdateScript =
-    if (project === "sbt-build") {
+    if (project === `sbt-build`) {
       val docSuffix = doc.map(url => s" (see $url)").getOrElse("")
 
       UpdateScript(

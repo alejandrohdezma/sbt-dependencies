@@ -26,6 +26,7 @@ import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Groups
 import com.typesafe.config.ConfigFactory
 
 /** Handles reading and writing dependencies to/from the dependencies.conf file.
@@ -266,7 +267,7 @@ object DependenciesFile {
 
   def apply(file: File): DependenciesFile = new DependenciesFile(file)
 
-  /** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
-  val GroupOrdering: Ordering[String] = Ordering.by(name => (name !== "sbt-build", name))
+  /** Ordering for group names: `sbt-build` first, then `common-settings`, then alphabetical. */
+  val GroupOrdering: Ordering[String] = Groups.ordering
 
 }

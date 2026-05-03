@@ -24,6 +24,7 @@ import sbt.{Keys => _, _}
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Groups._
 
 class Settings {
 
@@ -34,7 +35,7 @@ class Settings {
 
   /** The current group of the build. */
   val currentGroup: Def.Initialize[String] = Def.setting {
-    if (isSbtBuild.value) "sbt-build" else name.value
+    if (isSbtBuild.value) `sbt-build` else name.value
   }
 
   /** The path to the dependencies.conf file. */
@@ -61,7 +62,7 @@ class Settings {
 
     // Return Nil in meta-build to avoid cyclic reference with crossScalaVersions
     if (isSbtBuild.value) Nil
-    else dependenciesFile.value.readScalaVersions("sbt-build").map(_.toVersionString)
+    else dependenciesFile.value.readScalaVersions(`sbt-build`).map(_.toVersionString)
   }
 
   /** Scala versions from the current project's group (only in normal build, not meta-build).
@@ -83,7 +84,7 @@ class Settings {
     implicit val logger: Logger = sLog.value
 
     if (isSbtBuild.value) None
-    else dependenciesFile.value.readJavaVersion("sbt-build")
+    else dependenciesFile.value.readJavaVersion(`sbt-build`)
   }
 
   /** Java target version from the current project's group. */

@@ -1,4 +1,5 @@
 import { walkDocument, objectDepFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern } from "./parser";
+import { groupSortKey } from "./groups";
 
 /** Regex mirroring Scala-side `Dependency.dependencyRegex`. */
 const dependencyPattern =
@@ -16,11 +17,6 @@ interface DependencyEntry {
   depLine: string;
   /** Composite sort key: config + \0 + org:artifact (lowercased). */
   sortKey: string;
-}
-
-/** Ordering for group names: `sbt-build` always comes first, then alphabetically. */
-function groupSortKey(name: string): string {
-  return name === "sbt-build" ? `\0${name}` : name;
 }
 
 /**

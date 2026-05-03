@@ -39,6 +39,7 @@ import com.alejandrohdezma.sbt.dependencies.io.UpdateScript
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Groups._
 import coursier.MavenRepository
 import coursier.Repository
 
@@ -782,8 +783,6 @@ class Commands {
         case Seq(flag, value) if flagRegex.pattern.matcher(flag).matches() && value.forall(_.isDigit) => value
       }
   }
-
-  val `sbt-build` = "sbt-build"
 
   private def runStepsSafely(steps: String*)(state: State, outputDir: File): State = {
     implicit val logger: Logger = state.log

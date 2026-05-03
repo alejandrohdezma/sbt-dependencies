@@ -4,6 +4,7 @@ import { parseCodeLenses } from "./codelens";
 import { parsePinnedWithoutNote } from "./dep-codelens";
 import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
+import { SBT_BUILD } from "./groups";
 import { parseDependency, buildHoverMarkdown } from "./hover";
 import { parseDocumentLinks } from "./links";
 import { parseNoteDecorations } from "./note-decorations";
@@ -406,7 +407,7 @@ function runUpdateSpecificDependency(org: string, artifact: string): void {
  * The `sbt-build` group uses a separate global command.
  */
 function getInstallCommand(groupName: string, dependency: string): string {
-  if (groupName === "sbt-build") {
+  if (groupName === SBT_BUILD) {
     return `sbtn installBuildDependencies ${dependency}`;
   }
   return `sbtn ${groupName}/install ${dependency}`;
