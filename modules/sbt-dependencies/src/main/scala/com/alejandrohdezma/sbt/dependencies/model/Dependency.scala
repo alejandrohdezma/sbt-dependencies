@@ -16,6 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies.model
 
+import scala.util.Try
+
 import sbt.Defaults.sbtPluginExtra
 import sbt.librarymanagement.CrossVersion
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
@@ -334,10 +336,14 @@ object Dependency {
       def show: String = s"${marker.prefix}$toVersionString"
 
       /** Extracts suffix type (letters only, ignoring leading separator and replace any numbers with *). */
-      val suffixType: Option[String] = suffix.map(_.toLowerCase.replaceAll("^[.-]", "").replaceAll("\\d", "*"))
+      lazy val suffixType: Option[String] = suffix.map(_.toLowerCase.replaceAll("^[.-]", "").replaceAll("\\d", "*"))
 
-      /** Extracts the numeric part from the suffix (e.g., "-rc2" -> Some(2), "-jre" -> None). */
-      val suffixNumber: Option[Int] = suffix.flatMap("(\\d+)".r.findFirstIn).map(_.toInt)
+      /** Extracts the numeric part from the suffix (e.g., "-rc2" -> Some(2), "-jre" -> None).
+        *
+        * Uses `BigInt` so arbitrarily-long digit runs (timestamps like `-20260328142033-SNAPSHOT`, or anything else
+        * that exceeds `Long`) parse and order correctly without overflow.
+        */
+      lazy val suffixNumber: Option[BigInt] = suffix.flatMap("(\\d+)".r.findFirstIn).map(BigInt(_))
 
       /** Checks if a candidate version is valid for this version. */
       override def isValidCandidate(candidate: Numeric): Boolean = {
@@ -374,19 +380,24 @@ object Dependency {
         }
 
         if (partsComparison !== 0) partsComparison
-        else v1.suffixNumber.getOrElse(0).compareTo(v2.suffixNumber.getOrElse(0): Int)
+        else v1.suffixNumber.getOrElse(BigInt(0)).compareTo(v2.suffixNumber.getOrElse(BigInt(0)))
       }
 
       private val regex = """^(\d+(?:\.\d+)*)(.*)$""".r
 
-      /** Parses a version string into a Numeric version with the given marker. */
+      /** Parses a version string into a Numeric version with the given marker.
+        *
+        * Returns `None` if the string does not match the version regex or if any numeric part overflows `Int`.
+        * Returning `None` rather than throwing matters because callers like `VersionFinder` use this through `unapply`
+        * inside `collect`, where a thrown exception would discard the entire list of available versions.
+        */
       def from(string: String, marker: Marker): Option[Numeric] = string match {
         case regex(numericPart, rest) =>
-          val parts = numericPart.split('.').map(_.toInt).toList
-
-          val suffix = if (rest.nonEmpty) Some(rest) else None
-
-          Some(Numeric(parts, suffix, marker))
+          Try {
+            val parts  = numericPart.split('.').map(_.toInt).toList
+            val suffix = if (rest.nonEmpty) Some(rest) else None
+            Numeric(parts, suffix, marker)
+          }.toOption
 
         case _ => None
       }

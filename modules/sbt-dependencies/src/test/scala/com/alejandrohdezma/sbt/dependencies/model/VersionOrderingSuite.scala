@@ -138,4 +138,11 @@ class VersionOrderingSuite extends munit.FunSuite {
     assert(v(List(4, 3, 0), ".Final") > v(List(4, 2, 7), ".Final"))
   }
 
+  test("snapshot suffixes with timestamps order by timestamp without overflowing") {
+    val older = v(List(0, 11, 0), "-20260328142033-SNAPSHOT")
+    val newer = v(List(0, 11, 0), "-20260401061622-SNAPSHOT")
+
+    assert(older < newer)
+  }
+
 }

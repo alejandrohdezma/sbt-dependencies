@@ -85,4 +85,19 @@ class VersionParseSuite extends munit.FunSuite {
     assertEquals(result, Some(expected))
   }
 
+  test("parse snapshot version with timestamp suffix that overflows Int") {
+    val result = Version.Numeric.unapply("0.11.0-20260328142033-SNAPSHOT")
+
+    val expected = Version.Numeric(List(0, 11, 0), Some("-20260328142033-SNAPSHOT"), Marker.NoMarker)
+
+    assertEquals(result, Some(expected))
+    assertEquals(result.flatMap(_.suffixNumber), Some(BigInt("20260328142033")))
+  }
+
+  test("parse returns None instead of throwing when a numeric part overflows Int") {
+    val result = Version.Numeric.unapply("99999999999999")
+
+    assertEquals(result, None)
+  }
+
 }
