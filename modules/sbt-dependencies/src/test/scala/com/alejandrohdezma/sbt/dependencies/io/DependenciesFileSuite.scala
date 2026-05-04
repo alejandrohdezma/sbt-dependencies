@@ -1629,6 +1629,94 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertNoDiff(content, expected)
   }
 
+  // --- cross-version annotation tests ---
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", cross-version = "full" }
+       |]
+       |""".stripMargin
+  }.test("readAnnotated returns cross-version annotation when present") { file =>
+    val annotated = DependenciesFile(file).readAnnotated(Group("my-project"), variableResolvers)
+
+    assertEquals(annotated.size, 1)
+    assertEquals(annotated.head.crossVersion, Some(CrossVersion.full))
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", cross-version = "full" }
+       |]
+       |""".stripMargin
+  }.test("write preserves cross-version annotation through version update") { file =>
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.typelevel",
+        "kind-projector",
+        Version.Numeric(List(0, 13, 4), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "compiler-plugin"
+      )
+    )
+
+    DependenciesFile(file).write(Group("my-project"), newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org.typelevel::kind-projector:0.13.4:compiler-plugin", cross-version = "full" }
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", cross-version = "invalid" }
+       |]
+       |""".stripMargin
+  }.test("readAnnotated rejects invalid cross-version values") { file =>
+    val ex = intercept[Exception] {
+      DependenciesFile(file).readAnnotated(Group("my-project"), variableResolvers)
+    }
+    assert(ex.getMessage.contains("cross-version"))
+    assert(ex.getMessage.contains("invalid"))
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", note = "Pinned for X", cross-version = "full" }
+       |]
+       |""".stripMargin
+  }.test(
+    "write merges additionalAnnotations per-field, preserving the file's note when the extras only carry cross-version"
+  ) { file =>
+    val newDeps = List(
+      Dependency.WithNumericVersion(
+        "org.typelevel",
+        "kind-projector",
+        Version.Numeric(List(0, 13, 3), None, Version.Numeric.Marker.NoMarker),
+        isCross = true,
+        "compiler-plugin"
+      )
+    )
+
+    // Simulating `initDependenciesFile`: additionalAnnotations carries only cross-version.
+    val extras = Map(
+      AnnotatedDependency.NoteKey("org.typelevel", "kind-projector", "compiler-plugin") ->
+        AnnotatedDependency.AnnotationData(None, intransitive = false, None, Some("full"))
+    )
+
+    DependenciesFile(file).write(Group("my-project"), newDeps, additionalAnnotations = extras)
+
+    val content = IO.read(file)
+
+    assert(content.contains("""note = "Pinned for X""""), s"expected note to be preserved, got:\n$content")
+    assert(content.contains("""cross-version = "full""""), s"expected cross-version to be preserved, got:\n$content")
+  }
+
   // --- hasGroup tests ---
 
   withDependenciesFile {

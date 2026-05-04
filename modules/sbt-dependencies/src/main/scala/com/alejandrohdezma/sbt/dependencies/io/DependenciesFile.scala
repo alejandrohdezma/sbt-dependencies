@@ -67,9 +67,10 @@ final case class DependenciesFile(file: File) {
   ): List[Dependency] =
     readAnnotated(group, variableResolvers).map(_.dependency)
 
-  /** Reads annotated dependencies for a specific group, returning each dependency paired with its intransitive flag.
+  /** Reads annotated dependencies for a specific group, returning each dependency paired with its annotations.
     *
-    * This is used by Settings to apply `.intransitive()` on the resulting ModuleID when the flag is set.
+    * Used by `Settings.libraryDependencies` to apply `.intransitive()`, `scala-filter` matching, and `cross-version`
+    * overrides on the resulting `ModuleID`.
     */
   def readAnnotated(group: Group, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
       logger: Logger
@@ -90,28 +91,46 @@ final case class DependenciesFile(file: File) {
     * @param javaVersion
     *   Optional Java target version to write. If defined, Advanced format is used. When the group already exists with a
     *   `java-version`, passing `None` preserves the existing value; passing `Some(v)` overrides it.
+    * @param additionalAnnotations
+    *   Annotations to apply on top of those parsed from the existing file (used by `initDependenciesFile` to preserve
+    *   non-default `CrossVersion`s when seeding the file from `libraryDependencies`).
     */
   def write(
       group: Group,
       dependencies: List[Dependency],
       scalaVersions: List[String] = Nil,
-      javaVersion: Option[String] = None
+      javaVersion: Option[String] = None,
+      additionalAnnotations: Map[AnnotatedDependency.NoteKey, AnnotatedDependency.AnnotationData] = Map.empty
   )(implicit logger: Logger): Unit =
     if (dependencies.nonEmpty || scalaVersions.nonEmpty || javaVersion.nonEmpty) {
       val existingConfigs = readRaw(file)
 
-      val annotations = existingConfigs
+      val fileAnnotations = existingConfigs
         .get(group)
         .toList
         .flatMap(_.dependencies)
         .collect {
-          case ad if ad.note.isDefined || ad.intransitive || ad.scalaFilter.isDefined =>
-            ad.line -> AnnotatedDependency.AnnotationData(ad.note, ad.intransitive, ad.scalaFilter)
+          case ad if ad.note.isDefined || ad.intransitive || ad.scalaFilter.isDefined || ad.crossVersion.isDefined =>
+            ad.line -> AnnotatedDependency.AnnotationData(ad.note, ad.intransitive, ad.scalaFilter, ad.crossVersion)
         }
         .toMap
         .collect { case (Dependency.dependencyRegex(org, _, name, _, config), data) =>
           AnnotatedDependency.NoteKey(org, name, Option(config).getOrElse("compile")) -> data
         }
+
+      // Merge per-field — the file is the source of truth for any annotation the user set explicitly; the extras only
+      // fill in gaps (e.g. an `init`-derived `cross-version` for a dependency that the file did not annotate).
+      val annotations: Map[AnnotatedDependency.NoteKey, AnnotatedDependency.AnnotationData] =
+        (fileAnnotations.keySet ++ additionalAnnotations.keySet).iterator.map { key =>
+          val fromFile  = fileAnnotations.get(key)
+          val fromExtra = additionalAnnotations.get(key)
+          key -> AnnotatedDependency.AnnotationData(
+            fromFile.flatMap(_.note).orElse(fromExtra.flatMap(_.note)),
+            fromFile.exists(_.intransitive) || fromExtra.exists(_.intransitive),
+            fromFile.flatMap(_.scalaFilter).orElse(fromExtra.flatMap(_.scalaFilter)),
+            fromFile.flatMap(_.crossVersion).orElse(fromExtra.flatMap(_.crossVersion))
+          )
+        }.toMap
 
       val dependencyLines = dependencies
         .foldLeft(List.empty[Dependency]) { (acc, dep) =>

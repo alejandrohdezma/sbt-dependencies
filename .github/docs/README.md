@@ -55,6 +55,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Define dependencies](#user-content-define-dependencies)
   + [Use the `common-settings` group](#user-content-use-the-common-settings-group)
   + [Use cross-compiled (Scala) dependencies](#user-content-use-cross-compiled-dependencies)
+  + [Override the cross-version](#user-content-override-cross-version)
   + [Filter dependencies by Scala version](#user-content-filter-by-scala-version)
   + [Pin a dependency to a specific version](#user-content-pin-a-dependency)
   + [Add a note to a pinned dependency](#user-content-add-a-note-to-a-pinned-dependency)
@@ -177,6 +178,22 @@ my-project = [
   "com.google.guava:guava:33.0.0"     # Java dependency (like com.google.guava % "guava")
 ]
 ```
+
+---
+
+</details>
+
+<details><summary><b id="override-cross-version">Override the cross-version</b></summary><br/>
+
+The `cross-version` annotation overrides the `CrossVersion` that SBT applies to a dependency. Legal values: `"full"`, `"binary"`, `"patch"`, `"disabled"`. When omitted, the plugin uses SBT's defaults (`%%` → `CrossVersion.binary`, `%` → `CrossVersion.disabled`).
+
+```hocon
+my-project = [
+  { dependency = "org.scala-lang::scala-reflect:2.13.16", cross-version = "disabled" }
+]
+```
+
+This is useful for libraries where you want to bypass cross-version handling entirely (`disabled`), or pin to a specific Scala patch version (`full`). The annotation composes with `note`, `intransitive`, and `scala-filter`.
 
 ---
 

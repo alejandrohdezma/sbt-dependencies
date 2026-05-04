@@ -18,27 +18,35 @@ package com.alejandrohdezma.sbt.dependencies.io
 
 import scala.jdk.CollectionConverters._
 
-import com.alejandrohdezma.sbt.dependencies.model.Dependency
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigObject
-import com.typesafe.config.ConfigValueType
+import sbt.librarymanagement.CrossVersion
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.librarymanagement.ModuleID
 import sbt.util.Logger
 
-/** A dependency entry that may optionally carry a note, intransitive flag, and/or scala-filter. */
+import com.alejandrohdezma.sbt.dependencies.finders.Utils
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigObject
+import com.typesafe.config.ConfigValueType
+
+/** A dependency entry that may optionally carry a note, intransitive flag, scala-filter, and/or cross-version override.
+  *
+  * The `crossVersion` value, when set, overrides the `CrossVersion` that would otherwise be derived from the
+  * dependency's `isCross` flag and configuration. Legal values: `"full"`, `"binary"`, `"patch"`, `"disabled"`.
+  */
 final case class AnnotatedDependency(
     line: String,
     note: Option[String] = None,
     intransitive: Boolean = false,
-    scalaFilter: Option[String] = None
+    scalaFilter: Option[String] = None,
+    crossVersion: Option[String] = None
 ) {
 
   /** Formats a single dependency entry as HOCON, using single-line object format if it fits within the max line length
     * (120 characters), or multi-line otherwise.
     */
   def format: String =
-    if (note.isEmpty && !intransitive && scalaFilter.isEmpty) s""""$line""""
+    if (note.isEmpty && !intransitive && scalaFilter.isEmpty && crossVersion.isEmpty) s""""$line""""
     else if (singleLine.length <= 120) singleLine
     else multiLine
 
@@ -47,10 +55,11 @@ final case class AnnotatedDependency(
     val noteField         = note.map(n => s"""  note = "$n"\n""").getOrElse("")
     val intransitiveField = if (intransitive) "  intransitive = true\n" else ""
     val scalaFilterField  = scalaFilter.map(f => s"""  scala-filter = "$f"\n""").getOrElse("")
+    val crossVersionField = crossVersion.map(c => s"""  cross-version = "$c"\n""").getOrElse("")
 
     s"""{
        |  dependency = "$line"
-       |$noteField$intransitiveField$scalaFilterField}""".stripMargin
+       |$noteField$intransitiveField$scalaFilterField$crossVersionField}""".stripMargin
   }
 
   /** Formats a single dependency entry as a single-line object. */
@@ -60,8 +69,9 @@ final case class AnnotatedDependency(
     val noteField         = note.map(n => s"""note = "$n"""")
     val intransitiveField = if (intransitive) Some("intransitive = true") else None
     val scalaFilterField  = scalaFilter.map(f => s"""scala-filter = "$f"""")
+    val crossVersionField = crossVersion.map(c => s"""cross-version = "$c"""")
 
-    List(noteField, intransitiveField, scalaFilterField).flatten.mkString(", ")
+    List(noteField, intransitiveField, scalaFilterField, crossVersionField).flatten.mkString(", ")
   }
 
 }
@@ -72,21 +82,46 @@ object AnnotatedDependency {
       dependency: Dependency,
       note: Option[String] = None,
       intransitive: Boolean = false,
-      scalaFilter: Option[String] = None
-  )
+      scalaFilter: Option[String] = None,
+      crossVersion: Option[CrossVersion] = None
+  ) {
+
+    /** Converts this dependency to an SBT ModuleID for use in libraryDependencies. */
+    def toModuleID(sbtBinaryVersion: String, scalaBinaryVersion: String): ModuleID = {
+      val defaultCrossVersion: CrossVersion =
+        if (dependency.isCross) CrossVersion.binary else CrossVersion.disabled
+
+      dependency
+        .toModuleID(sbtBinaryVersion, scalaBinaryVersion)
+        .withCrossVersion(crossVersion.getOrElse(defaultCrossVersion))
+        .withIsTransitive(!intransitive)
+    }
+
+  }
 
   object Resolved {
 
     def from(
         annotated: AnnotatedDependency,
         variableResolvers: Map[String, OrganizationArtifactName => ModuleID]
-    )(implicit logger: Logger): Resolved =
+    )(implicit logger: Logger): Resolved = {
+      val crossVersion = annotated.crossVersion match {
+        case Some("full")     => Some(CrossVersion.full)
+        case Some("binary")   => Some(CrossVersion.binary)
+        case Some("patch")    => Some(CrossVersion.patch)
+        case Some("disabled") => Some(CrossVersion.disabled)
+        case Some(other)      => Utils.fail(s"Invalid cross-version: $other")
+        case None             => None
+      }
+
       Resolved(
         Dependency.parse(annotated.line, variableResolvers),
         annotated.note,
         annotated.intransitive,
-        annotated.scalaFilter
+        annotated.scalaFilter,
+        crossVersion
       )
+    }
 
   }
 
@@ -104,10 +139,18 @@ object AnnotatedDependency {
 
   final case class NoteKey(organization: String, name: String, configuration: String)
 
-  /** Holds the annotation data (note + intransitive flag + scala-filter) for a dependency, used during write
-    * preservation.
+  /** Holds the annotation data (note, intransitive flag, scala-filter, cross-version) for a dependency, used during
+    * write preservation.
     */
-  final case class AnnotationData(note: Option[String], intransitive: Boolean, scalaFilter: Option[String] = None)
+  final case class AnnotationData(
+      note: Option[String],
+      intransitive: Boolean,
+      scalaFilter: Option[String] = None,
+      crossVersion: Option[String] = None
+  )
+
+  /** Legal values for the `cross-version` annotation. */
+  val LegalCrossVersionValues: Set[String] = Set("full", "binary", "patch", "disabled")
 
   /** Parses a dependency list that may contain both plain strings and annotated objects. */
   def parse(config: Config, path: String): Either[String, List[AnnotatedDependency]] =
@@ -131,13 +174,18 @@ object AnnotatedDependency {
               val obj = value.asInstanceOf[ConfigObject].toConfig
               if (!obj.hasPath("dependency")) Left("object entry must have a 'dependency' field")
               else {
+                val dependency     = obj.getString("dependency")
                 val note           = if (obj.hasPath("note")) Some(obj.getString("note")) else None
                 val isIntransitive = obj.hasPath("intransitive") && obj.getBoolean("intransitive")
                 val scalaFilter    = if (obj.hasPath("scala-filter")) Some(obj.getString("scala-filter")) else None
+                val crossVersion   = if (obj.hasPath("cross-version")) Some(obj.getString("cross-version")) else None
 
-                if (note.isEmpty && !isIntransitive && scalaFilter.isEmpty)
-                  Left("object entry must have a 'note', 'intransitive', or 'scala-filter' field")
-                else Right(acc :+ AnnotatedDependency(obj.getString("dependency"), note, isIntransitive, scalaFilter))
+                if (note.isEmpty && !isIntransitive && scalaFilter.isEmpty && crossVersion.isEmpty)
+                  Left("object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field")
+                else if (crossVersion.nonEmpty && !LegalCrossVersionValues.contains(crossVersion.get))
+                  Left(s"'cross-version' must be one of ${LegalCrossVersionValues.mkString(", ")}, got '${crossVersion.get}'")
+                else
+                  Right(acc :+ AnnotatedDependency(dependency, note, isIntransitive, scalaFilter, crossVersion))
               }
 
             // If the value is anything else, return an error
@@ -151,7 +199,8 @@ object AnnotatedDependency {
     val key  = NoteKey(dep.organization, dep.name, dep.configuration)
     val data = annotations.get(key)
 
-    AnnotatedDependency(dep.toLine, data.flatMap(_.note), data.exists(_.intransitive), data.flatMap(_.scalaFilter))
+    AnnotatedDependency(dep.toLine, data.flatMap(_.note), data.exists(_.intransitive), data.flatMap(_.scalaFilter),
+      data.flatMap(_.crossVersion))
   }
 
 }

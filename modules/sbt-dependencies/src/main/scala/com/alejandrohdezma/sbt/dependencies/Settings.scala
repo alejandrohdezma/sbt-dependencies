@@ -148,10 +148,7 @@ class Settings {
         .readAnnotated(group, variableResolvers)
         .filter(_.dependency.matchesScalaVersion(scalaV))
         .filter(dep => dep.scalaFilter.forall(scalaV.startsWith))
-        .map {
-          case dep if dep.intransitive => dep.dependency.toModuleID(sbtV, scalaV).intransitive()
-          case dep                     => dep.dependency.toModuleID(sbtV, scalaV)
-        }
+        .map(_.toModuleID(sbtV, scalaV))
 
     val projectDeps = readGroup(currentGroup.value)
 
