@@ -22,6 +22,9 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType
+import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
+import sbt.librarymanagement.ModuleID
+import sbt.util.Logger
 
 /** A dependency entry that may optionally carry a note, intransitive flag, and/or scala-filter. */
 final case class AnnotatedDependency(
@@ -64,6 +67,28 @@ final case class AnnotatedDependency(
 }
 
 object AnnotatedDependency {
+
+  final case class Resolved(
+      dependency: Dependency,
+      note: Option[String] = None,
+      intransitive: Boolean = false,
+      scalaFilter: Option[String] = None
+  )
+
+  object Resolved {
+
+    def from(
+        annotated: AnnotatedDependency,
+        variableResolvers: Map[String, OrganizationArtifactName => ModuleID]
+    )(implicit logger: Logger): Resolved =
+      Resolved(
+        Dependency.parse(annotated.line, variableResolvers),
+        annotated.note,
+        annotated.intransitive,
+        annotated.scalaFilter
+      )
+
+  }
 
   /** Ordering for annotated dependencies: first by configuration, then by organization, then by name.
     *

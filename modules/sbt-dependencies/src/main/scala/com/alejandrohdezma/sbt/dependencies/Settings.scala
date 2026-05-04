@@ -146,11 +146,11 @@ class Settings {
     def readGroup(group: Group): Seq[ModuleID] =
       file
         .readAnnotated(group, variableResolvers)
-        .filter(_._1.matchesScalaVersion(scalaV))
-        .filter { case (_, _, scalaFilter) => scalaFilter.forall(scalaV.startsWith) }
+        .filter(_.dependency.matchesScalaVersion(scalaV))
+        .filter(dep => dep.scalaFilter.forall(scalaV.startsWith))
         .map {
-          case (dep, true, _)  => dep.toModuleID(sbtV, scalaV).intransitive()
-          case (dep, false, _) => dep.toModuleID(sbtV, scalaV)
+          case dep if dep.intransitive => dep.dependency.toModuleID(sbtV, scalaV).intransitive()
+          case dep                     => dep.dependency.toModuleID(sbtV, scalaV)
         }
 
     val projectDeps = readGroup(currentGroup.value)

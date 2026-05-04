@@ -65,7 +65,7 @@ final case class DependenciesFile(file: File) {
   def read(group: Group, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
       logger: Logger
   ): List[Dependency] =
-    readRaw(file).get(group).map(_.dependencyLines).toList.flatten.map(Dependency.parse(_, variableResolvers))
+    readAnnotated(group, variableResolvers).map(_.dependency)
 
   /** Reads annotated dependencies for a specific group, returning each dependency paired with its intransitive flag.
     *
@@ -73,10 +73,8 @@ final case class DependenciesFile(file: File) {
     */
   def readAnnotated(group: Group, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
       logger: Logger
-  ): List[(Dependency, Boolean, Option[String])] =
-    readRaw(file).get(group).toList.flatMap(_.dependencies).map { ad =>
-      (Dependency.parse(ad.line, variableResolvers), ad.intransitive, ad.scalaFilter)
-    }
+  ): List[AnnotatedDependency.Resolved] =
+    readRaw(file).get(group).toList.flatMap(_.dependencies).map(AnnotatedDependency.Resolved.from(_, variableResolvers))
 
   /** Writes dependencies for a specific group to the given HOCON file.
     *
