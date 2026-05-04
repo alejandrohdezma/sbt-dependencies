@@ -191,12 +191,12 @@ class VersionSuite extends munit.FunSuite {
 
   test("suffixNumber extracts number from -rc1") {
     val version = Version.Numeric(List(1, 2, 3), Some("-rc1"), Marker.NoMarker)
-    assertEquals(version.suffixNumber, Some(1))
+    assertEquals(version.suffixNumber, Some(BigInt(1)))
   }
 
   test("suffixNumber extracts number from -rc10") {
     val version = Version.Numeric(List(1, 2, 3), Some("-rc10"), Marker.NoMarker)
-    assertEquals(version.suffixNumber, Some(10))
+    assertEquals(version.suffixNumber, Some(BigInt(10)))
   }
 
   test("suffixNumber returns None for suffix without number") {
@@ -211,7 +211,12 @@ class VersionSuite extends munit.FunSuite {
 
   test("suffixNumber extracts first number from complex suffix") {
     val version = Version.Numeric(List(1, 0, 0), Some("-M2-beta"), Marker.NoMarker)
-    assertEquals(version.suffixNumber, Some(2))
+    assertEquals(version.suffixNumber, Some(BigInt(2)))
+  }
+
+  test("suffixNumber extracts a digit run that exceeds Long without overflow") {
+    val version = Version.Numeric(List(0, 11, 0), Some("-20260328142033-SNAPSHOT"), Marker.NoMarker)
+    assertEquals(version.suffixNumber, Some(BigInt("20260328142033")))
   }
 
 }
