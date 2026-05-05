@@ -25,12 +25,14 @@ import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdateFilter
+import com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind
 import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.io.AnnotatedDependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.string.box._
@@ -85,17 +87,36 @@ class Tasks {
 
     implicit val versionFinder: VersionFinder = createVersionFinder.value
 
-    val file         = Settings.dependenciesFile.value
-    val group        = Settings.currentGroup.value
-    val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
-    val dependency   = Dependency.parseIncludingMissingVersion(installParser.parsed)
+    val file                  = Settings.dependenciesFile.value
+    val group                 = Settings.currentGroup.value
+    val dependencies          = file.read(group, Keys.dependencyVersionVariables.value)
+    val (dependency, kind)    = Dependency.parseIncludingMissingVersion(installParser.parsed)
+    val additionalAnnotations = crossVersionAnnotation(dependency, kind)
 
     logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 
     val updated = dependencies.filterNot(_.isSameArtifact(dependency)) :+ dependency
 
-    file.write(group, updated)
+    file.write(group, updated, additionalAnnotations = additionalAnnotations)
   }
+
+  /** Builds the `additionalAnnotations` map for `file.write` when the resolved [[ArtifactKind]] differs from what the
+    * dependency's `(isCross, configuration)` pair would imply. The only case currently is `compiler-plugin` resolved
+    * via `CrossFull` (e.g. `kind-projector`), which needs a `cross-version = "full"` annotation so the entry resolves
+    * the right artifact at compile time.
+    */
+  private def crossVersionAnnotation(
+      dependency: Dependency,
+      kind: ArtifactKind
+  ): Map[AnnotatedDependency.NoteKey, AnnotatedDependency.AnnotationData] =
+    kind match {
+      case ArtifactKind.CrossFull =>
+        Map(
+          AnnotatedDependency.NoteKey(dependency.organization, dependency.name, dependency.configuration) ->
+            AnnotatedDependency.AnnotationData(None, intransitive = false, None, Some("full"))
+        )
+      case _ => Map.empty
+    }
 
   /** Shows the library dependencies for the current project in a formatted, colored output. */
   val showLibraryDependencies = Def.task {

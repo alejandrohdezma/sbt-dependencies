@@ -54,7 +54,7 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parseIncludingMissingVersion resolves cross-version dependency without version") {
-    val result = Dependency.parseIncludingMissingVersion("org.typelevel::cats-core")
+    val (result, _) = Dependency.parseIncludingMissingVersion("org.typelevel::cats-core")
 
     val expected = Dependency.WithNumericVersion(
       organization = "org.typelevel",
@@ -67,7 +67,7 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parseIncludingMissingVersion carries compiler-plugin config when version is missing") {
-    val result = Dependency.parseIncludingMissingVersion("org.typelevel::kind-projector:compiler-plugin")
+    val (result, _) = Dependency.parseIncludingMissingVersion("org.typelevel::kind-projector:compiler-plugin")
 
     val expected = Dependency.WithNumericVersion(
       organization = "org.typelevel",
@@ -81,7 +81,7 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parseIncludingMissingVersion carries sbt-plugin config when version is missing") {
-    val result = Dependency.parseIncludingMissingVersion("ch.epfl.scala:sbt-scalafix:sbt-plugin")
+    val (result, _) = Dependency.parseIncludingMissingVersion("ch.epfl.scala:sbt-scalafix:sbt-plugin")
 
     val expected = Dependency.WithNumericVersion(
       organization = "ch.epfl.scala",
@@ -116,7 +116,7 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parseIncludingMissingVersion resolves java dependency without version") {
-    val result = Dependency.parseIncludingMissingVersion("com.google.guava:guava")
+    val (result, _) = Dependency.parseIncludingMissingVersion("com.google.guava:guava")
 
     val expected = Dependency.WithNumericVersion(
       organization = "com.google.guava",

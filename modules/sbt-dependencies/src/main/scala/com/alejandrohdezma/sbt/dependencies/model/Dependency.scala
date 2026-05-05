@@ -216,30 +216,50 @@ object Dependency {
 
   /** Creates a dependency with the latest stable version resolved from Coursier.
     *
-    * For `sbt-plugin` and `compiler-plugin` configurations, the lookup uses the matching artifact shape directly. For
-    * other configurations (including the default `compile`), the lookup falls back to the sbt-plugin shape if the
-    * regular shape returns nothing — this preserves the historical behavior of `install org::name` where the user did
-    * not specify whether the artifact is a plugin.
+    * For `sbt-plugin`, the lookup uses the sbt-plugin artifact shape. For `compiler-plugin` with `isCross`, the lookup
+    * queries both the `CrossFull` and `Cross` shapes and picks the higher version — this finds the actual latest
+    * regardless of how the plugin is currently published (e.g. `kind-projector` switched from binary to per-patch
+    * around 0.13.0; `better-monadic-for` is binary-only). On a tie, `CrossFull` wins. For other configurations the
+    * lookup uses the regular shape and falls back to the sbt-plugin shape if the regular shape returns nothing.
+    *
+    * Returns the resolved dependency together with the [[com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind]]
+    * used to find it, so callers can write a matching `cross-version` annotation when the chosen kind differs from
+    * the default that the dependency's `(isCross, configuration)` pair would imply.
     */
   def withLatestStableVersion(
       organization: String,
       name: String,
       isCross: Boolean,
       configuration: String = "compile"
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency = {
-    val version = configuration match {
+  )(implicit versionFinder: VersionFinder, logger: Logger): (Dependency, ArtifactKind) = {
+    val (kind, version) = configuration match {
       case "sbt-plugin" =>
-        Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion)
+        ArtifactKind.SbtPlugin -> Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion)
+
+      case "compiler-plugin" if isCross =>
+        val full  = Utils.findLatestVersion(organization, name, ArtifactKind.CrossFull)(_.isStableVersion)
+        val cross = Utils.findLatestVersion(organization, name, ArtifactKind.Cross)(_.isStableVersion)
+
+        (full, cross) match {
+          case (Some(f), Some(c)) if Version.Numeric.NumericVersionOrdering.gteq(f, c) =>
+            ArtifactKind.CrossFull -> full
+          case (Some(_), Some(_)) => ArtifactKind.Cross     -> cross
+          case (Some(_), None)    => ArtifactKind.CrossFull -> full
+          case (None, _)          => ArtifactKind.Cross     -> cross
+        }
 
       case _ =>
         val regular = if (isCross) ArtifactKind.Cross else ArtifactKind.Java
-        Utils
-          .findLatestVersion(organization, name, regular)(_.isStableVersion)
-          .orElse(Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion))
+        Utils.findLatestVersion(organization, name, regular)(_.isStableVersion) match {
+          case found @ Some(_) => regular -> found
+          case None            =>
+            ArtifactKind.SbtPlugin ->
+              Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion)
+        }
     }
 
     version
-      .map(WithNumericVersion(organization, name, _, isCross, configuration))
+      .map(v => WithNumericVersion(organization, name, v, isCross, configuration) -> kind)
       .getOrElse(Utils.fail(s"Could not resolve $organization:$name"))
   }
 
@@ -267,11 +287,17 @@ object Dependency {
     *
     * Disambiguating `org::name:sbt-plugin` (no version, has config) from `org::name:1.0` (has version, no config) is
     * done by checking whether the captured token after the artifact name parses as a numeric or variable version.
+    *
+    * Returns the parsed dependency together with the
+    * [[com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind]] used to resolve a missing version (or the kind
+    * implied by an explicitly versioned line). Install paths use this to write a `cross-version` annotation when the
+    * chosen kind differs from the default that the dependency's `(isCross, configuration)` pair would imply (e.g.
+    * `kind-projector` resolves via `CrossFull`).
     */
   def parseIncludingMissingVersion(
       line: String,
       variableResolvers: Map[String, OrganizationArtifactName => ModuleID] = Map.empty
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency =
+  )(implicit versionFinder: VersionFinder, logger: Logger): (Dependency, ArtifactKind) =
     line match {
       case dependencyRegex(org, sep, name, null, _) => // scalafix:ok
         Dependency.withLatestStableVersion(org, name, isCross = sep === "::")
@@ -281,7 +307,8 @@ object Dependency {
         Dependency.withLatestStableVersion(org, name, isCross = sep === "::", configuration = possibleConfig)
 
       case other =>
-        Dependency.parse(other, variableResolvers)
+        val dep = Dependency.parse(other, variableResolvers)
+        dep -> ArtifactKind.fromDependency(dep)
     }
 
   /** Returns true if the given string looks like a numeric version (`1.2.3`, `=1.0`, `~2.x.y`) or a variable reference

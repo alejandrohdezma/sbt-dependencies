@@ -27,6 +27,7 @@ import sbt.{Keys => _, _}
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
+import com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind
 import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
@@ -408,14 +409,38 @@ class Commands {
       withDependenciesFile(state, group) { implicit versionFinder => _ => _ => (_, file) =>
         val dependencies = file.read(group, Map.empty)
 
-        val dep = Dependency.parseIncludingMissingVersion(dependency)
+        val (dep, kind) = Dependency.parseIncludingMissingVersion(dependency)
+
+        val additionalAnnotations = crossVersionAnnotation(dep, kind)
 
         logger.info(s"➕ [${group.name}] $YELLOW${dep.toLine}$RESET")
 
-        file.write(group, dependencies.filterNot(_.isSameArtifact(dep)) :+ dep)
+        file.write(
+          group,
+          dependencies.filterNot(_.isSameArtifact(dep)) :+ dep,
+          additionalAnnotations = additionalAnnotations
+        )
 
         state
       }
+    }
+
+  /** Builds the `additionalAnnotations` map for `file.write` when the resolved [[ArtifactKind]] differs from what the
+    * dependency's `(isCross, configuration)` pair would imply. The only case currently is `compiler-plugin` resolved
+    * via `CrossFull` (e.g. `kind-projector`), which needs a `cross-version = "full"` annotation so the entry resolves
+    * the right artifact at compile time.
+    */
+  private def crossVersionAnnotation(
+      dependency: Dependency,
+      kind: ArtifactKind
+  ): Map[AnnotatedDependency.NoteKey, AnnotatedDependency.AnnotationData] =
+    kind match {
+      case ArtifactKind.CrossFull =>
+        Map(
+          AnnotatedDependency.NoteKey(dependency.organization, dependency.name, dependency.configuration) ->
+            AnnotatedDependency.AnnotationData(None, intransitive = false, None, Some("full"))
+        )
+      case _ => Map.empty
     }
 
   /** Updates scalafmt version in `.scalafmt.conf` to the latest version. */
