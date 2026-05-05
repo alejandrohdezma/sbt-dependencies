@@ -9,6 +9,13 @@ assertTest := {
   val cats = deps.find(_.name == "cats-core").get
   assert(cats.configurations.isEmpty, s"cats-core should have no config, got ${cats.configurations}")
 
+  // kind-projector should be `plugin->default(compile)` (compiler-plugin)
+  val kindProjector = deps.find(_.name == "kind-projector").get
+  assert(
+    kindProjector.configurations == Some("plugin->default(compile)"),
+    s"kind-projector should be plugin->default(compile), got ${kindProjector.configurations}"
+  )
+
   // protobuf-java should be protobuf scope
   val protobuf = deps.find(_.name == "protobuf-java").get
   assert(protobuf.configurations == Some("protobuf"), s"protobuf-java should be protobuf, got ${protobuf.configurations}")
