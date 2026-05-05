@@ -7,6 +7,7 @@ export const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
 export const objectNoteFieldPattern = /note\s*=\s*"([^"]*)"/;
 export const objectIntransitiveFieldPattern = /intransitive\s*=\s*true/;
 export const objectScalaFilterFieldPattern = /scala-filter\s*=\s*"([^"]*)"/;
+export const objectCrossVersionFieldPattern = /cross-version\s*=\s*"([^"]*)"/;
 export const singleLineObjectPattern = /\{(?:[^}"{]*(?:"[^"]*")?)*\}/g;
 
 // ── Event types ─────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ export interface SingleLineObjectEvent {
   note: string | undefined;
   intransitive: boolean;
   scalaFilter: string | undefined;
+  crossVersion: string | undefined;
   rawLine: string;
   arrayKind: "simple" | "dependencies";
 }
@@ -81,7 +83,7 @@ export interface MultiLineObjectFieldEvent {
   lineIndex: number;
   rawLine: string;
   effectiveLine: string;
-  field: "dependency" | "note" | "intransitive" | "scala-filter" | null;
+  field: "dependency" | "note" | "intransitive" | "scala-filter" | "cross-version" | null;
   fieldValue: string | undefined;
   fieldValueStartCol: number | undefined;
 }
@@ -101,6 +103,8 @@ export interface MultiLineObjectEndEvent {
   hasIntransitive: boolean;
   hasScalaFilter: boolean;
   scalaFilterValue: string | undefined;
+  hasCrossVersion: boolean;
+  crossVersionValue: string | undefined;
   objectStartLine: number;
   arrayKind: "simple" | "dependencies";
 }
@@ -164,7 +168,7 @@ function stripQuotedStrings(line: string): string {
 function detectField(
   effectiveLine: string,
   rawLine: string
-): { field: "dependency" | "note" | "intransitive" | "scala-filter" | null; fieldValue: string | undefined; fieldValueStartCol: number | undefined } {
+): { field: "dependency" | "note" | "intransitive" | "scala-filter" | "cross-version" | null; fieldValue: string | undefined; fieldValueStartCol: number | undefined } {
   const depMatch = objectDepFieldPattern.exec(rawLine);
   if (depMatch) {
     return {
@@ -183,6 +187,11 @@ function detectField(
   const sfMatch = objectScalaFilterFieldPattern.exec(effectiveLine);
   if (sfMatch) {
     return { field: "scala-filter", fieldValue: sfMatch[1], fieldValueStartCol: undefined };
+  }
+  const cvMatch = objectCrossVersionFieldPattern.exec(effectiveLine);
+  if (cvMatch) {
+    const cvStartCol = cvMatch.index + cvMatch[0].indexOf('"') + 1;
+    return { field: "cross-version", fieldValue: cvMatch[1], fieldValueStartCol: cvStartCol };
   }
   return { field: null, fieldValue: undefined, fieldValueStartCol: undefined };
 }
@@ -208,6 +217,8 @@ export function* walkDocument(lines: string[]): Generator<DocumentEvent> {
   let objectHasIntransitive = false;
   let objectHasScalaFilter = false;
   let objectScalaFilterValue: string | undefined;
+  let objectHasCrossVersion = false;
+  let objectCrossVersionValue: string | undefined;
 
   function resetObjectTracking(lineIndex: number) {
     objectLines = [];
@@ -221,6 +232,8 @@ export function* walkDocument(lines: string[]): Generator<DocumentEvent> {
     objectHasIntransitive = false;
     objectHasScalaFilter = false;
     objectScalaFilterValue = undefined;
+    objectHasCrossVersion = false;
+    objectCrossVersionValue = undefined;
   }
 
   function trackObjectField(effectiveLine: string, rawLine: string, lineIndex: number) {
@@ -244,6 +257,11 @@ export function* walkDocument(lines: string[]): Generator<DocumentEvent> {
     if (sfMatch) {
       objectHasScalaFilter = true;
       objectScalaFilterValue = sfMatch[1];
+    }
+    const cvMatch = objectCrossVersionFieldPattern.exec(effectiveLine);
+    if (cvMatch) {
+      objectHasCrossVersion = true;
+      objectCrossVersionValue = cvMatch[1];
     }
   }
 
@@ -293,6 +311,8 @@ export function* walkDocument(lines: string[]): Generator<DocumentEvent> {
           hasIntransitive: objectHasIntransitive,
           hasScalaFilter: objectHasScalaFilter,
           scalaFilterValue: objectScalaFilterValue,
+          hasCrossVersion: objectHasCrossVersion,
+          crossVersionValue: objectCrossVersionValue,
           objectStartLine,
           arrayKind: arrayKind(),
         };
@@ -445,6 +465,7 @@ function* emitDependenciesOnLine(
     const depMatch = objectDepFieldPattern.exec(objectText);
     const noteMatch = objectNoteFieldPattern.exec(objectText);
     const sfMatch = objectScalaFilterFieldPattern.exec(objectText);
+    const cvMatch = objectCrossVersionFieldPattern.exec(objectText);
 
     let dependencyStartCol: number | undefined;
     if (depMatch) {
@@ -461,6 +482,7 @@ function* emitDependenciesOnLine(
       note: noteMatch?.[1],
       intransitive: objectIntransitiveFieldPattern.test(objectText),
       scalaFilter: sfMatch?.[1],
+      crossVersion: cvMatch?.[1],
       rawLine,
       arrayKind: ak,
     };
