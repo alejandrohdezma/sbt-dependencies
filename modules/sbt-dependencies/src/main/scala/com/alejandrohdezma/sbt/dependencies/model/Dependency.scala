@@ -223,8 +223,8 @@ object Dependency {
     * lookup uses the regular shape and falls back to the sbt-plugin shape if the regular shape returns nothing.
     *
     * Returns the resolved dependency together with the [[com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind]]
-    * used to find it, so callers can write a matching `cross-version` annotation when the chosen kind differs from
-    * the default that the dependency's `(isCross, configuration)` pair would imply.
+    * used to find it, so callers can write a matching `cross-version` annotation when the chosen kind differs from the
+    * default that the dependency's `(isCross, configuration)` pair would imply.
     */
   def withLatestStableVersion(
       organization: String,
@@ -288,11 +288,10 @@ object Dependency {
     * Disambiguating `org::name:sbt-plugin` (no version, has config) from `org::name:1.0` (has version, no config) is
     * done by checking whether the captured token after the artifact name parses as a numeric or variable version.
     *
-    * Returns the parsed dependency together with the
-    * [[com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind]] used to resolve a missing version (or the kind
-    * implied by an explicitly versioned line). Install paths use this to write a `cross-version` annotation when the
-    * chosen kind differs from the default that the dependency's `(isCross, configuration)` pair would imply (e.g.
-    * `kind-projector` resolves via `CrossFull`).
+    * Returns the parsed dependency together with the [[com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind]] used
+    * to resolve a missing version (or the kind implied by an explicitly versioned line). Install paths use this to
+    * write a `cross-version` annotation when the chosen kind differs from the default that the dependency's
+    * `(isCross, configuration)` pair would imply (e.g. `kind-projector` resolves via `CrossFull`).
     */
   def parseIncludingMissingVersion(
       line: String,
