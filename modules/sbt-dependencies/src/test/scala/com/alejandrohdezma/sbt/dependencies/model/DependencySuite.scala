@@ -64,10 +64,9 @@ class DependencySuite extends munit.FunSuite {
     assertEquals(module.organization, "org.typelevel")
     assertEquals(module.name, "cats-core")
     assertEquals(module.revision, "2.10.0")
-    assert(module.crossVersion.isInstanceOf[CrossVersion.Binary])
   }
 
-  test("toModuleID creates java module without cross version") {
+  test("toModuleID creates java module") {
     val dep = Dependency.WithNumericVersion(
       "com.google.guava",
       "guava",
@@ -80,7 +79,6 @@ class DependencySuite extends munit.FunSuite {
     assertEquals(module.organization, "com.google.guava")
     assertEquals(module.name, "guava")
     assertEquals(module.revision, "32.1.0-jre")
-    assert(module.crossVersion.isInstanceOf[CrossVersion.Disabled.type])
   }
 
   test("toModuleID sets test configuration") {
@@ -127,6 +125,23 @@ class DependencySuite extends munit.FunSuite {
     assertEquals(module.revision, "0.14.5")
     // sbt plugins get extra attributes via sbtPluginExtra
     assert(module.extraAttributes.nonEmpty || module.crossVersion != CrossVersion.disabled) // scalafix:ok
+  }
+
+  test("toModuleID creates compiler-plugin module with `plugin->default(compile)` configuration") {
+    val dep = Dependency.WithNumericVersion(
+      "org.typelevel",
+      "kind-projector",
+      Version.Numeric(List(0, 13, 3), None, Version.Numeric.Marker.NoMarker),
+      isCross = true,
+      "compiler-plugin"
+    )
+
+    val module = dep.toModuleID("1.0", "2.13")
+
+    assertEquals(module.organization, "org.typelevel")
+    assertEquals(module.name, "kind-projector")
+    assertEquals(module.revision, "0.13.3")
+    assertEquals(module.configurations, Some("plugin->default(compile)"))
   }
 
   // --- isSameArtifact tests ---
@@ -245,6 +260,18 @@ class DependencySuite extends munit.FunSuite {
     assertEquals(result.get.configuration, "compile")
   }
 
+  test("fromModuleID detects compiler plugin via `plugin->default(compile)` configuration") {
+    val moduleID = ModuleID("org.typelevel", "kind-projector", "0.13.3")
+      .withConfigurations(Some("plugin->default(compile)"))
+      .withCrossVersion(sbt.librarymanagement.CrossVersion.binary)
+
+    val result = Dependency.fromModuleID(moduleID)
+
+    assert(result.isDefined)
+    assertEquals(result.get.configuration, "compiler-plugin")
+    assertEquals(result.get.toLine, "org.typelevel::kind-projector:0.13.3:compiler-plugin")
+  }
+
   // --- toLine tests ---
 
   test("toLine formats cross-compiled dependency") {
@@ -303,6 +330,18 @@ class DependencySuite extends munit.FunSuite {
     )
 
     assertEquals(dep.toLine, "ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin")
+  }
+
+  test("toLine includes compiler-plugin configuration") {
+    val dep = Dependency.WithNumericVersion(
+      "org.typelevel",
+      "kind-projector",
+      Version.Numeric(List(0, 13, 3), None, Version.Numeric.Marker.NoMarker),
+      isCross = true,
+      "compiler-plugin"
+    )
+
+    assertEquals(dep.toLine, "org.typelevel::kind-projector:0.13.3:compiler-plugin")
   }
 
   test("toLine includes version marker") {

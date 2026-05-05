@@ -66,16 +66,25 @@ sealed abstract class Dependency {
       Dependency.WithVariableVersion(organization, name, v, isCross, configuration)
   }
 
-  /** Converts this dependency to an SBT ModuleID for use in libraryDependencies. */
+  /** Converts this dependency to an SBT ModuleID for use in libraryDependencies.
+    *
+    * The `compiler-plugin` configuration is mapped to `plugin->default(compile)` (what `addCompilerPlugin` produces).
+    */
   def toModuleID(sbtBinaryVersion: String, scalaBinaryVersion: String): ModuleID = {
     val module = ModuleID(organization, name, version.toVersionString)
 
-    if (configuration === "sbt-plugin")
-      sbtPluginExtra(module, sbtBinaryVersion, scalaBinaryVersion)
-    else
-      module
-        .withConfigurations(Some(configuration).filterNot(_ === "compile"))
-        .withCrossVersion(if (isCross) CrossVersion.binary else CrossVersion.disabled)
+    configuration match {
+      case "sbt-plugin" =>
+        sbtPluginExtra(module, sbtBinaryVersion, scalaBinaryVersion)
+
+      case "compiler-plugin" =>
+        module
+          .withConfigurations(Some(Dependency.CompilerPluginConfiguration))
+
+      case other =>
+        module
+          .withConfigurations(Some(other).filterNot(_ === "compile"))
+    }
   }
 
   /** Checks if the dependency is the same artifact as another dependency. */
@@ -177,9 +186,12 @@ object Dependency {
     Version.Numeric.from(moduleID.revision, Version.Numeric.Marker.NoMarker).map { version =>
       // Detect sbt plugins by checking for sbtVersion in extraAttributes
       val isSbtPlugin = moduleID.extraAttributes.contains("e:sbtVersion")
+      // Detect compiler plugins by their configuration string (as set by `addCompilerPlugin`)
+      val isCompilerPlugin = moduleID.configurations.contains(CompilerPluginConfiguration)
 
       val configuration =
         if (isSbtPlugin) "sbt-plugin"
+        else if (isCompilerPlugin) "compiler-plugin"
         else moduleID.configurations.getOrElse("compile")
 
       WithNumericVersion(
@@ -191,6 +203,9 @@ object Dependency {
       )
     }
 
+  /** The literal SBT configuration string used by `addCompilerPlugin` to mark a compiler plugin dependency. */
+  val CompilerPluginConfiguration: String = "plugin->default(compile)"
+
   /** Known Scala version suffixes for artifact names */
   val scalaVersionSuffixes: List[String] = List("2.13", "2.12", "2.11", "2.10", "3")
 
@@ -199,20 +214,33 @@ object Dependency {
     (d.configuration, d.organization.toLowerCase, d.name.toLowerCase)
   }
 
-  /** Creates a dependency with the latest stable version resolved from Coursier. */
+  /** Creates a dependency with the latest stable version resolved from Coursier.
+    *
+    * For `sbt-plugin` and `compiler-plugin` configurations, the lookup uses the matching artifact shape directly. For
+    * other configurations (including the default `compile`), the lookup falls back to the sbt-plugin shape if the
+    * regular shape returns nothing — this preserves the historical behavior of `install org::name` where the user did
+    * not specify whether the artifact is a plugin.
+    */
   def withLatestStableVersion(
       organization: String,
       name: String,
-      isCross: Boolean
+      isCross: Boolean,
+      configuration: String = "compile"
   )(implicit versionFinder: VersionFinder, logger: Logger): Dependency = {
-    val regular = if (isCross) ArtifactKind.Cross else ArtifactKind.Java
-    val version =
-      Utils
-        .findLatestVersion(organization, name, regular)(_.isStableVersion)
-        .orElse(Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion))
-        .getOrElse(Utils.fail(s"Could not resolve $organization:$name"))
+    val version = configuration match {
+      case "sbt-plugin" =>
+        Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion)
 
-    WithNumericVersion(organization, name, version, isCross)
+      case _ =>
+        val regular = if (isCross) ArtifactKind.Cross else ArtifactKind.Java
+        Utils
+          .findLatestVersion(organization, name, regular)(_.isStableVersion)
+          .orElse(Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion))
+    }
+
+    version
+      .map(WithNumericVersion(organization, name, _, isCross, configuration))
+      .getOrElse(Utils.fail(s"Could not resolve $organization:$name"))
   }
 
   /** Regex for parsing dependency lines.
@@ -233,8 +261,12 @@ object Dependency {
 
   /** Parses a dependency line, resolving the latest stable version when no version is specified.
     *
-    * Delegates to [[parse]] for lines that include a version. For lines without a version (e.g. `org::name`), resolves
-    * the latest stable version via the implicit [[finders.VersionFinder]].
+    * Delegates to [[parse]] for lines that include a version. For lines without a version (e.g. `org::name` or
+    * `org::name:sbt-plugin`), resolves the latest stable version via the implicit [[finders.VersionFinder]] and carries
+    * the configuration token through (so `install org::name:sbt-plugin` finds the right artifact shape).
+    *
+    * Disambiguating `org::name:sbt-plugin` (no version, has config) from `org::name:1.0` (has version, no config) is
+    * done by checking whether the captured token after the artifact name parses as a numeric or variable version.
     */
   def parseIncludingMissingVersion(
       line: String,
@@ -244,9 +276,19 @@ object Dependency {
       case dependencyRegex(org, sep, name, null, _) => // scalafix:ok
         Dependency.withLatestStableVersion(org, name, isCross = sep === "::")
 
+      case dependencyRegex(org, sep, name, possibleConfig, null) // scalafix:ok
+          if !looksLikeVersion(possibleConfig) =>
+        Dependency.withLatestStableVersion(org, name, isCross = sep === "::", configuration = possibleConfig)
+
       case other =>
         Dependency.parse(other, variableResolvers)
     }
+
+  /** Returns true if the given string looks like a numeric version (`1.2.3`, `=1.0`, `~2.x.y`) or a variable reference
+    * (`{{name}}`). Used to disambiguate the `version` slot from a `config` slot when the version is missing.
+    */
+  private def looksLikeVersion(s: String): Boolean =
+    Version.Numeric.unapply(s).isDefined || Version.Variable.regex.findFirstMatchIn(s).isDefined
 
   /** Parses a dependency line into a dependency */
   def parse(

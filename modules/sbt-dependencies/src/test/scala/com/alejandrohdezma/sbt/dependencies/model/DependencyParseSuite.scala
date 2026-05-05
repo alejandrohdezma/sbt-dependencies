@@ -66,6 +66,34 @@ class DependencyParseSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  test("parseIncludingMissingVersion carries compiler-plugin config when version is missing") {
+    val result = Dependency.parseIncludingMissingVersion("org.typelevel::kind-projector:compiler-plugin")
+
+    val expected = Dependency.WithNumericVersion(
+      organization = "org.typelevel",
+      name = "kind-projector",
+      version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
+      isCross = true,
+      configuration = "compiler-plugin"
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("parseIncludingMissingVersion carries sbt-plugin config when version is missing") {
+    val result = Dependency.parseIncludingMissingVersion("ch.epfl.scala:sbt-scalafix:sbt-plugin")
+
+    val expected = Dependency.WithNumericVersion(
+      organization = "ch.epfl.scala",
+      name = "sbt-scalafix",
+      version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
+      isCross = false,
+      configuration = "sbt-plugin"
+    )
+
+    assertEquals(result, expected)
+  }
+
   test("parse java dependency with version") {
     val result = Dependency.parse("com.google.guava:guava:32.1.0-jre")
 
