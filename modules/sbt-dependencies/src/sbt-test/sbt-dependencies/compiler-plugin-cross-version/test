@@ -1,0 +1,6 @@
+# Verify cross-version annotation overrides the default CrossVersion
+> assertTest
+
+# Format and verify the annotation round-trips
+> formatDependenciesFile
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected
