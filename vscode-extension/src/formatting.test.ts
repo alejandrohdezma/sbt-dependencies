@@ -558,6 +558,51 @@ describe("formatDocument", () => {
     ].join("\n") + "\n");
   });
 
+  it("preserves cross-version in single-line object", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", cross-version = "full" }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", cross-version = "full" }',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("normalizes multi-line cross-version object to single-line when short enough", () => {
+    const lines = [
+      'my-group = [',
+      '  {',
+      '    dependency = "org::kp:0.13:compiler-plugin"',
+      '    cross-version = "full"',
+      '  }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org::kp:0.13:compiler-plugin", cross-version = "full" }',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("preserves note and cross-version together", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org::kp:0.13:compiler-plugin", note = "reason", cross-version = "full" }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org::kp:0.13:compiler-plugin", note = "reason", cross-version = "full" }',
+      ']',
+    ].join("\n") + "\n");
+  });
+
   it("sorts shorter org prefix before longer org with same prefix", () => {
     const lines = [
       'my-group = [',

@@ -1,4 +1,4 @@
-import { walkDocument, objectDepFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern } from "./parser";
+import { walkDocument, objectDepFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern, objectCrossVersionFieldPattern } from "./parser";
 import { groupSortKey } from "./groups";
 
 /** Regex mirroring Scala-side `Dependency.dependencyRegex`. */
@@ -177,9 +177,11 @@ function extractDependencyEntryFromObject(
   const isIntransitive = objectIntransitiveFieldPattern.test(objectText);
   const scalaFilterMatch = objectScalaFilterFieldPattern.exec(objectText);
   const scalaFilter = scalaFilterMatch?.[1];
+  const crossVersionMatch = objectCrossVersionFieldPattern.exec(objectText);
+  const crossVersion = crossVersionMatch?.[1];
 
-  if (note || isIntransitive || scalaFilter) {
-    return formatObjectFields(depString, note, isIntransitive, scalaFilter, indent);
+  if (note || isIntransitive || scalaFilter || crossVersion) {
+    return formatObjectFields(depString, note, isIntransitive, scalaFilter, crossVersion, indent);
   } else {
     return { depLine: `${indent}${objectText.trim()}`, sortKey: buildSortKey(depString) };
   }
@@ -203,16 +205,19 @@ function buildObjectEntry(
   let note: string | undefined;
   let isIntransitive = false;
   let scalaFilter: string | undefined;
+  let crossVersion: string | undefined;
   for (const l of objectLines) {
     const noteMatch = /note\s*=\s*"([^"]*)"/.exec(l);
     if (noteMatch) note = noteMatch[1];
     if (objectIntransitiveFieldPattern.test(l)) isIntransitive = true;
     const scalaFilterMatch = objectScalaFilterFieldPattern.exec(l);
     if (scalaFilterMatch) scalaFilter = scalaFilterMatch[1];
+    const crossVersionMatch = objectCrossVersionFieldPattern.exec(l);
+    if (crossVersionMatch) crossVersion = crossVersionMatch[1];
   }
 
-  if (note || isIntransitive || scalaFilter) {
-    return formatObjectFields(depString, note, isIntransitive, scalaFilter, indent);
+  if (note || isIntransitive || scalaFilter || crossVersion) {
+    return formatObjectFields(depString, note, isIntransitive, scalaFilter, crossVersion, indent);
   }
 
   return {
@@ -230,12 +235,14 @@ function formatObjectFields(
   note: string | undefined,
   isIntransitive: boolean,
   scalaFilter: string | undefined,
+  crossVersion: string | undefined,
   indent: string
 ): DependencyEntry {
   const noteField = note ? `note = "${note}"` : undefined;
   const intransitiveField = isIntransitive ? "intransitive = true" : undefined;
   const scalaFilterField = scalaFilter ? `scala-filter = "${scalaFilter}"` : undefined;
-  const fields = [noteField, intransitiveField, scalaFilterField].filter(Boolean).join(", ");
+  const crossVersionField = crossVersion ? `cross-version = "${crossVersion}"` : undefined;
+  const fields = [noteField, intransitiveField, scalaFilterField, crossVersionField].filter(Boolean).join(", ");
 
   const singleLine = `${indent}{ dependency = "${depString}", ${fields} }`;
   if (singleLine.length <= maxObjectLineLength) {
@@ -244,8 +251,9 @@ function formatObjectFields(
     const noteSection = note ? `\n${indent}  note = "${note}"` : "";
     const intransitiveSection = isIntransitive ? `\n${indent}  intransitive = true` : "";
     const scalaFilterSection = scalaFilter ? `\n${indent}  scala-filter = "${scalaFilter}"` : "";
+    const crossVersionSection = crossVersion ? `\n${indent}  cross-version = "${crossVersion}"` : "";
     return {
-      depLine: `${indent}{\n${indent}  dependency = "${depString}"${noteSection}${intransitiveSection}${scalaFilterSection}\n${indent}}`,
+      depLine: `${indent}{\n${indent}  dependency = "${depString}"${noteSection}${intransitiveSection}${scalaFilterSection}${crossVersionSection}\n${indent}}`,
       sortKey: buildSortKey(depString),
     };
   }

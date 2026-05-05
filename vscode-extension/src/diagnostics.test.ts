@@ -298,7 +298,7 @@ describe("parseDiagnostics", () => {
       ];
       const result = parseDiagnostics(lines);
       expect(result).toHaveLength(1);
-      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', or 'scala-filter' field");
+      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field");
     });
 
     it("returns no diagnostics for single-line object with intransitive = true", () => {
@@ -389,7 +389,7 @@ describe("parseDiagnostics", () => {
       ];
       const result = parseDiagnostics(lines);
       expect(result).toHaveLength(1);
-      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', or 'scala-filter' field");
+      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field");
     });
 
     it("returns no diagnostics for multi-line object with intransitive = true", () => {
@@ -415,6 +415,64 @@ describe("parseDiagnostics", () => {
         ']',
       ];
       expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("returns no diagnostics for single-line object with only cross-version", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", cross-version = "full" }',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("returns no diagnostics for multi-line object with only cross-version", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin"',
+        '    cross-version = "full"',
+        '  }',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("accepts all legal cross-version values", () => {
+      for (const value of ["full", "binary", "patch", "disabled"]) {
+        const lines = [
+          'my-group = [',
+          `  { dependency = "org::art:1.0", cross-version = "${value}" }`,
+          ']',
+        ];
+        expect(parseDiagnostics(lines)).toEqual([]);
+      }
+    });
+
+    it("returns error for invalid cross-version value in single-line object", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org::art:1.0", cross-version = "bogus" }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe('Invalid cross-version value: must be one of "full", "binary", "patch", "disabled"');
+      expect(result[0].severity).toBe("error");
+    });
+
+    it("returns error for invalid cross-version value in multi-line object", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "org::art:1.0"',
+        '    cross-version = "bogus"',
+        '  }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe('Invalid cross-version value: must be one of "full", "binary", "patch", "disabled"');
     });
   });
 

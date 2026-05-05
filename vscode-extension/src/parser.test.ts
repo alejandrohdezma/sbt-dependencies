@@ -181,6 +181,15 @@ describe("walkDocument", () => {
       expect(objs[0].scalaFilter).toBe("2.13");
     });
 
+    it("detects cross-version field", () => {
+      const objs = eventsOfType(
+        `group = [\n  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", cross-version = "full" }\n]`,
+        "single-line-object"
+      );
+      expect(objs).toHaveLength(1);
+      expect(objs[0].crossVersion).toBe("full");
+    });
+
     it("calculates dependencyStartCol correctly", () => {
       const objs = eventsOfType(
         `group = [\n  { dependency = "org:art:1.0", note = "reason" }\n]`,
@@ -249,6 +258,19 @@ describe("walkDocument", () => {
         "multi-line-object-field"
       );
       expect(fields[0]).toMatchObject({ field: "dependency", lineIndex: 1 });
+    });
+
+    it("aggregates cross-version field in end event", () => {
+      const ends = eventsOfType(
+        `group = [\n  {\n    dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin"\n    cross-version = "full"\n  }\n]`,
+        "multi-line-object-end"
+      );
+      expect(ends).toHaveLength(1);
+      expect(ends[0]).toMatchObject({
+        hasDependency: true,
+        hasCrossVersion: true,
+        crossVersionValue: "full",
+      });
     });
   });
 

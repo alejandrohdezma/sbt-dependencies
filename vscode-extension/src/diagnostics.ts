@@ -1,4 +1,8 @@
-import { walkDocument, objectDepFieldPattern, objectNoteFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern } from "./parser";
+import { walkDocument, objectDepFieldPattern, objectNoteFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern, objectCrossVersionFieldPattern } from "./parser";
+
+const legalCrossVersionValues = ["full", "binary", "patch", "disabled"] as const;
+const missingAnnotationMessage = "Object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field";
+const invalidCrossVersionMessage = `Invalid cross-version value: must be one of ${legalCrossVersionValues.map(v => `"${v}"`).join(", ")}`;
 
 export interface DiagnosticResult {
   message: string;
@@ -78,6 +82,8 @@ function validateObjectEntry(
   const hasNote = objectNoteFieldPattern.test(objectText);
   const hasIntransitive = objectIntransitiveFieldPattern.test(objectText);
   const hasScalaFilter = objectScalaFilterFieldPattern.test(objectText);
+  const cvMatch = objectCrossVersionFieldPattern.exec(objectText);
+  const hasCrossVersion = cvMatch !== null;
 
   if (!depMatch) {
     diagnostics.push({
@@ -89,14 +95,24 @@ function validateObjectEntry(
     return { diagnostics, depKey };
   }
 
-  if (!hasNote && !hasIntransitive && !hasScalaFilter) {
+  if (!hasNote && !hasIntransitive && !hasScalaFilter && !hasCrossVersion) {
     diagnostics.push({
-      message: "Object entry must have a 'note', 'intransitive', or 'scala-filter' field",
+      message: missingAnnotationMessage,
       severity: "error",
       source: "sbt-dependencies",
       range: { startLine: lineIndex, startCol: objectStartCol, endLine: lineIndex, endCol: objectStartCol + objectText.length },
     });
     return { diagnostics, depKey };
+  }
+
+  if (cvMatch && !(legalCrossVersionValues as readonly string[]).includes(cvMatch[1])) {
+    const valueStartCol = objectStartCol + cvMatch.index + cvMatch[0].indexOf('"') + 1;
+    diagnostics.push({
+      message: invalidCrossVersionMessage,
+      severity: "error",
+      source: "sbt-dependencies",
+      range: { startLine: lineIndex, startCol: valueStartCol, endLine: lineIndex, endCol: valueStartCol + cvMatch[1].length },
+    });
   }
 
   const depContent = depMatch[1];
@@ -195,6 +211,19 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
             }
           }
         }
+        if (
+          event.field === "cross-version" &&
+          event.fieldValue !== undefined &&
+          event.fieldValueStartCol !== undefined &&
+          !(legalCrossVersionValues as readonly string[]).includes(event.fieldValue)
+        ) {
+          diagnostics.push({
+            message: invalidCrossVersionMessage,
+            severity: "error",
+            source: "sbt-dependencies",
+            range: { startLine: event.lineIndex, startCol: event.fieldValueStartCol, endLine: event.lineIndex, endCol: event.fieldValueStartCol + event.fieldValue.length },
+          });
+        }
         break;
       }
       case "multi-line-object-end": {
@@ -205,9 +234,9 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
             source: "sbt-dependencies",
             range: { startLine: event.objectStartLine, startCol: 0, endLine: event.lineIndex, endCol: event.rawLine.length },
           });
-        } else if (!event.hasNote && !event.hasIntransitive && !event.hasScalaFilter) {
+        } else if (!event.hasNote && !event.hasIntransitive && !event.hasScalaFilter && !event.hasCrossVersion) {
           diagnostics.push({
-            message: "Object entry must have a 'note', 'intransitive', or 'scala-filter' field",
+            message: missingAnnotationMessage,
             severity: "error",
             source: "sbt-dependencies",
             range: { startLine: event.objectStartLine, startCol: 0, endLine: event.lineIndex, endCol: event.rawLine.length },
