@@ -1,0 +1,3 @@
+# Verify install resolves the latest version when only the compiler-plugin keyword is given (no explicit version)
+> myproject/install org.typelevel::kind-projector:compiler-plugin
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

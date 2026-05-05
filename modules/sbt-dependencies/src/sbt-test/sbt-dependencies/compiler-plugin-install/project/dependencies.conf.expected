@@ -1,0 +1,6 @@
+myproject {
+  scala-version = "2.13.16"
+  dependencies = [
+    "org.typelevel::kind-projector:0.13.4:compiler-plugin"
+  ]
+}
