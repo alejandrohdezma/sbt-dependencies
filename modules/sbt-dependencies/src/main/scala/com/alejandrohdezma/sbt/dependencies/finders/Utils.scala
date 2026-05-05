@@ -26,18 +26,20 @@ import scala.concurrent.duration.Duration
 
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.io.AnnotatedDependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
-import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** Utility functions for dependency resolution. */
 object Utils {
 
-  /** Resolves the latest version for each dependency in parallel, logging updates.
+  /** Resolves the latest version for each annotated dependency in parallel, logging updates.
     *
-    * Returns the list of dependencies with their versions updated where applicable.
+    * Returns the list of dependencies with their versions updated where applicable. The annotation context (notably the
+    * `cross-version` annotation) is used to drive the [[ArtifactKind]] for the lookup, so per-patch-published artifacts
+    * (`name_2.13.16`) and per-binary-published ones (`name_2.13`) are routed to the right Maven coordinate.
     */
-  def resolveLatestVersions(deps: List[Dependency], parallelism: Int)(implicit
+  def resolveLatestVersions(deps: List[AnnotatedDependency.Resolved], parallelism: Int)(implicit
       vf: VersionFinder,
       mf: MigrationFinder,
       logger: Logger
@@ -46,7 +48,8 @@ object Utils {
 
     implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
-    val futures = deps.map(dep => Future((dep, dep.findLatestVersion)))
+    val futures =
+      deps.map(resolved => Future((resolved.dependency, findLatestVersion(resolved.dependency, resolved.kind))))
 
     val updated = futures.map { future =>
       val (dependency, message) = Await.result(future, Duration.Inf) match {
@@ -122,26 +125,34 @@ object Utils {
       versionFinder: VersionFinder,
       migrationFinder: MigrationFinder,
       logger: Logger
-  ): Dependency.WithNumericVersion = {
-    val isSbtPlugin = dependency.configuration === "sbt-plugin"
+  ): Dependency.WithNumericVersion =
+    findLatestVersion(dependency, ArtifactKind.fromDependency(dependency))
 
+  /** Same as the single-argument `findLatestVersion` but with an explicit `ArtifactKind` (e.g. derived from a
+    * [[com.alejandrohdezma.sbt.dependencies.io.AnnotatedDependency.Resolved]]'s annotation context).
+    */
+  def findLatestVersion(
+      dependency: Dependency,
+      kind: ArtifactKind
+  )(implicit
+      versionFinder: VersionFinder,
+      migrationFinder: MigrationFinder,
+      logger: Logger
+  ): Dependency.WithNumericVersion = {
     (dependency.version, migrationFinder.findMigration(dependency)) match {
       case (variable: Dependency.Version.Variable, _) =>
-        findLatestVersion(dependency.withVersion(variable.resolved))
+        findLatestVersion(dependency.withVersion(variable.resolved), kind)
 
       case (numeric: Dependency.Version.Numeric, _) if numeric.marker.isExact =>
         Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric, dependency.isCross,
           dependency.configuration)
 
       case (numeric: Dependency.Version.Numeric, Some(migration)) =>
-        val bestOld = findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
-          numeric.isValidCandidate
-        }
+        val bestOld =
+          findLatestVersion(dependency.organization, dependency.name, kind)(numeric.isValidCandidate)
 
         val bestNew =
-          findLatestVersion(migration.groupIdAfter, migration.artifactIdAfter, dependency.isCross, isSbtPlugin) {
-            numeric.isValidCandidate
-          }
+          findLatestVersion(migration.groupIdAfter, migration.artifactIdAfter, kind)(numeric.isValidCandidate)
 
         val current = Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric,
           dependency.isCross, dependency.configuration)
@@ -163,9 +174,7 @@ object Utils {
 
       case (numeric: Dependency.Version.Numeric, None) =>
         Utils
-          .findLatestVersion(dependency.organization, dependency.name, dependency.isCross, isSbtPlugin) {
-            numeric.isValidCandidate
-          }
+          .findLatestVersion(dependency.organization, dependency.name, kind)(numeric.isValidCandidate)
           .map { latest =>
             Dependency.WithNumericVersion(dependency.organization, dependency.name,
               latest.copy(marker = numeric.marker), dependency.isCross, dependency.configuration)
@@ -186,20 +195,18 @@ object Utils {
     *   The organization/groupId.
     * @param name
     *   The artifact name.
-    * @param isCross
-    *   Whether the dependency is cross-compiled for Scala.
-    * @param isSbtPlugin
-    *   Whether the dependency is an SBT plugin.
+    * @param kind
+    *   The shape under which the artifact is published — see [[ArtifactKind]].
     * @param validate
     *   Function to filter valid candidate versions.
     * @return
     *   The latest valid version.
     */
-  def findLatestVersion(organization: String, name: String, isCross: Boolean, isSbtPlugin: Boolean)(
+  def findLatestVersion(organization: String, name: String, kind: ArtifactKind)(
       validate: Dependency.Version.Numeric => Boolean
   )(implicit versionFinder: VersionFinder): Option[Dependency.Version.Numeric] =
     versionFinder
-      .findVersions(organization, name, isCross, isSbtPlugin)
+      .findVersions(organization, name, kind)
       .filter(validate)
       .sorted
       .reverse

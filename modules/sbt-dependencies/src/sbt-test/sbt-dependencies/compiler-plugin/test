@@ -1,0 +1,2 @@
+# Verify a compiler-plugin entry produces the right ModuleID shape
+> assertTest

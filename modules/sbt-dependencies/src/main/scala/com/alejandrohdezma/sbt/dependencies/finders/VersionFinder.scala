@@ -24,6 +24,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util.chaining._
 
+import sbt.librarymanagement.CrossVersion
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
@@ -39,19 +40,12 @@ trait VersionFinder {
     *   The organization/groupId.
     * @param name
     *   The artifact name.
-    * @param isCross
-    *   Whether the dependency is cross-compiled for Scala.
-    * @param isSbtPlugin
-    *   Whether the dependency is an SBT plugin.
+    * @param kind
+    *   The shape under which the artifact is published.
     * @return
     *   List of available versions.
     */
-  def findVersions(
-      organization: String,
-      name: String,
-      isCross: Boolean,
-      isSbtPlugin: Boolean
-  ): List[Dependency.Version.Numeric]
+  def findVersions(organization: String, name: String, kind: ArtifactKind): List[Dependency.Version.Numeric]
 
 }
 
@@ -101,34 +95,45 @@ object VersionFinder {
 
   /** Creates a VersionFinder that uses Coursier to resolve versions.
     *
-    * @param scalaBinaryVersion
-    *   The Scala binary version for cross-compiled dependencies.
+    * @param scalaVersion
+    *   The full Scala version (e.g. `"2.13.16"`). Used as-is for compiler-plugin queries (which are published per Scala
+    *   patch release) and reduced to the binary version (e.g. `"2.13"`) for regular cross-compiled dependencies.
     * @param timeout
     *   Timeout in seconds for Coursier version resolution requests.
     * @param repositories
     *   Additional Coursier repositories to query for versions, on top of Coursier defaults (Maven Central + Ivy2
     *   local).
     */
-  def fromCoursier(scalaBinaryVersion: String, timeout: Int = 60, repositories: Seq[Repository])(implicit
+  def fromCoursier(scalaVersion: String, timeout: Int = 60, repositories: Seq[Repository])(implicit
       logger: Logger
   ): VersionFinder = {
-    case (organization, name, true, _) =>
-      findVersionsUsingCoursier(
-        Module(Organization(organization), ModuleName(s"${name}_$scalaBinaryVersion")),
-        repositories,
-        timeout
-      )
-    case (organization, name, _, true) =>
-      val binaryModule =
-        Module(Organization(organization), ModuleName(s"${name}_2.12_1.0"))
+    val scalaBinaryVersion = CrossVersion.binaryScalaVersion(scalaVersion)
 
-      val moduleWithAttributes =
-        Module(Organization(organization), ModuleName(name), Map("scalaVersion" -> "2.12", "sbtVersion" -> "1.0"))
+    {
+      case (organization, name, ArtifactKind.CrossFull) =>
+        findVersionsUsingCoursier(
+          Module(Organization(organization), ModuleName(s"${name}_$scalaVersion")),
+          repositories,
+          timeout
+        )
+      case (organization, name, ArtifactKind.Cross) =>
+        findVersionsUsingCoursier(
+          Module(Organization(organization), ModuleName(s"${name}_$scalaBinaryVersion")),
+          repositories,
+          timeout
+        )
+      case (organization, name, ArtifactKind.SbtPlugin) =>
+        val binaryModule =
+          Module(Organization(organization), ModuleName(s"${name}_2.12_1.0"))
 
-      findVersionsUsingCoursier(binaryModule, repositories, timeout) ++
-        findVersionsUsingCoursier(moduleWithAttributes, repositories, timeout)
-    case (organization, name, _, _) =>
-      findVersionsUsingCoursier(Module(Organization(organization), ModuleName(name)), repositories, timeout)
+        val moduleWithAttributes =
+          Module(Organization(organization), ModuleName(name), Map("scalaVersion" -> "2.12", "sbtVersion" -> "1.0"))
+
+        findVersionsUsingCoursier(binaryModule, repositories, timeout) ++
+          findVersionsUsingCoursier(moduleWithAttributes, repositories, timeout)
+      case (organization, name, ArtifactKind.Java) =>
+        findVersionsUsingCoursier(Module(Organization(organization), ModuleName(name)), repositories, timeout)
+    }
   }
 
   implicit class VersionFinderOps(private val underlying: VersionFinder) extends AnyVal {
@@ -137,20 +142,19 @@ object VersionFinder {
       * at most once.
       */
     def cached: VersionFinder = {
-      val cache = new ConcurrentHashMap[(String, String, Boolean, Boolean), List[Dependency.Version.Numeric]]()
+      val cache = new ConcurrentHashMap[(String, String, ArtifactKind), List[Dependency.Version.Numeric]]()
 
-      (organization, name, isCross, isSbtPlugin) =>
+      (organization, name, kind) =>
         cache.computeIfAbsent(
-          (organization, name, isCross, isSbtPlugin),
+          (organization, name, kind),
           tuple => (underlying.findVersions _).tupled(tuple)
         )
     }
 
     /** Wraps this `VersionFinder` to filter out versions matched by the given `IgnoreFinder`. */
     def ignoringVersions(ignoreFinder: IgnoreFinder)(implicit logger: Logger): VersionFinder =
-      (organization, name, isCross, isSbtPlugin) => {
-        val versions = underlying
-          .findVersions(organization, name, isCross, isSbtPlugin)
+      (organization, name, kind) => {
+        val versions = underlying.findVersions(organization, name, kind)
 
         val filtered = versions.filterNot(v => ignoreFinder.isIgnored(organization, name, v.toVersionString))
 
@@ -164,9 +168,8 @@ object VersionFinder {
 
     /** Wraps this `VersionFinder` to filter out versions matched by the given `RetractionFinder`. */
     def excludingRetracted(retractionFinder: RetractionFinder)(implicit logger: Logger): VersionFinder =
-      (organization, name, isCross, isSbtPlugin) => {
-        val versions = underlying
-          .findVersions(organization, name, isCross, isSbtPlugin)
+      (organization, name, kind) => {
+        val versions = underlying.findVersions(organization, name, kind)
 
         val filtered = versions.filterNot(v => retractionFinder.isRetracted(organization, name, v.toVersionString))
 
@@ -180,9 +183,8 @@ object VersionFinder {
 
     /** Wraps this `VersionFinder` to keep only versions allowed by the given `PinFinder`. */
     def pinningVersions(pinFinder: PinFinder)(implicit logger: Logger): VersionFinder =
-      (organization, name, isCross, isSbtPlugin) => {
-        val versions = underlying
-          .findVersions(organization, name, isCross, isSbtPlugin)
+      (organization, name, kind) => {
+        val versions = underlying.findVersions(organization, name, kind)
 
         val filtered = versions.filter(v => pinFinder.isAllowed(organization, name, v.toVersionString))
 

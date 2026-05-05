@@ -1,0 +1,3 @@
+# Verify updateDependencies finds a higher version of kind-projector within 0.13.x
+> myproject/updateDependencies
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

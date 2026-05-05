@@ -25,6 +25,7 @@ import sbt.librarymanagement.ModuleID
 import sbt.librarymanagement.syntax._
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
@@ -65,16 +66,25 @@ sealed abstract class Dependency {
       Dependency.WithVariableVersion(organization, name, v, isCross, configuration)
   }
 
-  /** Converts this dependency to an SBT ModuleID for use in libraryDependencies. */
+  /** Converts this dependency to an SBT ModuleID for use in libraryDependencies.
+    *
+    * The `compiler-plugin` configuration is mapped to `plugin->default(compile)` (what `addCompilerPlugin` produces).
+    */
   def toModuleID(sbtBinaryVersion: String, scalaBinaryVersion: String): ModuleID = {
     val module = ModuleID(organization, name, version.toVersionString)
 
-    if (configuration === "sbt-plugin")
-      sbtPluginExtra(module, sbtBinaryVersion, scalaBinaryVersion)
-    else
-      module
-        .withConfigurations(Some(configuration).filterNot(_ === "compile"))
-        .withCrossVersion(if (isCross) CrossVersion.binary else CrossVersion.disabled)
+    configuration match {
+      case "sbt-plugin" =>
+        sbtPluginExtra(module, sbtBinaryVersion, scalaBinaryVersion)
+
+      case "compiler-plugin" =>
+        module
+          .withConfigurations(Some(Dependency.CompilerPluginConfiguration))
+
+      case other =>
+        module
+          .withConfigurations(Some(other).filterNot(_ === "compile"))
+    }
   }
 
   /** Checks if the dependency is the same artifact as another dependency. */
@@ -176,9 +186,12 @@ object Dependency {
     Version.Numeric.from(moduleID.revision, Version.Numeric.Marker.NoMarker).map { version =>
       // Detect sbt plugins by checking for sbtVersion in extraAttributes
       val isSbtPlugin = moduleID.extraAttributes.contains("e:sbtVersion")
+      // Detect compiler plugins by their configuration string (as set by `addCompilerPlugin`)
+      val isCompilerPlugin = moduleID.configurations.contains(CompilerPluginConfiguration)
 
       val configuration =
         if (isSbtPlugin) "sbt-plugin"
+        else if (isCompilerPlugin) "compiler-plugin"
         else moduleID.configurations.getOrElse("compile")
 
       WithNumericVersion(
@@ -190,6 +203,9 @@ object Dependency {
       )
     }
 
+  /** The literal SBT configuration string used by `addCompilerPlugin` to mark a compiler plugin dependency. */
+  val CompilerPluginConfiguration: String = "plugin->default(compile)"
+
   /** Known Scala version suffixes for artifact names */
   val scalaVersionSuffixes: List[String] = List("2.13", "2.12", "2.11", "2.10", "3")
 
@@ -198,19 +214,53 @@ object Dependency {
     (d.configuration, d.organization.toLowerCase, d.name.toLowerCase)
   }
 
-  /** Creates a dependency with the latest stable version resolved from Coursier. */
+  /** Creates a dependency with the latest stable version resolved from Coursier.
+    *
+    * For `sbt-plugin`, the lookup uses the sbt-plugin artifact shape. For `compiler-plugin` with `isCross`, the lookup
+    * queries both the `CrossFull` and `Cross` shapes and picks the higher version — this finds the actual latest
+    * regardless of how the plugin is currently published (e.g. `kind-projector` switched from binary to per-patch
+    * around 0.13.0; `better-monadic-for` is binary-only). On a tie, `CrossFull` wins. For other configurations the
+    * lookup uses the regular shape and falls back to the sbt-plugin shape if the regular shape returns nothing.
+    *
+    * Returns the resolved dependency together with the [[com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind]]
+    * used to find it, so callers can write a matching `cross-version` annotation when the chosen kind differs from the
+    * default that the dependency's `(isCross, configuration)` pair would imply.
+    */
   def withLatestStableVersion(
       organization: String,
       name: String,
-      isCross: Boolean
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency = {
-    val version =
-      Utils
-        .findLatestVersion(organization, name, isCross, false)(_.isStableVersion)
-        .orElse(Utils.findLatestVersion(organization, name, isCross, true)(_.isStableVersion))
-        .getOrElse(Utils.fail(s"Could not resolve $organization:$name"))
+      isCross: Boolean,
+      configuration: String = "compile"
+  )(implicit versionFinder: VersionFinder, logger: Logger): (Dependency, ArtifactKind) = {
+    val (kind, version) = configuration match {
+      case "sbt-plugin" =>
+        ArtifactKind.SbtPlugin -> Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion)
 
-    WithNumericVersion(organization, name, version, isCross)
+      case "compiler-plugin" if isCross =>
+        val full  = Utils.findLatestVersion(organization, name, ArtifactKind.CrossFull)(_.isStableVersion)
+        val cross = Utils.findLatestVersion(organization, name, ArtifactKind.Cross)(_.isStableVersion)
+
+        (full, cross) match {
+          case (Some(f), Some(c)) if Version.Numeric.NumericVersionOrdering.gteq(f, c) =>
+            ArtifactKind.CrossFull -> full
+          case (Some(_), Some(_)) => ArtifactKind.Cross     -> cross
+          case (Some(_), None)    => ArtifactKind.CrossFull -> full
+          case (None, _)          => ArtifactKind.Cross     -> cross
+        }
+
+      case _ =>
+        val regular = if (isCross) ArtifactKind.Cross else ArtifactKind.Java
+        Utils.findLatestVersion(organization, name, regular)(_.isStableVersion) match {
+          case found @ Some(_) => regular -> found
+          case None            =>
+            ArtifactKind.SbtPlugin ->
+              Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion)
+        }
+    }
+
+    version
+      .map(v => WithNumericVersion(organization, name, v, isCross, configuration) -> kind)
+      .getOrElse(Utils.fail(s"Could not resolve $organization:$name"))
   }
 
   /** Regex for parsing dependency lines.
@@ -231,20 +281,40 @@ object Dependency {
 
   /** Parses a dependency line, resolving the latest stable version when no version is specified.
     *
-    * Delegates to [[parse]] for lines that include a version. For lines without a version (e.g. `org::name`), resolves
-    * the latest stable version via the implicit [[finders.VersionFinder]].
+    * Delegates to [[parse]] for lines that include a version. For lines without a version (e.g. `org::name` or
+    * `org::name:sbt-plugin`), resolves the latest stable version via the implicit [[finders.VersionFinder]] and carries
+    * the configuration token through (so `install org::name:sbt-plugin` finds the right artifact shape).
+    *
+    * Disambiguating `org::name:sbt-plugin` (no version, has config) from `org::name:1.0` (has version, no config) is
+    * done by checking whether the captured token after the artifact name parses as a numeric or variable version.
+    *
+    * Returns the parsed dependency together with the [[com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind]] used
+    * to resolve a missing version (or the kind implied by an explicitly versioned line). Install paths use this to
+    * write a `cross-version` annotation when the chosen kind differs from the default that the dependency's
+    * `(isCross, configuration)` pair would imply (e.g. `kind-projector` resolves via `CrossFull`).
     */
   def parseIncludingMissingVersion(
       line: String,
       variableResolvers: Map[String, OrganizationArtifactName => ModuleID] = Map.empty
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency =
+  )(implicit versionFinder: VersionFinder, logger: Logger): (Dependency, ArtifactKind) =
     line match {
       case dependencyRegex(org, sep, name, null, _) => // scalafix:ok
         Dependency.withLatestStableVersion(org, name, isCross = sep === "::")
 
+      case dependencyRegex(org, sep, name, possibleConfig, null) // scalafix:ok
+          if !looksLikeVersion(possibleConfig) =>
+        Dependency.withLatestStableVersion(org, name, isCross = sep === "::", configuration = possibleConfig)
+
       case other =>
-        Dependency.parse(other, variableResolvers)
+        val dep = Dependency.parse(other, variableResolvers)
+        dep -> ArtifactKind.fromDependency(dep)
     }
+
+  /** Returns true if the given string looks like a numeric version (`1.2.3`, `=1.0`, `~2.x.y`) or a variable reference
+    * (`{{name}}`). Used to disambiguate the `version` slot from a `config` slot when the version is missing.
+    */
+  private def looksLikeVersion(s: String): Boolean =
+    Version.Numeric.unapply(s).isDefined || Version.Variable.regex.findFirstMatchIn(s).isDefined
 
   /** Parses a dependency line into a dependency */
   def parse(

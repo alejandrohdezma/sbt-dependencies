@@ -21,17 +21,20 @@ import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
 import sbt.Keys._
+import sbt.librarymanagement.CrossVersion
 import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
+import com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind
 import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.io.AnnotatedDependency
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff
 import com.alejandrohdezma.sbt.dependencies.io.Scalafmt
@@ -59,7 +62,8 @@ class Commands {
     * Accepts optional flags:
     *   - `--scala-versions` — include scala versions in the output
     *   - `--java-version` — include the Java target version (read from `javacOptions`) in the output
-    *   - `--compiler-plugins` — include compiler plugin dependencies
+    *   - `--compiler-plugins` — include Scala compiler plugin dependencies (emitted with the `:compiler-plugin` config
+    *     keyword); when omitted, compiler plugins are skipped
     *   - `--all` — enables all of the above
     */
   lazy val initDependenciesFile = Command.args("initDependenciesFile", "<options>") { (state, args) =>
@@ -83,19 +87,39 @@ class Commands {
       if (isSbtBuild) `sbt-build` else Group(project.get(ref / name))
     }.toSet
 
-    val dependenciesByGroup: Map[Group, List[Dependency]] =
+    val moduleIDsByGroup: Map[Group, List[ModuleID]] =
       project.structure.allProjectRefs.flatMap { ref =>
         val group: Group = if (isSbtBuild) `sbt-build` else Group(project.get(ref / name))
-
-        project
-          .get(ref / libraryDependencies)
-          .flatMap(Dependency.fromModuleID(_).toList)
-          .filter(dep => includeCompilerPlugins || !dep.configuration.contains("plugin->default(compile)"))
-          .map(group -> _)
+        project.get(ref / libraryDependencies).map(group -> _)
       }.groupBy(_._1)
         .mapValues(_.map(_._2).toList)
         .mapValues(_.filterNot(_.organization === "org.scala-lang"))
         .mapValues(_.filterNot(dep => dep.organization === pluginOrg && dep.name === pluginName))
+        .mapValues { modules =>
+          if (includeCompilerPlugins) modules
+          else modules.filterNot(_.configurations.contains(Dependency.CompilerPluginConfiguration))
+        }
+        .toMap
+
+    val dependenciesByGroup: Map[Group, List[Dependency]] =
+      moduleIDsByGroup.mapValues(_.flatMap(Dependency.fromModuleID(_).toList))
+
+    // For each ModuleID whose CrossVersion differs from the default that `Dependency.toModuleID` would produce, capture
+    // a `cross-version` annotation so the round-trip preserves the user's original choice (e.g. compiler plugins
+    // declared with `cross CrossVersion.full`).
+    val crossVersionAnnotationsByGroup
+        : Map[Group, Map[AnnotatedDependency.NoteKey, AnnotatedDependency.AnnotationData]] =
+      moduleIDsByGroup.mapValues { modules =>
+        modules.flatMap { m =>
+          Dependency.fromModuleID(m).flatMap { dep =>
+            val defaultKeyword = if (dep.isCross) "binary" else "disabled"
+            crossVersionKeyword(m.crossVersion).filter(_ !== defaultKeyword).map { keyword =>
+              AnnotatedDependency.NoteKey(dep.organization, dep.name, dep.configuration) ->
+                AnnotatedDependency.AnnotationData(None, intransitive = false, None, Some(keyword))
+            }
+          }
+        }.toMap
+      }
 
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
     val scalaVersionsByGroup: Map[Group, List[String]] =
@@ -135,7 +159,11 @@ class Commands {
     // Write `sbt-build` only when it actually carries plugin dependencies
     val sbtBuildDeps = dependenciesByGroup.getOrElse(`sbt-build`, Nil)
     if (newGroups.contains(`sbt-build`) && sbtBuildDeps.nonEmpty) {
-      file.write(`sbt-build`, sbtBuildDeps)
+      file.write(
+        `sbt-build`,
+        sbtBuildDeps,
+        additionalAnnotations = crossVersionAnnotationsByGroup.getOrElse(`sbt-build`, Map.empty)
+      )
     }
 
     // Write each project group's dependencies (and scala/java versions if not shared)
@@ -144,7 +172,13 @@ class Commands {
       val scalaVersions = if (sharedVersions.isEmpty) scalaVersionsByGroup.getOrElse(group, Nil) else Nil
       val javaVersion   = if (sharedJavaVersion.isEmpty) javaVersionByGroup.getOrElse(group, None) else None
 
-      file.write(group, deps, scalaVersions, javaVersion)
+      file.write(
+        group,
+        deps,
+        scalaVersions,
+        javaVersion,
+        additionalAnnotations = crossVersionAnnotationsByGroup.getOrElse(group, Map.empty)
+      )
     }
 
     logger.info("✎ Created project/dependencies.conf file with your dependencies")
@@ -226,7 +260,7 @@ class Commands {
 
     val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
+    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaVersion = "2.12.0")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -298,7 +332,7 @@ class Commands {
         implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
           implicit val logger: Logger = state.log
 
-          val deps = file.read(group, Map.empty)
+          val deps = file.readAnnotated(group, Map.empty)
 
           if (deps.nonEmpty) {
             logger.info(s"\n↻ Updating dependencies for `${group.name}` in project/dependencies.conf\n")
@@ -375,14 +409,38 @@ class Commands {
       withDependenciesFile(state, group) { implicit versionFinder => _ => _ => (_, file) =>
         val dependencies = file.read(group, Map.empty)
 
-        val dep = Dependency.parseIncludingMissingVersion(dependency)
+        val (dep, kind) = Dependency.parseIncludingMissingVersion(dependency)
+
+        val additionalAnnotations = crossVersionAnnotation(dep, kind)
 
         logger.info(s"➕ [${group.name}] $YELLOW${dep.toLine}$RESET")
 
-        file.write(group, dependencies.filterNot(_.isSameArtifact(dep)) :+ dep)
+        file.write(
+          group,
+          dependencies.filterNot(_.isSameArtifact(dep)) :+ dep,
+          additionalAnnotations = additionalAnnotations
+        )
 
         state
       }
+    }
+
+  /** Builds the `additionalAnnotations` map for `file.write` when the resolved [[ArtifactKind]] differs from what the
+    * dependency's `(isCross, configuration)` pair would imply. The only case currently is `compiler-plugin` resolved
+    * via `CrossFull` (e.g. `kind-projector`), which needs a `cross-version = "full"` annotation so the entry resolves
+    * the right artifact at compile time.
+    */
+  private def crossVersionAnnotation(
+      dependency: Dependency,
+      kind: ArtifactKind
+  ): Map[AnnotatedDependency.NoteKey, AnnotatedDependency.AnnotationData] =
+    kind match {
+      case ArtifactKind.CrossFull =>
+        Map(
+          AnnotatedDependency.NoteKey(dependency.organization, dependency.name, dependency.configuration) ->
+            AnnotatedDependency.AnnotationData(None, intransitive = false, None, Some("full"))
+        )
+      case _ => Map.empty
     }
 
   /** Updates scalafmt version in `.scalafmt.conf` to the latest version. */
@@ -400,7 +458,7 @@ class Commands {
 
     implicit val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.13")
+    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaVersion = "2.13.0")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -442,7 +500,7 @@ class Commands {
 
         val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-        implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
+        implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaVersion = "2.12.0")
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
@@ -799,7 +857,7 @@ class Commands {
     snapshot
   }
 
-  def getVersionFinder(state: State, scalaBinaryVersion: String)(implicit
+  def getVersionFinder(state: State, scalaVersion: String)(implicit
       logger: Logger,
       configCache: ConfigCache
   ): VersionFinder = {
@@ -809,7 +867,7 @@ class Commands {
       project.get(ThisBuild / resolvers).collect { case repo: MavenRepo => MavenRepository(repo.root) }
 
     VersionFinder
-      .fromCoursier(scalaBinaryVersion, project.get(ThisBuild / Keys.dependencyResolverTimeout), repositories)
+      .fromCoursier(scalaVersion, project.get(ThisBuild / Keys.dependencyResolverTimeout), repositories)
       .cached
       .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
       .excludingRetracted(RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions)))
@@ -833,13 +891,26 @@ class Commands {
 
       val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-      val versionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
+      val versionFinder = getVersionFinder(state, scalaVersion = "2.12.0")
 
       val migrationFinder = MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 
       f(versionFinder)(migrationFinder)(retractionFinder)(project, dependenciesFile)
     }
   }
+
+  /** Maps an SBT `CrossVersion` to the keyword used by the `cross-version` annotation. Returns `None` for unsupported
+    * variants (e.g. `Constant`).
+    */
+  private def crossVersionKeyword(cv: CrossVersion): Option[String] =
+    if (cv == CrossVersion.disabled) Some("disabled") // scalafix:ok
+    else
+      cv match {
+        case _: CrossVersion.Binary => Some("binary")
+        case _: CrossVersion.Full   => Some("full")
+        case _: CrossVersion.Patch  => Some("patch")
+        case _                      => None
+      }
 
   /** Extracts a Java target version from a list of `javacOptions`, by scanning for `--release N`, `-release N`, or
     * `-target N` (a digit-only token following the flag). Returns `None` if no recognised flag is present.

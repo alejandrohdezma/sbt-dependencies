@@ -29,7 +29,7 @@ class DependencyParseSuite extends munit.FunSuite {
   implicit val logger: Logger = TestLogger()
 
   // Dummy VersionFinder that always returns 0.1.0
-  implicit val dummyVersionFinder: VersionFinder = (_, _, _, _) =>
+  implicit val dummyVersionFinder: VersionFinder = (_, _, _) =>
     List(Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker))
 
   test("parse cross-version dependency with version") {
@@ -54,13 +54,41 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parseIncludingMissingVersion resolves cross-version dependency without version") {
-    val result = Dependency.parseIncludingMissingVersion("org.typelevel::cats-core")
+    val (result, _) = Dependency.parseIncludingMissingVersion("org.typelevel::cats-core")
 
     val expected = Dependency.WithNumericVersion(
       organization = "org.typelevel",
       name = "cats-core",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
       isCross = true
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("parseIncludingMissingVersion carries compiler-plugin config when version is missing") {
+    val (result, _) = Dependency.parseIncludingMissingVersion("org.typelevel::kind-projector:compiler-plugin")
+
+    val expected = Dependency.WithNumericVersion(
+      organization = "org.typelevel",
+      name = "kind-projector",
+      version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
+      isCross = true,
+      configuration = "compiler-plugin"
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("parseIncludingMissingVersion carries sbt-plugin config when version is missing") {
+    val (result, _) = Dependency.parseIncludingMissingVersion("ch.epfl.scala:sbt-scalafix:sbt-plugin")
+
+    val expected = Dependency.WithNumericVersion(
+      organization = "ch.epfl.scala",
+      name = "sbt-scalafix",
+      version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
+      isCross = false,
+      configuration = "sbt-plugin"
     )
 
     assertEquals(result, expected)
@@ -88,7 +116,7 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parseIncludingMissingVersion resolves java dependency without version") {
-    val result = Dependency.parseIncludingMissingVersion("com.google.guava:guava")
+    val (result, _) = Dependency.parseIncludingMissingVersion("com.google.guava:guava")
 
     val expected = Dependency.WithNumericVersion(
       organization = "com.google.guava",

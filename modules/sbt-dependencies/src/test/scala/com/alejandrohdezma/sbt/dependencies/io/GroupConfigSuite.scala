@@ -242,11 +242,11 @@ class GroupConfigSuite extends munit.FunSuite {
     assert(result.left.exists(_.contains("'dependency'")))
   }
 
-  test("parse returns error for object entry without note or intransitive field") {
+  test("parse returns error for object entry without any annotation field") {
     val result = parseGroup("""my-group = [{ dependency = "org::name:1.0" }]""", "my-group")
 
     assert(result.isLeft)
-    assert(result.left.exists(_.contains("'note', 'intransitive', or 'scala-filter'")))
+    assert(result.left.exists(_.contains("'note', 'intransitive', 'scala-filter', or 'cross-version'")))
   }
 
   // --- parse() tests: Object format with intransitive ---
