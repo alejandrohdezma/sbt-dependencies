@@ -53,7 +53,7 @@ class Tasks {
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
     val groupExists  = file.hasGroup(group)
-    val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
+    val dependencies = file.readAnnotated(group, Keys.dependencyVersionVariables.value)
     val filter       = updateFilterParser.parsed
 
     implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
@@ -65,15 +65,15 @@ class Tasks {
     } else {
       logger.info(s"\n↻ Updating ${filter.show} dependencies for `$group`\n")
 
-      val filtered = dependencies.filterNot(filter.matches)
+      val filtered = dependencies.filterNot(r => filter.matches(r.dependency))
 
       val parallelism = Keys.dependencyResolverParallelism.value
 
-      val updated = Utils.resolveLatestVersions(dependencies.filter(filter.matches), parallelism)
+      val updated = Utils.resolveLatestVersions(dependencies.filter(r => filter.matches(r.dependency)), parallelism)
 
       updated.foreach(retractionFinder.warnIfRetracted(_))
 
-      file.write(group, filtered ++ updated)
+      file.write(group, filtered.map(_.dependency) ++ updated)
     }
   }
 
@@ -227,7 +227,7 @@ class Tasks {
     val repositories = fullResolvers.value.collect { case repo: MavenRepo => MavenRepository(repo.root) }
 
     VersionFinder
-      .fromCoursier(scalaBinaryVersion.value, Keys.dependencyResolverTimeout.value, repositories)
+      .fromCoursier(scalaVersion.value, Keys.dependencyResolverTimeout.value, repositories)
       .cached
       .ignoringVersions(ignoreFinder)
       .excludingRetracted(retractionFinder)

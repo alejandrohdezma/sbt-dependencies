@@ -19,9 +19,11 @@ package com.alejandrohdezma.sbt.dependencies.finders
 import scala.Console._
 
 import sbt.util.Level
+import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
+import com.alejandrohdezma.sbt.dependencies.io.AnnotatedDependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
@@ -64,10 +66,18 @@ class UtilsSuite extends munit.FunSuite {
 
   // Helper to create a mock VersionFinder that returns specific versions for specific modules
   def mockVersionFinder(versions: Map[(String, String), List[String]]): VersionFinder =
-    (organization: String, name: String, _: Boolean, _: Boolean) =>
+    (organization: String, name: String, _: ArtifactKind) =>
       versions
         .getOrElse((organization, name), Nil)
         .collect { case Version.Numeric(v) => v }
+
+  // Helper that wraps each Dependency in a default AnnotatedDependency.Resolved before delegating to Utils
+  def resolveLatestVersions(deps: List[Dependency], parallelism: Int)(implicit
+      vf: VersionFinder,
+      mf: MigrationFinder,
+      logger: Logger
+  ): List[Dependency] =
+    Utils.resolveLatestVersions(deps.map(AnnotatedDependency.Resolved(_)), parallelism)(vf, mf, logger)
 
   // --- findLatestScalaVersion tests ---
 
@@ -192,7 +202,7 @@ class UtilsSuite extends munit.FunSuite {
   test("resolveLatestVersions returns empty list for empty input") {
     implicit val versionFinder: VersionFinder = mockVersionFinder(Map.empty)
 
-    val result = Utils.resolveLatestVersions(Nil, 1)
+    val result = resolveLatestVersions(Nil, 1)
 
     assertEquals(result, Nil)
   }
@@ -202,7 +212,7 @@ class UtilsSuite extends munit.FunSuite {
       Map(("org.typelevel", "cats-core") -> List("2.9.0", "2.10.0", "2.11.0"))
     )
 
-    val result = Utils.resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.9.0")), 1)
+    val result = resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.9.0")), 1)
 
     assertEquals(result, List(dep("org.typelevel", "cats-core", "2.11.0")))
   }
@@ -212,7 +222,7 @@ class UtilsSuite extends munit.FunSuite {
       Map(("org.typelevel", "cats-core") -> List("2.10.0", "2.11.0"))
     )
 
-    val result = Utils.resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.11.0")), 1)
+    val result = resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.11.0")), 1)
 
     assertEquals(result, List(dep("org.typelevel", "cats-core", "2.11.0")))
   }
@@ -223,7 +233,7 @@ class UtilsSuite extends munit.FunSuite {
     )
 
     val input  = exactDep("org.typelevel", "cats-core", "2.9.0")
-    val result = Utils.resolveLatestVersions(List(input), 1)
+    val result = resolveLatestVersions(List(input), 1)
 
     assertEquals(result, List(exactDep("org.typelevel", "cats-core", "2.9.0")))
   }
@@ -243,7 +253,7 @@ class UtilsSuite extends munit.FunSuite {
       dep("io.circe", "circe-core", "0.14.7")
     )
 
-    val result = Utils.resolveLatestVersions(input, 2)
+    val result = resolveLatestVersions(input, 2)
 
     val expected = List(
       dep("org.typelevel", "cats-core", "2.10.0"),
@@ -259,7 +269,7 @@ class UtilsSuite extends munit.FunSuite {
       Map(("org.typelevel", "cats-core") -> List("2.9.0", "2.10.0"))
     )
 
-    Utils.resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.9.0")), 1)
+    resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.9.0")), 1)
 
     val expected = List(s" ↳ $YELLOW⬆$RESET ${YELLOW}org.typelevel::cats-core:2.9.0$RESET -> ${CYAN}2.10.0$RESET")
 
@@ -271,7 +281,7 @@ class UtilsSuite extends munit.FunSuite {
       Map(("org.typelevel", "cats-core") -> List("2.10.0"))
     )
 
-    Utils.resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.10.0")), 1)
+    resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.10.0")), 1)
 
     val expected = List(s" ↳ $GREEN✓$RESET ${GREEN}org.typelevel::cats-core:2.10.0$RESET")
 
@@ -283,7 +293,7 @@ class UtilsSuite extends munit.FunSuite {
       Map(("org.typelevel", "cats-core") -> List("2.9.0", "2.10.0"))
     )
 
-    Utils.resolveLatestVersions(List(exactDep("org.typelevel", "cats-core", "2.9.0")), 1)
+    resolveLatestVersions(List(exactDep("org.typelevel", "cats-core", "2.9.0")), 1)
 
     val expected = List(s" ↳ $CYAN⊙$RESET ${CYAN}org.typelevel::cats-core:=2.9.0$RESET")
 
@@ -303,7 +313,7 @@ class UtilsSuite extends munit.FunSuite {
         Some(ArtifactMigration(Some("org.old"), "org.new", Some("old-lib"), "new-lib"))
       else None
 
-    val result   = Utils.resolveLatestVersions(List(dep("org.old", "old-lib", "1.0.0")), 1)
+    val result   = resolveLatestVersions(List(dep("org.old", "old-lib", "1.0.0")), 1)
     val expected = List(dep("org.new", "new-lib", "2.0.0"))
 
     assertEquals(result, expected)
@@ -322,7 +332,7 @@ class UtilsSuite extends munit.FunSuite {
         Some(ArtifactMigration(Some("org.old"), "org.new", Some("old-lib"), "new-lib"))
       else None
 
-    Utils.resolveLatestVersions(List(dep("org.old", "old-lib", "1.0.0")), 1)
+    resolveLatestVersions(List(dep("org.old", "old-lib", "1.0.0")), 1)
 
     val expected =
       List(s" ↳ $YELLOW⇄$RESET ${YELLOW}org.old::old-lib:1.0.0$RESET -> ${CYAN}org.new::new-lib:2.0.0$RESET")
@@ -338,7 +348,7 @@ class UtilsSuite extends munit.FunSuite {
     val variable = Version.Variable("catsVersion", nv("2.9.0"))
     val input    = Dependency.WithVariableVersion("org.typelevel", "cats-core", variable, isCross = true)
 
-    val result = Utils.resolveLatestVersions(List(input), 1)
+    val result = resolveLatestVersions(List(input), 1)
 
     assertEquals(result, List(input))
   }
@@ -358,7 +368,7 @@ class UtilsSuite extends munit.FunSuite {
       dep("com.m", "m-lib", "5.0.0", isCross = false)
     )
 
-    val result = Utils.resolveLatestVersions(input, 2)
+    val result = resolveLatestVersions(input, 2)
 
     val expected = List(
       dep("com.z", "z-lib", "2.0.0", isCross = false),

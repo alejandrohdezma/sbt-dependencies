@@ -320,7 +320,7 @@ class DependencySuite extends munit.FunSuite {
 
   test("findLatestVersion returns same version when marker is Exact") {
     implicit val versionFinder: VersionFinder =
-      (_, _, _, _) => List(Version.Numeric(List(3, 0, 0), None, Version.Numeric.Marker.NoMarker))
+      (_, _, _) => List(Version.Numeric(List(3, 0, 0), None, Version.Numeric.Marker.NoMarker))
 
     val dep = Dependency.WithNumericVersion(
       "org.typelevel",
@@ -336,7 +336,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("findLatestVersion finds latest version and preserves marker") {
-    implicit val versionFinder: VersionFinder = (_, _, _, _) =>
+    implicit val versionFinder: VersionFinder = (_, _, _) =>
       List(
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
         Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.NoMarker),
@@ -357,7 +357,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("findLatestVersion respects major version constraint") {
-    implicit val versionFinder: VersionFinder = (_, _, _, _) =>
+    implicit val versionFinder: VersionFinder = (_, _, _) =>
       List(
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
         Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.NoMarker),
@@ -377,7 +377,7 @@ class DependencySuite extends munit.FunSuite {
   }
 
   test("findLatestVersion respects minor version constraint") {
-    implicit val versionFinder: VersionFinder = (_, _, _, _) =>
+    implicit val versionFinder: VersionFinder = (_, _, _) =>
       List(
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
         Version.Numeric(List(2, 10, 5), None, Version.Numeric.Marker.NoMarker),

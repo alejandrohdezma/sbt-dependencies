@@ -226,7 +226,7 @@ class Commands {
 
     val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
+    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaVersion = "2.12.0")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -298,7 +298,7 @@ class Commands {
         implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
           implicit val logger: Logger = state.log
 
-          val deps = file.read(group, Map.empty)
+          val deps = file.readAnnotated(group, Map.empty)
 
           if (deps.nonEmpty) {
             logger.info(s"\n↻ Updating dependencies for `${group.name}` in project/dependencies.conf\n")
@@ -400,7 +400,7 @@ class Commands {
 
     implicit val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.13")
+    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaVersion = "2.13.0")
 
     implicit val migrationFinder: MigrationFinder =
       MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
@@ -442,7 +442,7 @@ class Commands {
 
         val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-        implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
+        implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaVersion = "2.12.0")
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
@@ -799,7 +799,7 @@ class Commands {
     snapshot
   }
 
-  def getVersionFinder(state: State, scalaBinaryVersion: String)(implicit
+  def getVersionFinder(state: State, scalaVersion: String)(implicit
       logger: Logger,
       configCache: ConfigCache
   ): VersionFinder = {
@@ -809,7 +809,7 @@ class Commands {
       project.get(ThisBuild / resolvers).collect { case repo: MavenRepo => MavenRepository(repo.root) }
 
     VersionFinder
-      .fromCoursier(scalaBinaryVersion, project.get(ThisBuild / Keys.dependencyResolverTimeout), repositories)
+      .fromCoursier(scalaVersion, project.get(ThisBuild / Keys.dependencyResolverTimeout), repositories)
       .cached
       .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
       .excludingRetracted(RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions)))
@@ -833,7 +833,7 @@ class Commands {
 
       val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-      val versionFinder = getVersionFinder(state, scalaBinaryVersion = "2.12")
+      val versionFinder = getVersionFinder(state, scalaVersion = "2.12.0")
 
       val migrationFinder = MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 

@@ -23,8 +23,10 @@ import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.librarymanagement.ModuleID
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType
@@ -96,6 +98,22 @@ object AnnotatedDependency {
         .withCrossVersion(crossVersion.getOrElse(defaultCrossVersion))
         .withIsTransitive(!intransitive)
     }
+
+    /** The shape under which the artifact is published, derived from the dependency's configuration and the
+      * `cross-version` annotation when present. Drives `VersionFinder` lookups during update operations.
+      */
+    def kind: ArtifactKind =
+      if (dependency.configuration === "sbt-plugin") ArtifactKind.SbtPlugin
+      else
+        crossVersion match {
+          case Some(_: CrossVersion.Full)              => ArtifactKind.CrossFull
+          case Some(_: CrossVersion.Patch)             => ArtifactKind.CrossFull
+          case Some(_: CrossVersion.Binary)            => ArtifactKind.Cross
+          case Some(cv) if cv == CrossVersion.disabled => ArtifactKind.Java // scalafix:ok
+          case Some(_)                                 => ArtifactKind.fromDependency(dependency)
+          case None if dependency.isCross              => ArtifactKind.Cross
+          case None                                    => ArtifactKind.Java
+        }
 
   }
 

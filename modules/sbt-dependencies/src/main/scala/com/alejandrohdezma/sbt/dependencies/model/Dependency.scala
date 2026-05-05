@@ -25,6 +25,7 @@ import sbt.librarymanagement.ModuleID
 import sbt.librarymanagement.syntax._
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
@@ -204,10 +205,11 @@ object Dependency {
       name: String,
       isCross: Boolean
   )(implicit versionFinder: VersionFinder, logger: Logger): Dependency = {
+    val regular = if (isCross) ArtifactKind.Cross else ArtifactKind.Java
     val version =
       Utils
-        .findLatestVersion(organization, name, isCross, false)(_.isStableVersion)
-        .orElse(Utils.findLatestVersion(organization, name, isCross, true)(_.isStableVersion))
+        .findLatestVersion(organization, name, regular)(_.isStableVersion)
+        .orElse(Utils.findLatestVersion(organization, name, ArtifactKind.SbtPlugin)(_.isStableVersion))
         .getOrElse(Utils.fail(s"Could not resolve $organization:$name"))
 
     WithNumericVersion(organization, name, version, isCross)
