@@ -6,6 +6,7 @@ import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
 import { COMMON_SETTINGS, SBT_BUILD } from "./groups";
 import { parseDependency, buildHoverMarkdown } from "./hover";
+import { parseGroupHeader, buildGroupHoverMarkdown } from "./group-hover";
 import { parseDocumentLinks } from "./links";
 import { parseNoteDecorations } from "./note-decorations";
 import { DependencyPasteEditProvider } from "./paste";
@@ -169,6 +170,38 @@ class DependencyHoverProvider implements vscode.HoverProvider {
     );
 
     return new vscode.Hover(md, matchRange);
+  }
+}
+
+/**
+ * Provides hover tooltips for the reserved group headers
+ * (`common-settings` and `sbt-build`), explaining what each group
+ * means and which fields it accepts. Project groups fall through with
+ * no hover.
+ */
+class GroupHeaderHoverProvider implements vscode.HoverProvider {
+  provideHover(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): vscode.Hover | undefined {
+    const text = document.lineAt(position.line).text;
+    const header = parseGroupHeader(text);
+
+    if (!header) return undefined;
+    if (position.character < header.startCol || position.character > header.endCol) return undefined;
+
+    const markdown = buildGroupHoverMarkdown(header.name);
+    if (!markdown) return undefined;
+
+    const md = new vscode.MarkdownString(markdown);
+    md.isTrusted = true;
+
+    const range = new vscode.Range(
+      position.line, header.startCol,
+      position.line, header.endCol
+    );
+
+    return new vscode.Hover(md, range);
   }
 }
 
@@ -922,6 +955,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerHoverProvider(
       selector,
       new DependencyHoverProvider()
+    ),
+    vscode.languages.registerHoverProvider(
+      selector,
+      new GroupHeaderHoverProvider()
     ),
     vscode.languages.registerDocumentSymbolProvider(
       selector,
