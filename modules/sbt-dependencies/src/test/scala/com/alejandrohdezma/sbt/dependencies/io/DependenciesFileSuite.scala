@@ -36,13 +36,13 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   // Helper to parse a version string into Numeric with Minor marker (matching readScalaVersions behavior)
   def v(version: String): Numeric =
-    Version.Numeric.unapply(version).get.copy(marker = Numeric.Marker.Minor)
+    Version.Numeric.unapply(version).get.withMarker(Numeric.Marker.Minor)
 
   val variableResolvers: Map[String, OrganizationArtifactName => ModuleID] =
     Map.empty
 
   // Dummy VersionFinder that always returns 0.1.0
-  implicit val dummyVersionFinder: VersionFinder = (_, _, _) =>
+  implicit val dummyVersionFinder: VersionFinder = (_, _, _, _) =>
     List(Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker))
 
   def withDependenciesFile(content: String): FunFixture[File] = FunFixture[File](
@@ -134,27 +134,27 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write dependencies creates properly formatted HOCON") { file =>
     val myProjectDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
     val sbtBuildDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "ch.epfl.scala",
         "sbt-scalafix",
         Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "sbt-plugin"
+        "sbt-plugin",
+        crossVersion = CrossVersion.disabled
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "io.get-coursier",
         "coursier",
         Version.Numeric(List(2, 1, 24), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -179,33 +179,33 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write sorts dependencies by configuration then alphabetically") { file =>
     val dependencies = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "z-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "test"
+        "test",
+        crossVersion = CrossVersion.disabled
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "a-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "compile"
+        "compile",
+        crossVersion = CrossVersion.disabled
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "m-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "test"
+        "test",
+        crossVersion = CrossVersion.disabled
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "b-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "compile"
+        "compile",
+        crossVersion = CrossVersion.disabled
       )
     )
 
@@ -221,17 +221,17 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write sorts base artifact before suffixed artifacts from same org") { file =>
     val dependencies = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "com.beachape",
         "enumeratum-cats",
         Version.Numeric(List(1, 9, 5), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "com.beachape",
         "enumeratum",
         Version.Numeric(List(1, 9, 5), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -248,11 +248,11 @@ class DependenciesFileSuite extends munit.FunSuite {
     val v = Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
 
     val dependencies = List(
-      Dependency.WithNumericVersion("com.squareup.okio", "okio", v, isCross = false),
-      Dependency.WithNumericVersion("com.squareup.okio", "okio-jvm", v, isCross = false),
-      Dependency.WithNumericVersion("com.squareup.wire", "wire-runtime-jvm", v, isCross = false),
-      Dependency.WithNumericVersion("com.squareup", "javapoet", v, isCross = false),
-      Dependency.WithNumericVersion("com.squareup", "kotlinpoet", v, isCross = false)
+      Dependency("com.squareup.okio", "okio", v, crossVersion = CrossVersion.disabled),
+      Dependency("com.squareup.okio", "okio-jvm", v, crossVersion = CrossVersion.disabled),
+      Dependency("com.squareup.wire", "wire-runtime-jvm", v, crossVersion = CrossVersion.disabled),
+      Dependency("com.squareup", "javapoet", v, crossVersion = CrossVersion.disabled),
+      Dependency("com.squareup", "kotlinpoet", v, crossVersion = CrossVersion.disabled)
     )
 
     DependenciesFile(file).write(Group("group"), dependencies)
@@ -272,27 +272,27 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write then read round-trip preserves dependencies") { file =>
     val projectADeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "test"
+        "test",
+        crossVersion = CrossVersion.binary
       )
     )
 
     val projectBDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "com.google.guava",
         "guava",
         Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
-        isCross = false
+        crossVersion = CrossVersion.disabled
       )
     )
 
@@ -322,33 +322,30 @@ class DependenciesFileSuite extends munit.FunSuite {
     DependenciesFile(file).write(
       Group("z-group"),
       List(
-        Dependency.WithNumericVersion(
+        Dependency(
           "org",
           "z-lib",
-          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-          false
+          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
         )
       )
     )
     DependenciesFile(file).write(
       Group("a-group"),
       List(
-        Dependency.WithNumericVersion(
+        Dependency(
           "org",
           "a-lib",
-          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-          false
+          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
         )
       )
     )
     DependenciesFile(file).write(
       Group("m-group"),
       List(
-        Dependency.WithNumericVersion(
+        Dependency(
           "org",
           "m-lib",
-          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-          false
+          Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
         )
       )
     )
@@ -361,23 +358,20 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write sorts dependencies within group alphabetically") { file =>
     val dependencies = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "z-lib",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        false
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "a-lib",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        false
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "m-lib",
-        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        false
+        Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
       )
     )
 
@@ -421,23 +415,23 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write preserves version markers") { file =>
     val dependencies = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
-        isCross = true
+        crossVersion = CrossVersion.binary
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.Major),
-        isCross = true
+        crossVersion = CrossVersion.binary
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "fs2-core",
         Version.Numeric(List(3, 9, 0), None, Version.Numeric.Marker.Minor),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -503,12 +497,12 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves other groups") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        true,
-        "test"
+        "test",
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -531,23 +525,23 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write removes duplicate dependencies") { file =>
     val dependencies = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false
+        crossVersion = CrossVersion.disabled
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "lib",
         Version.Numeric(List(2, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false
+        crossVersion = CrossVersion.disabled
       ), // duplicate artifact, different version
-      Dependency.WithNumericVersion(
+      Dependency(
         "org",
         "other",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = false
+        crossVersion = CrossVersion.disabled
       )
     )
 
@@ -561,18 +555,18 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write keeps same artifact with different configurations") { file =>
     val dependencies = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "com.google.protobuf",
         "protobuf-java",
         Version.Numeric(List(3, 25, 1), None, Version.Numeric.Marker.NoMarker),
-        isCross = false
+        crossVersion = CrossVersion.disabled
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "com.google.protobuf",
         "protobuf-java",
         Version.Numeric(List(3, 25, 1), None, Version.Numeric.Marker.NoMarker),
-        isCross = false,
-        "protobuf"
+        "protobuf",
+        crossVersion = CrossVersion.disabled
       )
     )
 
@@ -646,11 +640,11 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves simple format") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -676,11 +670,11 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves advanced format") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -712,20 +706,20 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves format in mixed file") { file =>
     val simpleDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
     val advancedDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.scalatest",
         "scalatest",
         Version.Numeric(List(3, 2, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "test"
+        "test",
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -751,11 +745,11 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write then read round-trip preserves advanced format") { file =>
     val deps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -795,11 +789,11 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write new group uses simple format") { file =>
     val deps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -911,11 +905,11 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves scalaVersions in advanced format") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -937,11 +931,11 @@ class DependenciesFileSuite extends munit.FunSuite {
 
   withDependenciesFile("").test("write to a new group with scalaVersions produces advanced format") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -1179,7 +1173,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   }.test("write preserves java-version through dependency update") { file =>
     DependenciesFile(file).write(
       Group("my-project"),
-      List(Dependency.parse("org.typelevel::cats-core:2.11.0", variableResolvers))
+      List(Dependency.parse("org.typelevel::cats-core:2.11.0"))
     )
 
     val content = IO.read(file)
@@ -1197,7 +1191,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile("").test("write to a new group with javaVersion produces advanced format") { file =>
-    val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0", variableResolvers))
+    val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0"))
 
     DependenciesFile(file).write(Group("my-project"), newDeps, javaVersion = Some("25"))
 
@@ -1226,7 +1220,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   }.test("write with explicit javaVersion overrides existing java-version") { file =>
     DependenciesFile(file).write(
       Group("my-project"),
-      List(Dependency.parse("org.typelevel::cats-core:2.10.0", variableResolvers)),
+      List(Dependency.parse("org.typelevel::cats-core:2.10.0")),
       javaVersion = Some("21")
     )
 
@@ -1247,7 +1241,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   withDependenciesFile("").test(
     "write to a new group with both scalaVersions and javaVersion produces advanced format"
   ) { file =>
-    val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0", variableResolvers))
+    val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0"))
 
     DependenciesFile(file).write(Group("my-project"), newDeps, List("2.13.12"), javaVersion = Some("17"))
 
@@ -1305,18 +1299,19 @@ class DependenciesFileSuite extends munit.FunSuite {
     val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     val expected = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
-        isCross = true
+        crossVersion = CrossVersion.binary,
+        note = Some("v3 drops Scala 2.12")
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "test"
+        "test",
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -1331,18 +1326,19 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves notes when updating dependency versions") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.Major),
-        isCross = true
+        crossVersion = CrossVersion.binary,
+        note = Some("v3 drops Scala 2.12")
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "test"
+        "test",
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -1369,12 +1365,12 @@ class DependenciesFileSuite extends munit.FunSuite {
   }.test("write drops notes when dependency is removed") { file =>
     // Only write munit, cats-core is removed
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "test"
+        "test",
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -1402,18 +1398,19 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves notes in advanced format") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
-        isCross = true
+        crossVersion = CrossVersion.binary,
+        note = Some("Exact pin for compat")
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "test"
+        "test",
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -1442,17 +1439,19 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves multiple notes through update") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.Major),
-        isCross = true
+        crossVersion = CrossVersion.binary,
+        note = Some("v3 drops Scala 2.12")
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 6, 0), None, Version.Numeric.Marker.Exact),
-        isCross = true
+        crossVersion = CrossVersion.binary,
+        note = Some("Binary compat issue")
       )
     )
 
@@ -1479,11 +1478,12 @@ class DependenciesFileSuite extends munit.FunSuite {
     val deps = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     val expected = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
-        isCross = true
+        crossVersion = CrossVersion.binary,
+        note = Some("v3 drops Scala 2.12")
       )
     )
 
@@ -1514,12 +1514,12 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves notes in one group while updating another") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "test"
+        "test",
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -1572,18 +1572,19 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves intransitive flag through version update") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.http4s",
         "http4s-core",
         Version.Numeric(List(0, 23, 4), None, Version.Numeric.Marker.Exact),
-        isCross = true
+        crossVersion = CrossVersion.binary,
+        intransitive = true
       ),
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "test"
+        "test",
+        crossVersion = CrossVersion.binary
       )
     )
 
@@ -1608,11 +1609,13 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves both note and intransitive flag through version update") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.http4s",
         "http4s-core",
         Version.Numeric(List(0, 23, 4), None, Version.Numeric.Marker.Exact),
-        isCross = true
+        crossVersion = CrossVersion.binary,
+        note = Some("Uses internal API"),
+        intransitive = true
       )
     )
 
@@ -1636,11 +1639,11 @@ class DependenciesFileSuite extends munit.FunSuite {
        |  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", cross-version = "full" }
        |]
        |""".stripMargin
-  }.test("readAnnotated returns cross-version annotation when present") { file =>
-    val annotated = DependenciesFile(file).readAnnotated(Group("my-project"), variableResolvers)
+  }.test("read returns cross-version annotation when present") { file =>
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
-    assertEquals(annotated.size, 1)
-    assertEquals(annotated.head.crossVersion, Some(CrossVersion.full))
+    assertEquals(result.size, 1)
+    assertEquals(result.head.crossVersion, CrossVersion.full)
   }
 
   withDependenciesFile {
@@ -1650,12 +1653,12 @@ class DependenciesFileSuite extends munit.FunSuite {
        |""".stripMargin
   }.test("write preserves cross-version annotation through version update") { file =>
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "kind-projector",
         Version.Numeric(List(0, 13, 4), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "compiler-plugin"
+        "compiler-plugin",
+        crossVersion = CrossVersion.full
       )
     )
 
@@ -1677,12 +1680,61 @@ class DependenciesFileSuite extends munit.FunSuite {
        |  { dependency = "org.typelevel::kind-projector:0.13.3:compiler-plugin", cross-version = "invalid" }
        |]
        |""".stripMargin
-  }.test("readAnnotated rejects invalid cross-version values") { file =>
+  }.test("read rejects invalid cross-version values") { file =>
     val ex = intercept[Exception] {
-      DependenciesFile(file).readAnnotated(Group("my-project"), variableResolvers)
+      DependenciesFile(file).read(Group("my-project"), variableResolvers)
     }
     assert(ex.getMessage.contains("cross-version"))
     assert(ex.getMessage.contains("invalid"))
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::kind-projector:{{kpVersion}}:compiler-plugin", cross-version = "full" }
+       |]
+       |""".stripMargin
+  }.test("read rejects variable + cross-version = full combination") { file =>
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "kpVersion" -> { _ % "0.13.3" }
+    )
+
+    val ex = intercept[Exception] {
+      DependenciesFile(file).read(Group("my-project"), resolvers)
+    }
+    assert(ex.getMessage.contains("kpVersion"), s"expected message to mention variable name, got: ${ex.getMessage}")
+    assert(ex.getMessage.contains("full"), s"expected message to mention 'full', got: ${ex.getMessage}")
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::kind-projector:{{kpVersion}}:compiler-plugin", cross-version = "patch" }
+       |]
+       |""".stripMargin
+  }.test("read rejects variable + cross-version = patch combination") { file =>
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "kpVersion" -> { _ % "0.13.3" }
+    )
+
+    val ex = intercept[Exception] {
+      DependenciesFile(file).read(Group("my-project"), resolvers)
+    }
+    assert(ex.getMessage.contains("patch"), s"expected message to mention 'patch', got: ${ex.getMessage}")
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.scala-lang:scala-reflect:{{scala}}", cross-version = "binary" }
+       |]
+       |""".stripMargin
+  }.test("read accepts variable + cross-version = binary combination") { file =>
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "scala" -> { _ % "2.13.16" }
+    )
+
+    val result = DependenciesFile(file).read(Group("my-project"), resolvers)
+
+    assertEquals(result.size, 1)
+    assertEquals(result.head.crossVersion, CrossVersion.binary)
   }
 
   withDependenciesFile {
@@ -1691,25 +1743,23 @@ class DependenciesFileSuite extends munit.FunSuite {
        |]
        |""".stripMargin
   }.test(
-    "write merges additionalAnnotations per-field, preserving the file's note when the extras only carry cross-version"
+    "applyExistingAnnotations merges file annotations onto a build-derived dep, preserving the file's note"
   ) { file =>
+    // Simulating `initDependenciesFile`: the new dep carries only the cross-version annotation it derived from the
+    // ModuleID, no note. The file already has both note and cross-version on the same artifact.
+    val depFile = DependenciesFile(file)
     val newDeps = List(
-      Dependency.WithNumericVersion(
+      Dependency(
         "org.typelevel",
         "kind-projector",
         Version.Numeric(List(0, 13, 3), None, Version.Numeric.Marker.NoMarker),
-        isCross = true,
-        "compiler-plugin"
+        configuration = "compiler-plugin",
+        crossVersion = CrossVersion.full
       )
     )
 
-    // Simulating `initDependenciesFile`: additionalAnnotations carries only cross-version.
-    val extras = Map(
-      AnnotatedDependency.NoteKey("org.typelevel", "kind-projector", "compiler-plugin") ->
-        AnnotatedDependency.AnnotationData(None, intransitive = false, None, Some("full"))
-    )
-
-    DependenciesFile(file).write(Group("my-project"), newDeps, additionalAnnotations = extras)
+    val annotated = depFile.applyExistingAnnotations(Group("my-project"), newDeps)
+    depFile.write(Group("my-project"), annotated)
 
     val content = IO.read(file)
 

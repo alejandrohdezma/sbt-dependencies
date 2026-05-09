@@ -18,23 +18,18 @@ package com.alejandrohdezma.sbt.dependencies.io
 
 import scala.jdk.CollectionConverters._
 
-import sbt.librarymanagement.CrossVersion
-import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
-import sbt.librarymanagement.ModuleID
-import sbt.util.Logger
-
-import com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind
-import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType
 
-/** A dependency entry that may optionally carry a note, intransitive flag, scala-filter, and/or cross-version override.
+/** A HOCON-entry representation of a dependency: the unparsed `line` string plus optional annotations.
   *
-  * The `crossVersion` value, when set, overrides the `CrossVersion` that would otherwise be derived from the
-  * dependency's `isCross` flag and configuration. Legal values: `"full"`, `"binary"`, `"patch"`, `"disabled"`.
+  * This is the round-trip shape used by `GroupConfig` and `DependenciesFile` — the line is kept as a string so the file
+  * can be parsed and re-emitted without resolving variables (`format()` and the annotation-extraction inside `write`
+  * both work with `Map.empty` resolvers). Conversion to/from the parsed `Dependency` happens at the read seam in
+  * `DependenciesFile`.
   */
 final case class AnnotatedDependency(
     line: String,
@@ -80,69 +75,6 @@ final case class AnnotatedDependency(
 
 object AnnotatedDependency {
 
-  final case class Resolved(
-      dependency: Dependency,
-      note: Option[String] = None,
-      intransitive: Boolean = false,
-      scalaFilter: Option[String] = None,
-      crossVersion: Option[CrossVersion] = None
-  ) {
-
-    /** Converts this dependency to an SBT ModuleID for use in libraryDependencies. */
-    def toModuleID(sbtBinaryVersion: String, scalaBinaryVersion: String): ModuleID = {
-      val defaultCrossVersion: CrossVersion =
-        if (dependency.isCross) CrossVersion.binary else CrossVersion.disabled
-
-      dependency
-        .toModuleID(sbtBinaryVersion, scalaBinaryVersion)
-        .withCrossVersion(crossVersion.getOrElse(defaultCrossVersion))
-        .withIsTransitive(!intransitive)
-    }
-
-    /** The shape under which the artifact is published, derived from the dependency's configuration and the
-      * `cross-version` annotation when present. Drives `VersionFinder` lookups during update operations.
-      */
-    def kind: ArtifactKind =
-      if (dependency.configuration === "sbt-plugin") ArtifactKind.SbtPlugin
-      else
-        crossVersion match {
-          case Some(_: CrossVersion.Full)              => ArtifactKind.CrossFull
-          case Some(_: CrossVersion.Patch)             => ArtifactKind.CrossFull
-          case Some(_: CrossVersion.Binary)            => ArtifactKind.Cross
-          case Some(cv) if cv == CrossVersion.disabled => ArtifactKind.Java // scalafix:ok
-          case Some(_)                                 => ArtifactKind.fromDependency(dependency)
-          case None if dependency.isCross              => ArtifactKind.Cross
-          case None                                    => ArtifactKind.Java
-        }
-
-  }
-
-  object Resolved {
-
-    def from(
-        annotated: AnnotatedDependency,
-        variableResolvers: Map[String, OrganizationArtifactName => ModuleID]
-    )(implicit logger: Logger): Resolved = {
-      val crossVersion = annotated.crossVersion match {
-        case Some("full")     => Some(CrossVersion.full)
-        case Some("binary")   => Some(CrossVersion.binary)
-        case Some("patch")    => Some(CrossVersion.patch)
-        case Some("disabled") => Some(CrossVersion.disabled)
-        case Some(other)      => Utils.fail(s"Invalid cross-version: $other")
-        case None             => None
-      }
-
-      Resolved(
-        Dependency.parse(annotated.line, variableResolvers),
-        annotated.note,
-        annotated.intransitive,
-        annotated.scalaFilter,
-        crossVersion
-      )
-    }
-
-  }
-
   /** Ordering for annotated dependencies: first by configuration, then by organization, then by name.
     *
     * Extracts sort keys directly from the dependency line regex, avoiding the need for full dependency parsing (which
@@ -155,21 +87,6 @@ object AnnotatedDependency {
       ("zzz", line.toLowerCase, "")
   })
 
-  final case class NoteKey(organization: String, name: String, configuration: String)
-
-  /** Holds the annotation data (note, intransitive flag, scala-filter, cross-version) for a dependency, used during
-    * write preservation.
-    */
-  final case class AnnotationData(
-      note: Option[String],
-      intransitive: Boolean,
-      scalaFilter: Option[String] = None,
-      crossVersion: Option[String] = None
-  )
-
-  /** Legal values for the `cross-version` annotation. */
-  val LegalCrossVersionValues: Set[String] = Set("full", "binary", "patch", "disabled")
-
   /** Parses a dependency list that may contain both plain strings and annotated objects. */
   def parse(config: Config, path: String): Either[String, List[AnnotatedDependency]] =
     config
@@ -177,17 +94,13 @@ object AnnotatedDependency {
       .asScala
       .toList
       .foldLeft(Right(List.empty[AnnotatedDependency]): Either[String, List[AnnotatedDependency]]) {
-        // If the accumulator already contains an error, return it immediately
         case (Left(err), _) => Left(err)
 
-        // Otherwise, try to parse the value as a string or object
         case (Right(acc), value) =>
           value.valueType() match {
-            // If the value is a string, create a new annotated dependency with no note
             case ConfigValueType.STRING =>
               Right(acc :+ AnnotatedDependency(value.unwrapped().asInstanceOf[String]))
 
-            // If the value is an object, check for 'dependency' and at least one annotation field
             case ConfigValueType.OBJECT =>
               val obj = value.asInstanceOf[ConfigObject].toConfig
               if (!obj.hasPath("dependency")) Left("object entry must have a 'dependency' field")
@@ -198,27 +111,35 @@ object AnnotatedDependency {
                 val scalaFilter    = if (obj.hasPath("scala-filter")) Some(obj.getString("scala-filter")) else None
                 val crossVersion   = if (obj.hasPath("cross-version")) Some(obj.getString("cross-version")) else None
 
+                val allowedCross = Set("full", "binary", "patch", "disabled")
+
                 if (note.isEmpty && !isIntransitive && scalaFilter.isEmpty && crossVersion.isEmpty)
                   Left("object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field")
-                else if (crossVersion.nonEmpty && !LegalCrossVersionValues.contains(crossVersion.get))
-                  Left(s"'cross-version' must be one of ${LegalCrossVersionValues.mkString(", ")}, got '${crossVersion.get}'")
+                else if (crossVersion.nonEmpty && !allowedCross.contains(crossVersion.get))
+                  Left(s"'cross-version' must be one of ${allowedCross.mkString(", ")}, got '${crossVersion.get}'")
                 else
                   Right(acc :+ AnnotatedDependency(dependency, note, isIntransitive, scalaFilter, crossVersion))
               }
 
-            // If the value is anything else, return an error
             case other =>
               Left(s"expected string or object in dependency list, got $other")
           }
       }
 
-  /** Creates an annotated dependency from a dependency and a map of existing annotations. */
-  def from(annotations: Map[NoteKey, AnnotationData])(dep: Dependency): AnnotatedDependency = {
-    val key  = NoteKey(dep.organization, dep.name, dep.configuration)
-    val data = annotations.get(key)
+  /** Converts a parsed `Dependency` to its HOCON-entry shape, emitting only the dep's own annotation fields. Callers
+    * that need to preserve annotations from an existing file (notably `init`) should merge those onto the `Dependency`
+    * via `DependenciesFile.applyExistingAnnotations` before calling this.
+    *
+    * The `cross-version` annotation is only emitted when the keyword differs from the default implied by the line's
+    * separator: `binary` is the implicit default for `::`, `disabled` is the implicit default for `:`. Redundant
+    * annotations (e.g. `binary` paired with `::`) get normalised away on the next write.
+    */
+  def from(dep: Dependency): AnnotatedDependency = {
+    val defaultKeyword = if (dep.isCross) "binary" else "disabled"
+    val crossVersion   = Dependency.crossVersionKeyword(dep.crossVersion).filter(_ !== defaultKeyword)
 
-    AnnotatedDependency(dep.toLine, data.flatMap(_.note), data.exists(_.intransitive), data.flatMap(_.scalaFilter),
-      data.flatMap(_.crossVersion))
+    AnnotatedDependency(line = dep.toLine, note = dep.note, intransitive = dep.intransitive,
+      scalaFilter = dep.scalaFilter, crossVersion = crossVersion)
   }
 
 }

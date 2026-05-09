@@ -24,22 +24,22 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 
+import sbt.librarymanagement.CrossVersion
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.io.AnnotatedDependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
-import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version._
 
 /** Utility functions for dependency resolution. */
 object Utils {
 
   /** Resolves the latest version for each annotated dependency in parallel, logging updates.
     *
-    * Returns the list of dependencies with their versions updated where applicable. The annotation context (notably the
-    * `cross-version` annotation) is used to drive the [[ArtifactKind]] for the lookup, so per-patch-published artifacts
-    * (`name_2.13.16`) and per-binary-published ones (`name_2.13`) are routed to the right Maven coordinate.
+    * Returns the list of dependencies with their versions updated where applicable. Each dep's `(configuration,
+    * crossVersion)` drives the Maven module shape lookup, so per-patch-published artifacts (`name_2.13.16`) and
+    * per-binary-published ones (`name_2.13`) are routed to the right coordinate.
     */
-  def resolveLatestVersions(deps: List[AnnotatedDependency.Resolved], parallelism: Int)(implicit
+  def resolveLatestVersions(deps: List[Dependency], parallelism: Int)(implicit
       vf: VersionFinder,
       mf: MigrationFinder,
       logger: Logger
@@ -49,55 +49,71 @@ object Utils {
     implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
     val futures =
-      deps.map(resolved => Future((resolved.dependency, findLatestVersion(resolved.dependency, resolved.kind))))
+      deps.map(dep => Future((dep, findLatestVersion(dep))))
 
     val updated = futures.map { future =>
-      val (dependency, message) = Await.result(future, Duration.Inf) match {
-        case (original: Dependency.WithNumericVersion, _) if original.version.marker.isExact =>
-          (original, s" ↳ $CYAN⊙$RESET $CYAN${original.toLine}$RESET")
+      Await.result(future, Duration.Inf) match {
+        // Exact-pinned (`=`) numeric: never update, even if a newer version exists.
+        case (original @ Dependency.Version(num: Numeric), _) if num.marker.isExact =>
+          logger.info(s" ↳ $CYAN⊙$RESET $CYAN${original.toLine}$RESET")
 
-        case (original: Dependency.WithNumericVersion, latest) if !latest.isSameArtifact(original) =>
-          (latest, s" ↳ $YELLOW⇄$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.toLine}$RESET")
+          original
 
-        case (original: Dependency.WithNumericVersion, latest) if latest.version.isSameVersion(original.version) =>
-          (original, s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET")
+        // Numeric with an artifact migration: org/name moved, take the latest at the new coordinates.
+        case (original @ Dependency.Version(_: Numeric), latest) if !latest.isSameArtifact(original) =>
+          logger.info(s" ↳ $YELLOW⇄$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.toLine}$RESET")
 
-        case (original: Dependency.WithNumericVersion, latest) =>
-          (latest, s" ↳ $YELLOW⬆$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.version.show}$RESET")
+          latest
 
-        case (original: Dependency.WithVariableVersion, latest)
-            if !latest.isSameArtifact(original) && latest.version.isSameVersion(original.version.resolved) =>
-          (
-            original,
-            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version}`), migration " +
+        // Numeric already at the latest allowed version: keep as-is.
+        case (original @ Dependency.Version(num: Numeric), Dependency.Version(latest: Numeric))
+            if latest.isSameVersion(num) =>
+          logger.info(s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET")
+
+          original
+
+        // Numeric with a newer version available within the marker constraints: bump.
+        case (original @ Dependency.Version(_: Numeric), latest) =>
+          logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${original.toLine}$RESET -> $CYAN${latest.version.show}$RESET")
+
+          latest
+
+        // Variable already at latest, but the artifact has migrated — surface the migration without changing the line
+        // (the variable is build-managed; the user resolves the migration themselves).
+        case (original @ Dependency.Version(variable: Variable), latest)
+            if !latest.isSameArtifact(original) && variable.isSameVersion(latest.version) =>
+          logger.info {
+            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `$variable`), migration " +
               s"to ${latest.organization}:${latest.name} available"
-          )
+          }
 
-        case (original: Dependency.WithVariableVersion, latest) if !latest.isSameArtifact(original) =>
-          (
-            original,
+          original
+
+        // Variable with both a newer version and a migration available — surface both, keep the line unchanged.
+        case (original @ Dependency.Version(_: Variable), latest) if !latest.isSameArtifact(original) =>
+          logger.info {
             s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version}`, " +
               s"latest: `$YELLOW${latest.version}$RESET`, migration to" +
               s" ${latest.organization}:${latest.name} available)"
-          )
+          }
 
-        case (original: Dependency.WithVariableVersion, latest)
-            if latest.version.isSameVersion(original.version.resolved) =>
-          (
-            original,
-            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `${original.version}`)"
-          )
+          original
 
-        case (original: Dependency.WithVariableVersion, latest) =>
-          (
-            original,
+        // Variable resolved to the current latest version: keep as-is.
+        case (original @ Dependency.Version(variable: Variable), latest) if variable.isSameVersion(latest.version) =>
+          logger.info(s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `$variable`)")
+
+          original
+
+        // Variable behind the latest: log the gap, leave the line untouched (the user updates the variable in build.sbt).
+        case (original, latest) =>
+          logger.info {
             s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `${original.version}`, " +
               s"latest: `$YELLOW${latest.version}$RESET`)"
-          )
-      }
+          }
 
-      logger.info(message)
-      dependency
+          original
+      }
     }
 
     executor.shutdown()
@@ -111,83 +127,83 @@ object Utils {
     *   - `~` (Minor): Updates within same major.minor
     *   - `^` (Major): Updates within same major
     *
-    * For variable versions, delegates to the resolved numeric version.
+    * For variable versions, delegates to the resolved numeric version. The Maven module shape used for the lookup is
+    * derived from the dep's `(configuration, crossVersion)` — see [[VersionFinder.findVersions]].
     *
     * @param dependency
     *   The dependency to find the latest version for.
     * @return
-    *   A [[com.alejandrohdezma.sbt.dependencies.model.Dependency.WithNumericVersion]] with the latest resolved version,
-    *   preserving the original marker.
+    *   A `Dependency` with `version: Version.Numeric` containing the latest resolved version, preserving the original
+    *   marker.
     */
-  def findLatestVersion(
-      dependency: Dependency
-  )(implicit
+  def findLatestVersion(dependency: Dependency)(implicit
       versionFinder: VersionFinder,
       migrationFinder: MigrationFinder,
       logger: Logger
-  ): Dependency.WithNumericVersion =
-    findLatestVersion(dependency, ArtifactKind.fromDependency(dependency))
-
-  /** Same as the single-argument `findLatestVersion` but with an explicit `ArtifactKind` (e.g. derived from a
-    * [[com.alejandrohdezma.sbt.dependencies.io.AnnotatedDependency.Resolved]]'s annotation context).
-    */
-  def findLatestVersion(
-      dependency: Dependency,
-      kind: ArtifactKind
-  )(implicit
-      versionFinder: VersionFinder,
-      migrationFinder: MigrationFinder,
-      logger: Logger
-  ): Dependency.WithNumericVersion = {
+  ): Dependency =
     (dependency.version, migrationFinder.findMigration(dependency)) match {
+      // Variable: resolve to its underlying Numeric and recurse — fail loudly if the variable was never resolved.
       case (variable: Dependency.Version.Variable, _) =>
-        findLatestVersion(dependency.withVersion(variable.resolved), kind)
+        variable.resolved
+          .map(num => findLatestVersion(dependency.withVersion(num)))
+          .getOrElse(Utils.fail(s"Unable to resolve ${dependency.toLine}"))
 
+      // Exact-pinned (`=`) numeric: skip the lookup entirely, the user has opted out of updates.
       case (numeric: Dependency.Version.Numeric, _) if numeric.marker.isExact =>
-        Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric, dependency.isCross,
-          dependency.configuration)
+        dependency
 
+      // Numeric with an artifact migration available: query both old and new coordinates, pick the higher version.
       case (numeric: Dependency.Version.Numeric, Some(migration)) =>
-        val bestOld =
-          findLatestVersion(dependency.organization, dependency.name, kind)(numeric.isValidCandidate)
+        val migrated = dependency
+          .withOrganization(migration.groupIdAfter)
+          .withName(migration.artifactIdAfter)
 
-        val bestNew =
-          findLatestVersion(migration.groupIdAfter, migration.artifactIdAfter, kind)(numeric.isValidCandidate)
+        val bestOld = findLatestVersionOf(dependency)(numeric.isValidCandidate)
 
-        val current = Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric,
-          dependency.isCross, dependency.configuration)
+        val bestNew = findLatestVersionOf(migrated)(numeric.isValidCandidate)
 
         (bestOld, bestNew) match {
+          // Old coordinates have nothing matching the marker; new coordinates do — migrate.
           case (None, Some(nv)) =>
-            Dependency.WithNumericVersion(migration.groupIdAfter, migration.artifactIdAfter,
-              nv.copy(marker = numeric.marker), dependency.isCross, dependency.configuration)
+            migrated.withVersion(nv.withMarker(numeric.marker))
+
+          // Both coordinates have a match, but the new one is strictly newer — migrate.
           case (Some(ov), Some(nv)) if Ordering[Numeric].lt(ov, nv) =>
-            Dependency.WithNumericVersion(migration.groupIdAfter, migration.artifactIdAfter,
-              nv.copy(marker = numeric.marker), dependency.isCross, dependency.configuration)
+            migrated.withVersion(nv.withMarker(numeric.marker))
+
+          // Old coordinates have a match that's at least as new as the new coordinates — stay put, just bump version.
           case (Some(ov), _) =>
-            Dependency.WithNumericVersion(dependency.organization, dependency.name, ov.copy(marker = numeric.marker),
-              dependency.isCross, dependency.configuration)
+            dependency.withVersion(ov.withMarker(numeric.marker))
+
+          // Neither coordinate resolves — warn and leave the dep unchanged.
           case (None, None) =>
             logger.warn(s"Could not resolve ${dependency.organization}:${dependency.name}")
-            current
+            dependency
         }
 
+      // Numeric with no migration: plain Maven lookup at current coordinates.
       case (numeric: Dependency.Version.Numeric, None) =>
-        Utils
-          .findLatestVersion(dependency.organization, dependency.name, kind)(numeric.isValidCandidate)
-          .map { latest =>
-            Dependency.WithNumericVersion(dependency.organization, dependency.name,
-              latest.copy(marker = numeric.marker), dependency.isCross, dependency.configuration)
-          }
+        findLatestVersionOf(dependency)(numeric.isValidCandidate)
+          .map(version => dependency.withVersion(version.withMarker(numeric.marker)))
           .getOrElse {
-            logger.warn(s"Could not resolve ${dependency.organization}:${dependency.name}")
-
-            Dependency.WithNumericVersion(dependency.organization, dependency.name, numeric, dependency.isCross,
-              dependency.configuration)
+            logger.warn(s"Could not resolve ${dependency.toLine}")
+            dependency
           }
     }
 
-  }
+  /** Finds the latest version of a dependency that passes the validation function.
+    *
+    * @param dependency
+    *   The dependency to find the latest version for.
+    * @param f
+    *   Function to filter valid candidate versions.
+    * @return
+    *   The latest valid version.
+    */
+  def findLatestVersionOf(dependency: Dependency)(f: Dependency.Version.Numeric => Boolean)(implicit
+      versionFinder: VersionFinder
+  ): Option[Dependency.Version.Numeric] =
+    findLatestVersion(dependency.organization, dependency.name, dependency.configuration, dependency.crossVersion)(f)
 
   /** Finds the latest version of a dependency that passes the validation function.
     *
@@ -195,18 +211,20 @@ object Utils {
     *   The organization/groupId.
     * @param name
     *   The artifact name.
-    * @param kind
-    *   The shape under which the artifact is published — see [[ArtifactKind]].
+    * @param configuration
+    *   The dependency configuration (drives the sbt-plugin shape branch).
+    * @param crossVersion
+    *   The SBT `CrossVersion` shape (drives the cross-versioned shape branch).
     * @param validate
     *   Function to filter valid candidate versions.
     * @return
     *   The latest valid version.
     */
-  def findLatestVersion(organization: String, name: String, kind: ArtifactKind)(
+  def findLatestVersion(organization: String, name: String, configuration: String, crossVersion: CrossVersion)(
       validate: Dependency.Version.Numeric => Boolean
   )(implicit versionFinder: VersionFinder): Option[Dependency.Version.Numeric] =
     versionFinder
-      .findVersions(organization, name, kind)
+      .findVersions(organization, name, configuration, crossVersion)
       .filter(validate)
       .sorted
       .reverse
@@ -229,7 +247,10 @@ object Utils {
   def findLatestScalaVersion(
       currentVersion: Numeric
   )(implicit versionFinder: VersionFinder, migrationFinder: MigrationFinder, logger: Logger): Numeric =
-    Dependency.scala(currentVersion).findLatestVersion.version
+    Dependency.scala(currentVersion).findLatestVersion.version match {
+      case n: Numeric => n
+      case other      => Utils.fail(s"Expected numeric version, got: $other")
+    }
 
   /** Logs an error message and throws a RuntimeException. */
   def fail(message: String)(implicit logger: Logger): Nothing = {

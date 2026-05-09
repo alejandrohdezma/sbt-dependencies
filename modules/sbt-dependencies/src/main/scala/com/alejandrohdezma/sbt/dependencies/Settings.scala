@@ -145,8 +145,8 @@ class Settings {
 
     def readGroup(group: Group): Seq[ModuleID] =
       file
-        .readAnnotated(group, variableResolvers)
-        .filter(_.dependency.matchesScalaVersion(scalaV))
+        .read(group, variableResolvers)
+        .filter(_.matchesScalaVersion(scalaV))
         .filter(dep => dep.scalaFilter.forall(scalaV.startsWith))
         .map(_.toModuleID(sbtV, scalaV))
 
