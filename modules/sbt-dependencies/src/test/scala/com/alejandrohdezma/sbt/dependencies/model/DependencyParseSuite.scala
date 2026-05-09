@@ -29,17 +29,17 @@ class DependencyParseSuite extends munit.FunSuite {
   implicit val logger: Logger = TestLogger()
 
   // Dummy VersionFinder that always returns 0.1.0
-  implicit val dummyVersionFinder: VersionFinder = (_, _, _) =>
+  implicit val dummyVersionFinder: VersionFinder = (_, _, _, _) =>
     List(Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker))
 
   test("parse cross-version dependency with version") {
     val result = Dependency.parse("org.typelevel::cats-core:2.10.0")
 
-    val expected = Dependency.WithNumericVersion(
+    val expected = Dependency(
       organization = "org.typelevel",
       name = "cats-core",
       version = Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true
+      crossVersion = CrossVersion.binary
     )
 
     assertEquals(result, expected)
@@ -54,40 +54,42 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parseIncludingMissingVersion resolves cross-version dependency without version") {
-    val (result, _) = Dependency.parseIncludingMissingVersion("org.typelevel::cats-core")
+    val result = Dependency.parseIncludingMissingVersion("org.typelevel::cats-core")
 
-    val expected = Dependency.WithNumericVersion(
+    val expected = Dependency(
       organization = "org.typelevel",
       name = "cats-core",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true
+      crossVersion = CrossVersion.binary
     )
 
     assertEquals(result, expected)
   }
 
   test("parseIncludingMissingVersion carries compiler-plugin config when version is missing") {
-    val (result, _) = Dependency.parseIncludingMissingVersion("org.typelevel::kind-projector:compiler-plugin")
+    val result = Dependency.parseIncludingMissingVersion("org.typelevel::kind-projector:compiler-plugin")
 
-    val expected = Dependency.WithNumericVersion(
+    // Compiler-plugin + cross goes through the dual-shape heuristic. The dummy VersionFinder returns the same versions
+    // for both queries, so the tie-breaker (full wins on tie) sets `crossVersion = CrossVersion.full`.
+    val expected = Dependency(
       organization = "org.typelevel",
       name = "kind-projector",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
-      configuration = "compiler-plugin"
+      configuration = "compiler-plugin",
+      crossVersion = sbt.librarymanagement.CrossVersion.full
     )
 
     assertEquals(result, expected)
   }
 
   test("parseIncludingMissingVersion carries sbt-plugin config when version is missing") {
-    val (result, _) = Dependency.parseIncludingMissingVersion("ch.epfl.scala:sbt-scalafix:sbt-plugin")
+    val result = Dependency.parseIncludingMissingVersion("ch.epfl.scala:sbt-scalafix:sbt-plugin")
 
-    val expected = Dependency.WithNumericVersion(
+    val expected = Dependency(
       organization = "ch.epfl.scala",
       name = "sbt-scalafix",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = false,
+      crossVersion = CrossVersion.disabled,
       configuration = "sbt-plugin"
     )
 
@@ -97,11 +99,11 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse java dependency with version") {
     val result = Dependency.parse("com.google.guava:guava:32.1.0-jre")
 
-    val expected = Dependency.WithNumericVersion(
+    val expected = Dependency(
       organization = "com.google.guava",
       name = "guava",
       version = Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
-      isCross = false
+      crossVersion = CrossVersion.disabled
     )
 
     assertEquals(result, expected)
@@ -116,13 +118,13 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parseIncludingMissingVersion resolves java dependency without version") {
-    val (result, _) = Dependency.parseIncludingMissingVersion("com.google.guava:guava")
+    val result = Dependency.parseIncludingMissingVersion("com.google.guava:guava")
 
-    val expected = Dependency.WithNumericVersion(
+    val expected = Dependency(
       organization = "com.google.guava",
       name = "guava",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
-      isCross = false
+      crossVersion = CrossVersion.disabled
     )
 
     assertEquals(result, expected)
@@ -139,11 +141,11 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse cross-version dependency with version and configuration") {
     val result = Dependency.parse("org.scalameta::munit:1.2.1:test")
 
-    val expected = Dependency.WithNumericVersion(
+    val expected = Dependency(
       organization = "org.scalameta",
       name = "munit",
       version = Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
-      isCross = true,
+      crossVersion = CrossVersion.binary,
       configuration = "test"
     )
 
@@ -153,11 +155,11 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse java dependency with version and configuration") {
     val result = Dependency.parse("ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin")
 
-    val expected = Dependency.WithNumericVersion(
+    val expected = Dependency(
       organization = "ch.epfl.scala",
       name = "sbt-scalafix",
       version = Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
-      isCross = false,
+      crossVersion = CrossVersion.disabled,
       configuration = "sbt-plugin"
     )
 
@@ -167,11 +169,11 @@ class DependencyParseSuite extends munit.FunSuite {
   test("parse dependency with provided configuration") {
     val result = Dependency.parse("javax.servlet:javax.servlet-api:4.0.1:provided")
 
-    val expected = Dependency.WithNumericVersion(
+    val expected = Dependency(
       organization = "javax.servlet",
       name = "javax.servlet-api",
       version = Version.Numeric(List(4, 0, 1), None, Version.Numeric.Marker.NoMarker),
-      isCross = false,
+      crossVersion = CrossVersion.disabled,
       configuration = "provided"
     )
 
@@ -255,18 +257,13 @@ class DependencyParseSuite extends munit.FunSuite {
 
   // --- Variable version tests ---
 
-  test("parse dependency with variable version") {
-    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
-      "catsVersion" -> { _ % "2.10.0" }
-    )
-
-    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}", resolvers)
+  test("parse dependency with variable version produces unresolved Variable") {
+    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}")
 
     result.version match {
       case v: Version.Variable =>
         assertEquals(v.name, "catsVersion")
-        assertEquals(v.resolved.parts, List(2, 10, 0))
-        assertEquals(v.toVersionString, "2.10.0")
+        assertEquals(v.resolved, None)
         assertEquals(v.show, "{{catsVersion}}")
       case _ =>
         fail("Expected Variable version")
@@ -274,69 +271,92 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parse dependency with variable version and configuration") {
-    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
-      "munitVersion" -> { _ % "1.0.0" }
-    )
-
-    val result = Dependency.parse("org.scalameta::munit:{{munitVersion}}:test", resolvers)
+    val result = Dependency.parse("org.scalameta::munit:{{munitVersion}}:test")
 
     result.version match {
       case v: Version.Variable =>
         assertEquals(v.name, "munitVersion")
-        assertEquals(v.resolved.parts, List(1, 0, 0))
+        assertEquals(v.resolved, None)
       case _ =>
         fail("Expected Variable version")
     }
     assertEquals(result.configuration, "test")
   }
 
-  test("parse dependency with undefined variable fails with descriptive error") {
-    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
-      "otherVar" -> { _ % "1.0.0" }
-    )
+  test("parse dependency with undefined variable produces unresolved Variable") {
+    val result = Dependency.parse("org.typelevel::cats-core:{{unknownVar}}")
 
-    val error = intercept[Exception] {
-      Dependency.parse("org.typelevel::cats-core:{{unknownVar}}", resolvers)
+    result.version match {
+      case v: Version.Variable =>
+        assertEquals(v.name, "unknownVar")
+        assertEquals(v.resolved, None)
+      case _ => fail("Expected Variable version")
     }
-
-    assert(error.getMessage.contains("{{unknownVar}}"))
-    assert(error.getMessage.contains("otherVar"))
-  }
-
-  test("parse dependency with undefined variable and no resolvers fails with descriptive error") {
-    val error = intercept[Exception] {
-      Dependency.parse("org.typelevel::cats-core:{{myVar}}", Map.empty)
-    }
-
-    assert(error.getMessage.contains("{{myVar}}"))
-    assert(error.getMessage.contains("(none defined)"))
   }
 
   test("parse variable dependency toLine preserves variable syntax") {
-    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
-      "catsVersion" -> { _ % "2.10.0" }
-    )
-
-    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}", resolvers)
+    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}")
 
     assertEquals(result.toLine, "org.typelevel::cats-core:{{catsVersion}}")
   }
 
-  test("parse java dependency with variable version") {
-    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
-      "jacksonVersion" -> { _ % "2.14.2" }
-    )
-
-    val result = Dependency.parse("com.fasterxml.jackson.core:jackson-core:{{jacksonVersion}}", resolvers)
+  test("parse java dependency with variable version produces Java-cross unresolved Variable") {
+    val result = Dependency.parse("com.fasterxml.jackson.core:jackson-core:{{jacksonVersion}}")
 
     result.version match {
       case v: Version.Variable =>
         assertEquals(v.name, "jacksonVersion")
-        assertEquals(v.resolved.parts, List(2, 14, 2))
+        assertEquals(v.resolved, None)
       case _ =>
         fail("Expected Variable version")
     }
     assertEquals(result.isCross, false)
+  }
+
+  // --- resolveVariable tests ---
+
+  test("resolveVariable populates resolved when the variable is in the resolver map") {
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "catsVersion" -> { _ % "2.10.0" }
+    )
+
+    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}").resolveVariable(resolvers)
+
+    result.version match {
+      case v: Version.Variable =>
+        assertEquals(v.name, "catsVersion")
+        assertEquals(v.resolved.map(_.parts), Some(List(2, 10, 0)))
+        assertEquals(v.toVersionString, "2.10.0")
+      case _ =>
+        fail("Expected Variable version")
+    }
+  }
+
+  test("resolveVariable leaves the dep unchanged when the variable is missing from the resolver map") {
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "otherVar" -> { _ % "1.0.0" }
+    )
+
+    val result = Dependency.parse("org.typelevel::cats-core:{{unknownVar}}").resolveVariable(resolvers)
+
+    result.version match {
+      case v: Version.Variable =>
+        assertEquals(v.name, "unknownVar")
+        assertEquals(v.resolved, None)
+      case _ => fail("Expected Variable version")
+    }
+  }
+
+  test("resolveVariable is a no-op for already-resolved variables and for numeric versions") {
+    val resolvers: Map[String, OrganizationArtifactName => ModuleID] = Map(
+      "v" -> { _ % "9.9.9" }
+    )
+
+    val numeric = Dependency.parse("org.typelevel::cats-core:2.10.0")
+    assertEquals(numeric.resolveVariable(resolvers), numeric)
+
+    val alreadyResolved = Dependency.parse("org.typelevel::cats-core:{{v}}").resolveVariable(resolvers)
+    assertEquals(alreadyResolved.resolveVariable(resolvers), alreadyResolved)
   }
 
 }

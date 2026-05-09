@@ -18,6 +18,7 @@ package com.alejandrohdezma.sbt.dependencies.io
 
 import scala.jdk.CollectionConverters._
 
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.Config
@@ -81,7 +82,7 @@ object GroupConfig {
   def parse(config: Config, group: Group): Either[String, GroupConfig] =
     config.getValue(group.name).valueType() match {
       case ConfigValueType.LIST =>
-        AnnotatedDependency.parse(config, group.name).map(GroupConfig.Simple(_))
+        AnnotatedDependency.parse(config, group.name).flatMap(checkDuplicates).map(GroupConfig.Simple(_))
 
       case ConfigValueType.OBJECT =>
         val groupConfig = config.getConfig(group.name)
@@ -99,8 +100,9 @@ object GroupConfig {
         val dependencies =
           if (groupConfig.hasPath("dependencies"))
             groupConfig.getValue("dependencies").valueType() match {
-              case ConfigValueType.LIST => AnnotatedDependency.parse(groupConfig, "dependencies")
-              case other                => Left(s"'dependencies' must be a list, got $other")
+              case ConfigValueType.LIST =>
+                AnnotatedDependency.parse(groupConfig, "dependencies").flatMap(checkDuplicates)
+              case other => Left(s"'dependencies' must be a list, got $other")
             }
           else Right(Nil)
 
@@ -141,6 +143,27 @@ object GroupConfig {
       case other =>
         Left(s"expected list or object, got $other")
     }
+
+  /** Rejects two entries that share the same `(organization, name, configuration)`. The merge in
+    * `DependenciesFile.write` keys on this triple, so duplicates would silently lose the second entry; failing at parse
+    * time surfaces the user error instead.
+    */
+  private def checkDuplicates(deps: List[AnnotatedDependency]): Either[String, List[AnnotatedDependency]] = {
+    val keys = deps.flatMap { ad =>
+      ad.line match {
+        case Dependency.dependencyRegex(org, _, name, _, config) =>
+          List((org, name, Option(config).getOrElse("compile")))
+        case _ => Nil
+      }
+    }
+    val duplicates = keys.groupBy(identity).collect { case (k, vs) if vs.size > 1 => k }.toList
+    if (duplicates.isEmpty) Right(deps)
+    else
+      Left(
+        "duplicate dependency entries: " +
+          duplicates.map { case (o, n, c) => s"$o:$n ($c)" }.mkString(", ")
+      )
+  }
 
   /** Simple format: just a list of dependencies.
     *

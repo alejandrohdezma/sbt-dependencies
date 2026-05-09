@@ -329,7 +329,7 @@ class ScalafmtSuite extends munit.FunSuite {
 
   // Mock VersionFinder that returns a specific "latest" version
   def mockVersionFinder(latestVersion: String): VersionFinder =
-    (_, _, _) => List(Version.Numeric.from(latestVersion, Version.Numeric.Marker.NoMarker).get)
+    (_, _, _, _) => List(Version.Numeric.from(latestVersion, Version.Numeric.Marker.NoMarker).get)
 
   // Fixture that creates a temp directory with a .scalafmt.conf file
   def withScalafmtConf(content: String): FunFixture[File] = FunFixture[File](

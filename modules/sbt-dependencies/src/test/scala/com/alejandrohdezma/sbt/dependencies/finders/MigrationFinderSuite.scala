@@ -19,6 +19,7 @@ package com.alejandrohdezma.sbt.dependencies.finders
 import java.nio.file.Files
 
 import sbt.IO
+import sbt.librarymanagement.CrossVersion
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
@@ -37,11 +38,11 @@ class MigrationFinderSuite extends munit.FunSuite {
 
   override def afterAll(): Unit = IO.delete(tempCacheDir.toFile())
 
-  private def dep(org: String, name: String) = Dependency.WithNumericVersion(
+  private def dep(org: String, name: String) = Dependency(
     org,
     name,
     Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-    isCross = true
+    crossVersion = CrossVersion.binary
   )
 
   def withMigrationFile(contents: String) = FunFixture[MigrationFinder](

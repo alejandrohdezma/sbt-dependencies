@@ -21,20 +21,17 @@ import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
 import sbt.Keys._
-import sbt.librarymanagement.CrossVersion
 import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
-import com.alejandrohdezma.sbt.dependencies.finders.ArtifactKind
 import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
-import com.alejandrohdezma.sbt.dependencies.io.AnnotatedDependency
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff
 import com.alejandrohdezma.sbt.dependencies.io.Scalafmt
@@ -104,23 +101,6 @@ class Commands {
     val dependenciesByGroup: Map[Group, List[Dependency]] =
       moduleIDsByGroup.mapValues(_.flatMap(Dependency.fromModuleID(_).toList))
 
-    // For each ModuleID whose CrossVersion differs from the default that `Dependency.toModuleID` would produce, capture
-    // a `cross-version` annotation so the round-trip preserves the user's original choice (e.g. compiler plugins
-    // declared with `cross CrossVersion.full`).
-    val crossVersionAnnotationsByGroup
-        : Map[Group, Map[AnnotatedDependency.NoteKey, AnnotatedDependency.AnnotationData]] =
-      moduleIDsByGroup.mapValues { modules =>
-        modules.flatMap { m =>
-          Dependency.fromModuleID(m).flatMap { dep =>
-            val defaultKeyword = if (dep.isCross) "binary" else "disabled"
-            crossVersionKeyword(m.crossVersion).filter(_ !== defaultKeyword).map { keyword =>
-              AnnotatedDependency.NoteKey(dep.organization, dep.name, dep.configuration) ->
-                AnnotatedDependency.AnnotationData(None, intransitive = false, None, Some(keyword))
-            }
-          }
-        }.toMap
-      }
-
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
     val scalaVersionsByGroup: Map[Group, List[String]] =
       if (!includeScalaVersions || isSbtBuild) Map.empty
@@ -156,14 +136,12 @@ class Commands {
       file.write(`common-settings`, Nil, sharedVersions, sharedJavaVersion)
     }
 
-    // Write `sbt-build` only when it actually carries plugin dependencies
+    // Write `sbt-build` only when it actually carries plugin dependencies. Annotations from the existing file (notes,
+    // intransitive flags, scala-filters, cross-version overrides) are merged onto the build-derived deps so re-runs
+    // of `init` don't clobber the user's hand-written annotations.
     val sbtBuildDeps = dependenciesByGroup.getOrElse(`sbt-build`, Nil)
     if (newGroups.contains(`sbt-build`) && sbtBuildDeps.nonEmpty) {
-      file.write(
-        `sbt-build`,
-        sbtBuildDeps,
-        additionalAnnotations = crossVersionAnnotationsByGroup.getOrElse(`sbt-build`, Map.empty)
-      )
+      file.write(`sbt-build`, file.applyExistingAnnotations(`sbt-build`, sbtBuildDeps))
     }
 
     // Write each project group's dependencies (and scala/java versions if not shared)
@@ -172,13 +150,7 @@ class Commands {
       val scalaVersions = if (sharedVersions.isEmpty) scalaVersionsByGroup.getOrElse(group, Nil) else Nil
       val javaVersion   = if (sharedJavaVersion.isEmpty) javaVersionByGroup.getOrElse(group, None) else None
 
-      file.write(
-        group,
-        deps,
-        scalaVersions,
-        javaVersion,
-        additionalAnnotations = crossVersionAnnotationsByGroup.getOrElse(group, Map.empty)
-      )
+      file.write(group, file.applyExistingAnnotations(group, deps), scalaVersions, javaVersion)
     }
 
     logger.info("✎ Created project/dependencies.conf file with your dependencies")
@@ -287,17 +259,17 @@ class Commands {
         val updatedLines = lines.map {
           case line @ pluginRegex(Numeric(current)) =>
             val dependency =
-              Dependency.WithNumericVersion(pluginOrg, pluginName, current, isCross = false, "sbt-plugin")
+              Dependency(pluginOrg, pluginName, current, "sbt-plugin")
 
-            val latest = dependency.findLatestVersion.version
-
-            if (latest.isSameVersion(current)) {
-              retractionFinder.warnIfRetracted(dependency)
-              logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
-              (line, false)
-            } else {
-              logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
-              (s"""addSbtPlugin("$pluginOrg" % "$pluginName" % "${latest.show}")""", true)
+            dependency.findLatestVersion.version match {
+              case latest: Numeric if latest.isSameVersion(current) =>
+                retractionFinder.warnIfRetracted(dependency)
+                logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
+                (line, false)
+              case latest: Numeric =>
+                logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+                (s"""addSbtPlugin("$pluginOrg" % "$pluginName" % "${latest.show}")""", true)
+              case _ => (line, false)
             }
           case line => (line, false)
         }
@@ -332,7 +304,7 @@ class Commands {
         implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
           implicit val logger: Logger = state.log
 
-          val deps = file.readAnnotated(group, Map.empty)
+          val deps = file.read(group, Map.empty)
 
           if (deps.nonEmpty) {
             logger.info(s"\n↻ Updating dependencies for `${group.name}` in project/dependencies.conf\n")
@@ -408,39 +380,14 @@ class Commands {
 
       withDependenciesFile(state, group) { implicit versionFinder => _ => _ => (_, file) =>
         val dependencies = file.read(group, Map.empty)
-
-        val (dep, kind) = Dependency.parseIncludingMissingVersion(dependency)
-
-        val additionalAnnotations = crossVersionAnnotation(dep, kind)
+        val dep          = Dependency.parseIncludingMissingVersion(dependency)
 
         logger.info(s"➕ [${group.name}] $YELLOW${dep.toLine}$RESET")
 
-        file.write(
-          group,
-          dependencies.filterNot(_.isSameArtifact(dep)) :+ dep,
-          additionalAnnotations = additionalAnnotations
-        )
+        file.write(group, dependencies.filterNot(_.isSameArtifact(dep)) :+ dep)
 
         state
       }
-    }
-
-  /** Builds the `additionalAnnotations` map for `file.write` when the resolved [[ArtifactKind]] differs from what the
-    * dependency's `(isCross, configuration)` pair would imply. The only case currently is `compiler-plugin` resolved
-    * via `CrossFull` (e.g. `kind-projector`), which needs a `cross-version = "full"` annotation so the entry resolves
-    * the right artifact at compile time.
-    */
-  private def crossVersionAnnotation(
-      dependency: Dependency,
-      kind: ArtifactKind
-  ): Map[AnnotatedDependency.NoteKey, AnnotatedDependency.AnnotationData] =
-    kind match {
-      case ArtifactKind.CrossFull =>
-        Map(
-          AnnotatedDependency.NoteKey(dependency.organization, dependency.name, dependency.configuration) ->
-            AnnotatedDependency.AnnotationData(None, intransitive = false, None, Some("full"))
-        )
-      case _ => Map.empty
     }
 
   /** Updates scalafmt version in `.scalafmt.conf` to the latest version. */
@@ -506,15 +453,15 @@ class Commands {
           case line @ sbtVersionRegex(Numeric(current)) =>
             val dependency = Dependency.sbt(current)
 
-            val latest = dependency.findLatestVersion.version
-
-            if (latest.isSameVersion(current)) {
-              retractionFinder.warnIfRetracted(dependency)
-              logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
-              (line, false)
-            } else {
-              logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
-              (s"sbt.version=$latest", true)
+            dependency.findLatestVersion.version match {
+              case latest: Numeric if latest.isSameVersion(current) =>
+                retractionFinder.warnIfRetracted(dependency)
+                logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
+                (line, false)
+              case latest: Numeric =>
+                logger.info(s" ↳ $YELLOW⬆$RESET $YELLOW${current.show}$RESET -> $CYAN${latest.show}$RESET")
+                (s"sbt.version=$latest", true)
+              case _ => (line, false)
             }
           case line => (line, false)
         }
@@ -898,19 +845,6 @@ class Commands {
       f(versionFinder)(migrationFinder)(retractionFinder)(project, dependenciesFile)
     }
   }
-
-  /** Maps an SBT `CrossVersion` to the keyword used by the `cross-version` annotation. Returns `None` for unsupported
-    * variants (e.g. `Constant`).
-    */
-  private def crossVersionKeyword(cv: CrossVersion): Option[String] =
-    if (cv == CrossVersion.disabled) Some("disabled") // scalafix:ok
-    else
-      cv match {
-        case _: CrossVersion.Binary => Some("binary")
-        case _: CrossVersion.Full   => Some("full")
-        case _: CrossVersion.Patch  => Some("patch")
-        case _                      => None
-      }
 
   /** Extracts a Java target version from a list of `javacOptions`, by scanning for `--release N`, `-release N`, or
     * `-target N` (a digit-only token following the flag). Returns `None` if no recognised flag is present.

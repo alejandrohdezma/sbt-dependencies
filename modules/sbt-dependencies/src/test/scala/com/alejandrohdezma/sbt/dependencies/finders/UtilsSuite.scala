@@ -18,12 +18,12 @@ package com.alejandrohdezma.sbt.dependencies.finders
 
 import scala.Console._
 
+import sbt.librarymanagement.CrossVersion
 import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
-import com.alejandrohdezma.sbt.dependencies.io.AnnotatedDependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
@@ -39,45 +39,49 @@ class UtilsSuite extends munit.FunSuite {
 
   // Helper to parse a version string into Numeric with Minor marker (matching readScalaVersions behavior)
   def v(version: String): Numeric =
-    Version.Numeric.unapply(version).get.copy(marker = Numeric.Marker.Minor)
+    Version.Numeric.unapply(version).get.withMarker(Numeric.Marker.Minor)
 
   // Helper to create a Numeric version with NoMarker
   def nv(version: String): Numeric =
-    Version.Numeric.unapply(version).get.copy(marker = Numeric.Marker.NoMarker)
+    Version.Numeric.unapply(version).get.withMarker(Numeric.Marker.NoMarker)
 
   // Helper to create a dependency
   def dep(
       org: String,
       name: String,
       version: String,
-      isCross: Boolean = true,
+      crossVersion: CrossVersion = CrossVersion.binary,
       configuration: String = "compile"
-  ): Dependency.WithNumericVersion =
-    Dependency.WithNumericVersion(org, name, nv(version), isCross, configuration)
+  ): Dependency =
+    Dependency(org, name, nv(version), configuration = configuration, crossVersion = crossVersion)
 
   // Helper to create a dependency with Exact marker
-  def exactDep(org: String, name: String, version: String, isCross: Boolean = true): Dependency.WithNumericVersion =
-    Dependency.WithNumericVersion(
+  def exactDep(
+      org: String,
+      name: String,
+      version: String,
+      crossVersion: CrossVersion = CrossVersion.binary
+  ): Dependency =
+    Dependency(
       org,
       name,
-      Version.Numeric.unapply(version).get.copy(marker = Numeric.Marker.Exact),
-      isCross
+      Version.Numeric.unapply(version).get.withMarker(Numeric.Marker.Exact),
+      crossVersion = crossVersion
     )
 
   // Helper to create a mock VersionFinder that returns specific versions for specific modules
   def mockVersionFinder(versions: Map[(String, String), List[String]]): VersionFinder =
-    (organization: String, name: String, _: ArtifactKind) =>
+    (organization, name, _, _) =>
       versions
         .getOrElse((organization, name), Nil)
         .collect { case Version.Numeric(v) => v }
 
-  // Helper that wraps each Dependency in a default AnnotatedDependency.Resolved before delegating to Utils
   def resolveLatestVersions(deps: List[Dependency], parallelism: Int)(implicit
       vf: VersionFinder,
       mf: MigrationFinder,
       logger: Logger
   ): List[Dependency] =
-    Utils.resolveLatestVersions(deps.map(AnnotatedDependency.Resolved(_)), parallelism)(vf, mf, logger)
+    Utils.resolveLatestVersions(deps, parallelism)(vf, mf, logger)
 
   // --- findLatestScalaVersion tests ---
 
@@ -345,8 +349,8 @@ class UtilsSuite extends munit.FunSuite {
       Map(("org.typelevel", "cats-core") -> List("2.9.0", "2.10.0"))
     )
 
-    val variable = Version.Variable("catsVersion", nv("2.9.0"))
-    val input    = Dependency.WithVariableVersion("org.typelevel", "cats-core", variable, isCross = true)
+    val variable = Version.Variable("catsVersion", Some(nv("2.9.0")))
+    val input    = Dependency("org.typelevel", "cats-core", variable, crossVersion = CrossVersion.binary)
 
     val result = resolveLatestVersions(List(input), 1)
 
@@ -363,17 +367,17 @@ class UtilsSuite extends munit.FunSuite {
     )
 
     val input = List(
-      dep("com.z", "z-lib", "1.0.0", isCross = false),
-      dep("com.a", "a-lib", "3.0.0", isCross = false),
-      dep("com.m", "m-lib", "5.0.0", isCross = false)
+      dep("com.z", "z-lib", "1.0.0", crossVersion = CrossVersion.disabled),
+      dep("com.a", "a-lib", "3.0.0", crossVersion = CrossVersion.disabled),
+      dep("com.m", "m-lib", "5.0.0", crossVersion = CrossVersion.disabled)
     )
 
     val result = resolveLatestVersions(input, 2)
 
     val expected = List(
-      dep("com.z", "z-lib", "2.0.0", isCross = false),
-      dep("com.a", "a-lib", "4.0.0", isCross = false),
-      dep("com.m", "m-lib", "6.0.0", isCross = false)
+      dep("com.z", "z-lib", "2.0.0", crossVersion = CrossVersion.disabled),
+      dep("com.a", "a-lib", "4.0.0", crossVersion = CrossVersion.disabled),
+      dep("com.m", "m-lib", "6.0.0", crossVersion = CrossVersion.disabled)
     )
 
     assertEquals(result, expected)
