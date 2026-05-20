@@ -120,9 +120,9 @@ object VersionFinder {
   def fromCoursier(scalaVersion: String, timeout: Int = 60, repositories: Seq[Repository])(implicit
       logger: Logger
   ): VersionFinder = {
-    case (organization, name, "sbt-plugin", _) =>
+    case (organization, name, "sbt-plugin", crossVersion) =>
       val binaryModule =
-        Module(Organization(organization), ModuleName(s"${name}_2.12_1.0"))
+        Module(Organization(organization), mavenArtifactName(name, scalaVersion)("sbt-plugin", crossVersion))
 
       val moduleWithAttributes =
         Module(Organization(organization), ModuleName(name), Map("scalaVersion" -> "2.12", "sbtVersion" -> "1.0"))
@@ -130,23 +130,23 @@ object VersionFinder {
       findVersionsUsingCoursier(binaryModule, repositories, timeout) ++
         findVersionsUsingCoursier(moduleWithAttributes, repositories, timeout)
 
-    case (organization, name, _, _: CrossVersion.Full | _: CrossVersion.Patch) =>
+    case (organization, name, configuration, crossVersion) =>
       findVersionsUsingCoursier(
-        Module(Organization(organization), ModuleName(s"${name}_$scalaVersion")),
+        Module(Organization(organization), mavenArtifactName(name, scalaVersion)(configuration, crossVersion)),
         repositories,
         timeout
       )
+  }
 
-    case (organization, name, _, _: CrossVersion.Binary) =>
-      findVersionsUsingCoursier(
-        Module(Organization(organization), ModuleName(s"${name}_${CrossVersion.binaryScalaVersion(scalaVersion)}")),
-        repositories,
-        timeout
-      )
-
-    // CrossVersion.disabled (and unsupported shapes) → unsuffixed Java module name
-    case (organization, name, _, _) =>
-      findVersionsUsingCoursier(Module(Organization(organization), ModuleName(name)), repositories, timeout)
+  /** Maven artifact-name shape for a given `(name, scalaVersion, configuration, crossVersion)`. Used by
+    * [[fromCoursier]] for the version lookup and by [[AgeChecker]] for the POM HEAD — keeping them in lock-step on
+    * cross-version handling.
+    */
+  def mavenArtifactName(name: String, scalaVersion: String): (String, CrossVersion) => ModuleName = {
+    case ("sbt-plugin", _)                                 => ModuleName(s"${name}_2.12_1.0")
+    case (_, _: CrossVersion.Full | _: CrossVersion.Patch) => ModuleName(s"${name}_$scalaVersion")
+    case (_, _: CrossVersion.Binary)                       => ModuleName(s"${name}_${CrossVersion.binaryScalaVersion(scalaVersion)}")
+    case (_, _)                                            => ModuleName(name)
   }
 
   implicit class VersionFinderOps(private val underlying: VersionFinder) extends AnyVal {
