@@ -16,7 +16,11 @@
 
 package com.alejandrohdezma.sbt.dependencies.config
 
+import java.util.concurrent.TimeUnit
+
+import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
+import scala.util.Try
 
 import com.typesafe.config.Config
 
@@ -54,6 +58,23 @@ object ConfigDecoder {
   /** Decodes a string list. Returns `Right(Nil)` if the path is missing. */
   implicit val stringList: ConfigDecoder[List[String]] = { (config, path) =>
     Right(if (config.hasPath(path)) config.getStringList(path).asScala.toList else Nil)
+  }
+
+  /** Decodes a required `FiniteDuration` using HOCON's native duration syntax (e.g. `"7 days"`, `"30 minutes"`,
+    * `"0 seconds"`).
+    */
+  implicit val finiteDuration: ConfigDecoder[FiniteDuration] = { (config, path) =>
+    if (!config.hasPath(path)) Left(s"must have a '$path'")
+    else
+      Try(config.getDuration(path, TimeUnit.MILLISECONDS)).toEither.left
+        .map(e => s"'$path' is not a valid duration: ${e.getMessage}")
+        .map(millis => FiniteDuration(millis, TimeUnit.MILLISECONDS))
+  }
+
+  /** Decodes an optional `FiniteDuration`. Returns `Right(None)` if the path is missing. */
+  implicit val optionFiniteDuration: ConfigDecoder[Option[FiniteDuration]] = { (config, path) =>
+    if (!config.hasPath(path)) Right(None)
+    else finiteDuration.decode(config, path).map(Some(_))
   }
 
   def configList[A](f: Config => Either[String, A]): ConfigDecoder[List[A]] = {
