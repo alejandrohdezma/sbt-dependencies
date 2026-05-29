@@ -23,40 +23,26 @@ import sbt.complete.DefaultParsers._
 import sbt.internal.util.complete.Parser
 import sbt.{Keys => _, _}
 
-import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdateFilter
-import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
-import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
-import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
-import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
+import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
-import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.string.box._
-import coursier.MavenRepository
 
 /** SBT input tasks for managing dependencies. */
 class Tasks {
 
   /** Updates dependencies to their latest versions based on the filter and version constraints. */
   val updateDependencies = Def.inputTask {
-    implicit val logger: Logger = streams.value.log
-
-    implicit val configCache: ConfigCache =
-      ConfigCache((ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "config-cache")
-
-    val retractionFinder = RetractionFinder.fromUrls(Keys.dependencyUpdateRetractions.value)
-
-    implicit val versionFinder: VersionFinder = createVersionFinder.value
+    implicit val logger: Logger   = streams.value.log
+    implicit val finders: Finders = Finders.fromState(state.value, scalaVersion.value)
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
     val groupExists  = file.hasGroup(group)
     val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
     val filter       = updateFilterParser.parsed
-
-    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
 
     if (!groupExists) {
       // Group not in YAML file - silently skip
@@ -71,7 +57,7 @@ class Tasks {
 
       val updated = Utils.resolveLatestVersions(dependencies.filter(filter.matches), parallelism)
 
-      updated.foreach(retractionFinder.warnIfRetracted(_))
+      updated.foreach(finders.retractionFinder.warnIfRetracted(_))
 
       file.write(group, filtered ++ updated)
     }
@@ -81,9 +67,8 @@ class Tasks {
     * not provided.
     */
   val install = Def.inputTask {
-    implicit val logger: Logger = streams.value.log
-
-    implicit val versionFinder: VersionFinder = createVersionFinder.value
+    implicit val logger: Logger   = streams.value.log
+    implicit val finders: Finders = Finders.fromState(state.value, scalaVersion.value)
 
     val file         = Settings.dependenciesFile.value
     val group        = Settings.currentGroup.value
@@ -147,14 +132,8 @@ class Tasks {
 
   /** Updates Scala versions to their latest versions within the same minor line. */
   val updateScalaVersions = Def.inputTask {
-    implicit val logger: Logger = streams.value.log
-
-    implicit val configCache: ConfigCache =
-      ConfigCache((ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "config-cache")
-
-    implicit val versionFinder: VersionFinder = createVersionFinder.value
-
-    implicit val migrationFinder: MigrationFinder = MigrationFinder.fromUrls(Keys.dependencyMigrations.value)
+    implicit val logger: Logger   = streams.value.log
+    implicit val finders: Finders = Finders.fromState(state.value, scalaVersion.value)
 
     val file        = Settings.dependenciesFile.value
     val group       = Settings.currentGroup.value
@@ -210,29 +189,6 @@ class Tasks {
   /** Parser for install: `<dependency>` */
   private val installParser: Parser[String] =
     Space ~> token(NotSpace, "<dependency>")
-
-  /** Creates a VersionFinder for the current project. */
-  private def createVersionFinder = Def.task {
-    implicit val logger: Logger = streams.value.log
-
-    implicit val configCache: ConfigCache =
-      ConfigCache((ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "config-cache")
-
-    val ignoreFinder = IgnoreFinder.fromUrls(Keys.dependencyUpdateIgnores.value)
-
-    val retractionFinder = RetractionFinder.fromUrls(Keys.dependencyUpdateRetractions.value)
-
-    val pinFinder = PinFinder.fromUrls(Keys.dependencyUpdatePins.value)
-
-    val repositories = fullResolvers.value.collect { case repo: MavenRepo => MavenRepository(repo.root) }
-
-    VersionFinder
-      .fromCoursier(scalaVersion.value, Keys.dependencyResolverTimeout.value, repositories)
-      .cached
-      .ignoringVersions(ignoreFinder)
-      .excludingRetracted(retractionFinder)
-      .pinningVersions(pinFinder)
-  }
 
 }
 

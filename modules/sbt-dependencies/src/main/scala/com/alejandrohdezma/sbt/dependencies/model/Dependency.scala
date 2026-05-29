@@ -26,9 +26,8 @@ import sbt.librarymanagement._
 import sbt.librarymanagement.syntax._
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
+import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
-import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
@@ -141,8 +140,7 @@ final case class Dependency(
     *   A `Dependency` with `version: Version.Numeric` containing the latest version found.
     */
   def findLatestVersion(implicit
-      versionFinder: VersionFinder,
-      migrationFinder: MigrationFinder,
+      finders: Finders,
       logger: Logger
   ): Dependency =
     Utils.findLatestVersion(this)
@@ -263,7 +261,7 @@ object Dependency {
       name: String,
       isCross: Boolean,
       configuration: String = "compile"
-  )(implicit versionFinder: VersionFinder, logger: Logger): Dependency = {
+  )(implicit finders: Finders, logger: Logger): Dependency = {
     val (resolvedCrossVersion, version) = configuration match {
       case "sbt-plugin" =>
         // sbt-plugin queries don't actually use crossVersion (the shape is fixed); keep `disabled` since plugins are
@@ -330,7 +328,7 @@ object Dependency {
     * [[Dependency.resolveVariable]] and runs after the `cross-version` annotation has been applied.
     */
   def parseIncludingMissingVersion(line: String)(implicit
-      versionFinder: VersionFinder,
+      finders: Finders,
       logger: Logger
   ): Dependency =
     line match {

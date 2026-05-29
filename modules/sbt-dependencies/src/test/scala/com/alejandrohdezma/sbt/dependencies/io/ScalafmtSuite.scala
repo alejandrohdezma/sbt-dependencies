@@ -26,6 +26,7 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
+import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
@@ -42,6 +43,16 @@ class ScalafmtSuite extends munit.FunSuite {
   implicit val configCache: ConfigCache = ConfigCache(tempCacheDir.toFile())
 
   implicit val retractionFinder: RetractionFinder = RetractionFinder.fromUrls(Nil)
+
+  /** Synthesises a `Finders` from the in-scope individual finders so per-test `implicit val versionFinder` keeps
+    * working.
+    */
+  implicit def finders(implicit
+      vf: VersionFinder,
+      mf: MigrationFinder,
+      rf: RetractionFinder
+  ): Finders =
+    Finders.noop.withVersionFinder(vf).withMigrationFinder(mf).withRetractionFinder(rf)
 
   // --- updateVersion tests ---
 

@@ -40,8 +40,7 @@ object Utils {
     * per-binary-published ones (`name_2.13`) are routed to the right coordinate.
     */
   def resolveLatestVersions(deps: List[Dependency], parallelism: Int)(implicit
-      vf: VersionFinder,
-      mf: MigrationFinder,
+      finders: Finders,
       logger: Logger
   ): List[Dependency] = {
     val executor = Executors.newFixedThreadPool(parallelism)
@@ -137,11 +136,10 @@ object Utils {
     *   marker.
     */
   def findLatestVersion(dependency: Dependency)(implicit
-      versionFinder: VersionFinder,
-      migrationFinder: MigrationFinder,
+      finders: Finders,
       logger: Logger
-  ): Dependency =
-    (dependency.version, migrationFinder.findMigration(dependency)) match {
+  ): Dependency = {
+    (dependency.version, finders.migrationFinder.findMigration(dependency)) match {
       // Variable: resolve to its underlying Numeric and recurse — fail loudly if the variable was never resolved.
       case (variable: Dependency.Version.Variable, _) =>
         variable.resolved
@@ -190,6 +188,7 @@ object Utils {
             dependency
           }
     }
+  }
 
   /** Finds the latest version of a dependency that passes the validation function.
     *
@@ -201,7 +200,7 @@ object Utils {
     *   The latest valid version.
     */
   def findLatestVersionOf(dependency: Dependency)(f: Dependency.Version.Numeric => Boolean)(implicit
-      versionFinder: VersionFinder
+      finders: Finders
   ): Option[Dependency.Version.Numeric] =
     findLatestVersion(dependency.organization, dependency.name, dependency.configuration, dependency.crossVersion)(f)
 
@@ -222,8 +221,8 @@ object Utils {
     */
   def findLatestVersion(organization: String, name: String, configuration: String, crossVersion: CrossVersion)(
       validate: Dependency.Version.Numeric => Boolean
-  )(implicit versionFinder: VersionFinder): Option[Dependency.Version.Numeric] =
-    versionFinder
+  )(implicit finders: Finders): Option[Dependency.Version.Numeric] =
+    finders.versionFinder
       .findVersions(organization, name, configuration, crossVersion)
       .filter(validate)
       .sorted
@@ -246,7 +245,7 @@ object Utils {
     */
   def findLatestScalaVersion(
       currentVersion: Numeric
-  )(implicit versionFinder: VersionFinder, migrationFinder: MigrationFinder, logger: Logger): Numeric =
+  )(implicit finders: Finders, logger: Logger): Numeric =
     Dependency.scala(currentVersion).findLatestVersion.version match {
       case n: Numeric => n
       case other      => Utils.fail(s"Expected numeric version, got: $other")
