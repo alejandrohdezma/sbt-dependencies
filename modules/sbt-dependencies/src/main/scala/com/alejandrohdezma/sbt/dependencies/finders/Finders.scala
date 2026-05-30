@@ -38,6 +38,21 @@ import coursier.Resolve
   */
 trait Finders {
 
+  /** Resolves the cooldown (minimum age) that applies to a `(org, name, version)` triple, if any. `None` means no
+    * cooldown rule matches — the version is accepted without an age check.
+    */
+  implicit val cooldownFinder: CooldownFinder
+
+  def withCooldownFinder(cooldownFinder: CooldownFinder): Finders
+
+  /** Decides whether a candidate version is at least `minimumAge` old. Consulted by `Utils.findLatestVersion` only
+    * after `cooldownFinder` returns a `Some(minimumAge)` for the candidate. Failures (network errors, missing header)
+    * degrade to "old enough" so updates aren't blocked on transient I/O.
+    */
+  implicit val ageChecker: AgeChecker
+
+  def withAgeChecker(ageChecker: AgeChecker): Finders
+
   /** Filters out versions matching an `updates.ignore` entry (typically loaded from Scala Steward's published config).
     * Composed into `versionFinder` via `VersionFinder.ignoringVersions` in [[Finders.fromState]].
     */
@@ -86,6 +101,8 @@ trait Finders {
 object Finders {
 
   private class Impl(
+      implicit override val cooldownFinder: CooldownFinder,
+      implicit override val ageChecker: AgeChecker,
       implicit override val ignoreFinder: IgnoreFinder,
       implicit override val migrationFinder: MigrationFinder,
       implicit override val pinFinder: PinFinder,
@@ -94,23 +111,37 @@ object Finders {
       implicit override val scalaVersion: ScalaVersion
   ) extends Finders {
 
+    override def withCooldownFinder(_cooldownFinder: CooldownFinder): Finders =
+      new Impl()(_cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+        scalaVersion)
+
+    override def withAgeChecker(_ageChecker: AgeChecker): Finders =
+      new Impl()(cooldownFinder, _ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+        scalaVersion)
+
     override def withIgnoreFinder(_ignoreFinder: IgnoreFinder): Finders =
-      new Impl()(_ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder, scalaVersion)
+      new Impl()(cooldownFinder, ageChecker, _ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+        scalaVersion)
 
     override def withMigrationFinder(_migrationFinder: MigrationFinder): Finders =
-      new Impl()(ignoreFinder, _migrationFinder, pinFinder, retractionFinder, versionFinder, scalaVersion)
+      new Impl()(cooldownFinder, ageChecker, ignoreFinder, _migrationFinder, pinFinder, retractionFinder, versionFinder,
+        scalaVersion)
 
     override def withPinFinder(_pinFinder: PinFinder): Finders =
-      new Impl()(ignoreFinder, migrationFinder, _pinFinder, retractionFinder, versionFinder, scalaVersion)
+      new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, _pinFinder, retractionFinder, versionFinder,
+        scalaVersion)
 
     override def withRetractionFinder(_retractionFinder: RetractionFinder): Finders =
-      new Impl()(ignoreFinder, migrationFinder, pinFinder, _retractionFinder, versionFinder, scalaVersion)
+      new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, _retractionFinder, versionFinder,
+        scalaVersion)
 
     override def withVersionFinder(_versionFinder: VersionFinder): Finders =
-      new Impl()(ignoreFinder, migrationFinder, pinFinder, retractionFinder, _versionFinder, scalaVersion)
+      new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, _versionFinder,
+        scalaVersion)
 
     override def withScalaVersion(_scalaVersion: ScalaVersion): Finders =
-      new Impl()(ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder, _scalaVersion)
+      new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+        _scalaVersion)
 
   }
 
@@ -140,6 +171,12 @@ object Finders {
       (coursierRepositories ++ sbtRepositories).toList.distinctBy(_.root)
     }
 
+    val cooldownFinder: CooldownFinder =
+      CooldownFinder.fromUrls(project.get(ThisBuild / Keys.dependencyCooldowns))
+
+    val ageChecker: AgeChecker =
+      AgeChecker(repositories, timeoutSeconds = project.get(ThisBuild / Keys.dependencyResolverTimeout)).cached
+
     val ignoreFinder: IgnoreFinder =
       IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores))
 
@@ -162,10 +199,13 @@ object Finders {
 
     val scalaVersion: ScalaVersion = ScalaVersion(scalaV)
 
-    new Impl()(ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder, scalaVersion)
+    new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+      scalaVersion)
   }
 
   val noop: Finders = new Impl()(
+    cooldownFinder = CooldownFinder.empty,
+    ageChecker = (_, _, _, _) => Right(()),
     ignoreFinder = IgnoreFinder.empty,
     migrationFinder = _ => None,
     pinFinder = (_, _, _) => true,

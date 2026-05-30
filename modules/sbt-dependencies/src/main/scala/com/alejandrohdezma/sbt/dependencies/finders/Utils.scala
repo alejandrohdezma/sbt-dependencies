@@ -19,6 +19,7 @@ package com.alejandrohdezma.sbt.dependencies.finders
 import java.util.concurrent.Executors
 
 import scala.Console._
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -27,6 +28,7 @@ import scala.concurrent.duration.Duration
 import sbt.librarymanagement.CrossVersion
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.finders.AgeChecker.TooRecent
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version._
 
@@ -200,7 +202,8 @@ object Utils {
     *   The latest valid version.
     */
   def findLatestVersionOf(dependency: Dependency)(f: Dependency.Version.Numeric => Boolean)(implicit
-      finders: Finders
+      finders: Finders,
+      logger: Logger
   ): Option[Dependency.Version.Numeric] =
     findLatestVersion(dependency.organization, dependency.name, dependency.configuration, dependency.crossVersion)(f)
 
@@ -221,13 +224,40 @@ object Utils {
     */
   def findLatestVersion(organization: String, name: String, configuration: String, crossVersion: CrossVersion)(
       validate: Dependency.Version.Numeric => Boolean
-  )(implicit finders: Finders): Option[Dependency.Version.Numeric] =
-    finders.versionFinder
+  )(implicit finders: Finders, logger: Logger): Option[Dependency.Version.Numeric] = {
+    val skipped = ListBuffer.empty[(Dependency.Version.Numeric, TooRecent)]
+
+    val chosen = finders.versionFinder
       .findVersions(organization, name, configuration, crossVersion)
       .filter(validate)
       .sorted
       .reverse
-      .headOption
+      .iterator
+      .find { v =>
+        lazy val mavenName =
+          VersionFinder.mavenArtifactName(name, finders.scalaVersion.value)(configuration, crossVersion).value
+
+        finders.cooldownFinder
+          .cooldownFor(organization, name, v.toVersionString)
+          .fold(true) { minimumAge =>
+            finders.ageChecker.check(organization, mavenName, v.toVersionString, minimumAge) match {
+              case Right(_)        => true
+              case Left(tooRecent) =>
+                skipped += ((v, tooRecent))
+                false
+            }
+          }
+      }
+
+    if (skipped.nonEmpty)
+      logger.debug {
+        s"Cooldown skipped ${skipped.size} version(s) of $organization:$name: " +
+          skipped.map { case (v, t) => s"${v.show} (observed: ${t.observedAge}, required: ${t.requiredAge})" }
+            .mkString(", ")
+      }
+
+    chosen
+  }
 
   /** Finds the latest Scala version based on the version's marker.
     *
