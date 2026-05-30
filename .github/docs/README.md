@@ -12,6 +12,7 @@
 - [Exclude known-bad versions](#user-content-configure-update-ignores) from updates using Scala Steward's ignore list.
 - Automatically exclude [retracted versions](#user-content-configure-retracted-versions) from updates using Scala Steward's retraction list.
 - [Pin updates to allowed versions](#user-content-configure-update-pins) using Scala Steward's pin list.
+- [Delay brand-new versions](#user-content-configure-cooldown) until they've been around long enough (`dependencyCooldowns`), with per-dependency overrides.
 - Generate [post-update hooks](#user-content-configure-post-update-hooks) and [scalafix migrations](#user-content-configure-scalafix-migrations) for CI automation using Scala Steward's configuration.
 - Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
 - Share versions across dependencies with [version variables](#user-content-use-shared-version-variables), including [BOM support](https://github.com/heremaps/here-sbt-bom).
@@ -79,6 +80,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Configure update ignores](#user-content-configure-update-ignores)
   + [Configure retracted versions](#user-content-configure-retracted-versions)
   + [Configure update pins](#user-content-configure-update-pins)
+  + [Configure cooldown](#user-content-configure-cooldown)
   + [Configure post-update hooks](#user-content-configure-post-update-hooks)
   + [Configure scalafix migrations](#user-content-configure-scalafix-migrations)
   + [Show library dependencies](#user-content-show-library-dependencies)
@@ -741,6 +743,53 @@ Each entry requires a `groupId`. The `artifactId` and `version` fields are optio
 - If `artifactId` is omitted, all artifacts in the group are matched.
 - If `version` is omitted, all versions are allowed (the pin has no effect).
 - `version` can be a string (treated as a prefix) or an object with `exact`, `prefix`, `suffix`, or `contains` fields.
+
+---
+
+</details>
+
+<details><summary><b id="configure-cooldown">Configure cooldown</b></summary><br/>
+
+When running update commands (`updateDependencies`, `updateScalaVersions`, `updateSbt`, `updateScalafmtVersion`, `updateSbtPlugin`), the plugin can filter out candidate versions that were published less than a configured `minimumAge` ago. This follows the same [`updates.cooldown` format as Scala Steward](https://github.com/scala-steward-org/scala-steward/pull/3881) and is useful for delaying brand-new releases until the ecosystem has had time to flag obvious regressions.
+
+Cooldown is **opt-in** — the default is no cooldown:
+
+```scala
+// Apply a cooldown loaded from a local file
+ThisBuild / dependencyCooldowns += file("project/cooldown.conf").toURI.toURL
+
+// ...or load it from a remote URL
+ThisBuild / dependencyCooldowns += url("https://example.com/cooldown.conf")
+```
+
+Cooldown files use Scala Steward's HOCON format:
+
+```hocon
+updates.cooldown = { minimumAge = "7 days" }
+
+dependencyOverrides = [
+  {
+    dependency = { groupId = "com.my-company" }
+    cooldown   = { minimumAge = "0 seconds" }
+  }
+  {
+    dependency = { groupId = "org.typelevel", artifactId = "cats-core", version = { prefix = "2." } }
+    cooldown   = { minimumAge = "30 days" }
+  }
+]
+```
+
+The build-wide default under `updates.cooldown.minimumAge` applies to every artifact unless an entry in `dependencyOverrides` matches first. Override matching mirrors [update pins](#user-content-configure-update-pins):
+
+- `groupId` must match exactly (required).
+- `artifactId` is optional — when omitted, every artifact in the group matches.
+- `version` is optional — when present, it can be a string prefix or an object with `exact`, `prefix`, `suffix`, or `contains` fields.
+
+The first matching override wins. Entries in `dependencyOverrides` that don't carry a `cooldown` block are ignored, so a Scala Steward config that mixes `cooldown` with other override types (e.g. `pullRequests`) can be reused as-is.
+
+For each candidate version the plugin would otherwise pick, it issues an HTTP `HEAD` against the POM URL across configured Maven repositories and compares the `Last-Modified` header against the cooldown. Candidates that are too recent are skipped (and reported under `--debug`); the walk stops at the first candidate that passes, so in the happy case at most one `HEAD` request per artifact is issued. If the publish date can't be determined (no `Last-Modified`, network failure, all repositories 404), the version is **not** blocked — cooldown only filters when it has hard evidence the version is too young.
+
+> **Note on Coursier mirrors:** the `HEAD` requests hit the resolvers configured for the build (`resolvers`, plus repositories from `COURSIER_REPOSITORIES` and `~/.config/coursier/repositories`). `COURSIER_MIRRORS` is **not** consulted, so a candidate hosted exclusively behind a mirrored URL may not return a `Last-Modified` and therefore won't be blocked even if it would be considered too young.
 
 ---
 
