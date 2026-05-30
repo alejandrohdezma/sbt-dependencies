@@ -1,0 +1,9 @@
+# Verify dependencyCooldowns rejects too-recent versions.
+# Test case: a 100-year cooldown blocks every cats-core 2.1.x candidate
+#   (all published well under 100 years ago), so the dep stays at ~2.1.0.
+
+> compile
+
+> myproject/updateDependencies
+
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected
