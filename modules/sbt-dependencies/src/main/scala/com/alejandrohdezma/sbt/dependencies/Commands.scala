@@ -775,6 +775,10 @@ class Commands {
   /** Gates the callback on the dependencies file containing the requested group. Returns the state unchanged when the
     * file is missing or the group isn't declared; otherwise invokes `f` with the project + parsed file. Finders are
     * built once and passed as an implicit `Finders` for the callback's body to consume.
+    *
+    * The Scala version `Finders` is bound to is derived from `group`: `sbt-build` deps are sbt plugins (which always
+    * resolve against Scala 2.12 — the sbt-plugin publication shape), so we bind `"2.12.0"`. Every other group holds
+    * main-build deps that target the user's project, so we bind the project's `ThisBuild / scalaVersion`.
     */
   private def withDependenciesFile(state: State, group: Group)(
       f: (Extracted, DependenciesFile) => Finders => State
@@ -787,7 +791,10 @@ class Commands {
     val dependenciesFile = DependenciesFile(file)
 
     if (!file.exists() || !dependenciesFile.hasGroup(group)) state
-    else f(project, dependenciesFile)(Finders.fromState(state, "2.12.0"))
+    else {
+      val scalaV = if (group === `sbt-build`) "2.12.0" else project.get(ThisBuild / scalaVersion)
+      f(project, dependenciesFile)(Finders.fromState(state, scalaV))
+    }
   }
 
   /** Extracts a Java target version from a list of `javacOptions`, by scanning for `--release N`, `-release N`, or
