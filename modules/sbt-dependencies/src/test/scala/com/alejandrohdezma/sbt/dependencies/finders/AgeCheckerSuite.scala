@@ -34,6 +34,7 @@ import coursier.MavenRepository
 import coursier.core.Authentication
 import munit.AnyFixture
 
+import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
 
@@ -248,6 +249,8 @@ class AgeCheckerSuite extends munit.FunSuite {
           lastModified.foreach(exchange.getResponseHeaders.set("Last-Modified", _))
           exchange.sendResponseHeaders(status, -1) // -1 → no body, headers only
       }
+
+    implicit val HttpExchangeReleasable: Using.Releasable[HttpExchange] = _.close()
 
     private val authHandler: HttpHandler =
       Using.resource(_) {
