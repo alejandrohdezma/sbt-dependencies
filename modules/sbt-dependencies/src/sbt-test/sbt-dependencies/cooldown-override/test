@@ -1,0 +1,11 @@
+# Verify dependencyOverrides applies a per-pattern cooldown ahead of the default.
+# Test case: default 100-year cooldown blocks every candidate, but an override
+#   matching (org.typelevel, cats-core) drops the cooldown to 1 second for that
+#   artifact. Expect cats-core to update to the latest ~2.1.x patch, and munit
+#   (no override match → default applies) to stay put.
+
+> compile
+
+> myproject/updateDependencies
+
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

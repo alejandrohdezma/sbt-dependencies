@@ -80,4 +80,12 @@ object RetractionFinder {
     }
   }
 
+  val noop: RetractionFinder = new RetractionFinder {
+
+    override def isRetracted(organization: String, name: String, version: String): Boolean = false
+
+    override def warnIfRetracted(dependency: Dependency): Unit = ()
+
+  }
+
 }

@@ -197,6 +197,28 @@ class Keys {
     "URLs pointing to update-pin files (Scala Steward HOCON format). Default: Scala Steward's public config"
   }
 
+  /** URLs pointing to cooldown configuration files in Scala Steward's HOCON format.
+    *
+    * Cooldown is a user policy that delays applying brand-new versions: if a candidate's `Last-Modified` is more recent
+    * than `minimumAge`, it's filtered out and the next-newest candidate is tried. Mirrors Scala Steward's
+    * `updates.cooldown` + `dependencyOverrides[].cooldown.minimumAge` schema.
+    *
+    * Default: empty — cooldown is per-repo policy, not an ecosystem fact, so we don't point at any shared URL by
+    * default. Users opt in via `+= file("project/cooldown.conf").toURI.toURL` or any other URL.
+    *
+    * @example
+    *   {{{
+    * // Local config file
+    * ThisBuild / dependencyCooldowns += file("project/cooldown.conf").toURI.toURL
+    *
+    * // Remote shared config
+    * ThisBuild / dependencyCooldowns += url("https://example.com/cooldown.conf")
+    *   }}}
+    */
+  val dependencyCooldowns = settingKey[List[java.net.URL]] {
+    "URLs pointing to cooldown configuration files (Scala Steward HOCON format). Default: empty (no cooldown)"
+  }
+
   /** URLs pointing to post-update hook files in Scala Steward's HOCON format.
     *
     * After `updateAllDependencies` computes the dependency diff, hooks from these URLs are matched against updated

@@ -26,12 +26,8 @@ import sbt.{Keys => _, _}
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
-import com.alejandrohdezma.sbt.dependencies.finders.IgnoreFinder
-import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
-import com.alejandrohdezma.sbt.dependencies.finders.PinFinder
-import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
+import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
-import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff
 import com.alejandrohdezma.sbt.dependencies.io.Scalafmt
@@ -41,8 +37,6 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.alejandrohdezma.sbt.dependencies.model.Group._
-import coursier.MavenRepository
-import coursier.Repository
 
 /** SBT commands for managing dependencies. */
 class Commands {
@@ -223,19 +217,10 @@ class Commands {
     * `project/plugins.sbt`.
     */
   lazy val updateSbtPlugin = Command.command("updateSbtPlugin") { state =>
-    implicit val logger: Logger = state.log
+    implicit val logger: Logger   = state.log
+    implicit val finders: Finders = Finders.fromState(state, "2.12.0")
 
     val project = Project.extract(state)
-
-    implicit val configCache: ConfigCache =
-      ConfigCache(project.get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / "config-cache")
-
-    val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
-
-    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaVersion = "2.12.0")
-
-    implicit val migrationFinder: MigrationFinder =
-      MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 
     val base       = project.get(ThisBuild / baseDirectory)
     val pluginOrg  = project.get(Keys.sbtDependenciesPluginOrganization)
@@ -263,7 +248,7 @@ class Commands {
 
             dependency.findLatestVersion.version match {
               case latest: Numeric if latest.isSameVersion(current) =>
-                retractionFinder.warnIfRetracted(dependency)
+                finders.retractionFinder.warnIfRetracted(dependency)
                 logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
                 (line, false)
               case latest: Numeric =>
@@ -300,23 +285,22 @@ class Commands {
 
   private def updateGroupDependencies(commandName: String, group: Group): Command =
     Command.command(commandName) { state =>
-      withDependenciesFile(state, group) {
-        implicit versionFinder => implicit migrationFinder => retractionFinder => (project, file) =>
-          implicit val logger: Logger = state.log
+      withDependenciesFile(state, group) { (project, file) => implicit finders =>
+        implicit val logger: Logger = state.log
 
-          val deps = file.read(group, Map.empty)
+        val deps = file.read(group, Map.empty)
 
-          if (deps.nonEmpty) {
-            logger.info(s"\n↻ Updating dependencies for `${group.name}` in project/dependencies.conf\n")
+        if (deps.nonEmpty) {
+          logger.info(s"\n↻ Updating dependencies for `${group.name}` in project/dependencies.conf\n")
 
-            val updated = Utils.resolveLatestVersions(deps, project.get(ThisBuild / Keys.dependencyResolverParallelism))
+          val updated = Utils.resolveLatestVersions(deps, project.get(ThisBuild / Keys.dependencyResolverParallelism))
 
-            updated.foreach(retractionFinder.warnIfRetracted(_))
+          updated.foreach(finders.retractionFinder.warnIfRetracted(_))
 
-            file.write(group, updated)
-          }
+          file.write(group, updated)
+        }
 
-          state
+        state
       }
     }
 
@@ -335,7 +319,7 @@ class Commands {
 
   private def updateGroupScalaVersions(commandName: String, group: Group): Command =
     Command.command(commandName) { state =>
-      withDependenciesFile(state, group) { implicit versionFinder => implicit migrationFinder => _ => (_, file) =>
+      withDependenciesFile(state, group) { (_, file) => implicit finders =>
         implicit val logger: Logger = state.log
 
         val versions = file.readScalaVersions(group)
@@ -378,7 +362,7 @@ class Commands {
     Command.single(commandName) { case (state, dependency) =>
       implicit val logger: Logger = state.log
 
-      withDependenciesFile(state, group) { implicit versionFinder => _ => _ => (_, file) =>
+      withDependenciesFile(state, group) { (_, file) => implicit finders =>
         val dependencies = file.read(group, Map.empty)
         val dep          = Dependency.parseIncludingMissingVersion(dependency)
 
@@ -398,17 +382,9 @@ class Commands {
 
     val base = project.get(ThisBuild / baseDirectory)
 
-    implicit val configCache: ConfigCache =
-      ConfigCache(base / "target" / "sbt-dependencies" / "config-cache")
-
     logger.info("\n↻ Checking for new versions of Scalafmt\n")
 
-    implicit val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
-
-    implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaVersion = "2.13.0")
-
-    implicit val migrationFinder: MigrationFinder =
-      MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
+    implicit val finders: Finders = Finders.fromState(state, "2.13.0")
 
     Scalafmt.updateVersion(base)
 
@@ -422,12 +398,6 @@ class Commands {
     val project = Project.extract(state)
 
     val base = project.get(ThisBuild / baseDirectory)
-
-    implicit val configCache: ConfigCache =
-      ConfigCache(base / "target" / "sbt-dependencies" / "config-cache")
-
-    implicit val migrationFinder: MigrationFinder =
-      MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
 
     val buildProperties = base / "project" / "build.properties"
 
@@ -445,9 +415,7 @@ class Commands {
       } else {
         logger.info("\n↻ Checking for new versions of SBT\n")
 
-        val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
-
-        implicit val versionFinder: VersionFinder = getVersionFinder(state, scalaVersion = "2.12.0")
+        implicit val finders: Finders = Finders.fromState(state, "2.12.0")
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
@@ -455,7 +423,7 @@ class Commands {
 
             dependency.findLatestVersion.version match {
               case latest: Numeric if latest.isSameVersion(current) =>
-                retractionFinder.warnIfRetracted(dependency)
+                finders.retractionFinder.warnIfRetracted(dependency)
                 logger.info(s" ↳ $GREEN✓$RESET $GREEN${current.show}$RESET")
                 (line, false)
               case latest: Numeric =>
@@ -527,7 +495,7 @@ class Commands {
   ): Command =
     Command.command(commandName) { state =>
       Try {
-        withDependenciesFile(state, group) { _ => _ => _ => (project, file) =>
+        withDependenciesFile(state, group) { (project, file) => _ =>
           implicit val logger: Logger = state.log
 
           val dependencies = file.read(group, Map.empty)
@@ -804,25 +772,16 @@ class Commands {
     snapshot
   }
 
-  def getVersionFinder(state: State, scalaVersion: String)(implicit
-      logger: Logger,
-      configCache: ConfigCache
-  ): VersionFinder = {
-    val project = Project.extract(state)
-
-    val repositories: Seq[Repository] =
-      project.get(ThisBuild / resolvers).collect { case repo: MavenRepo => MavenRepository(repo.root) }
-
-    VersionFinder
-      .fromCoursier(scalaVersion, project.get(ThisBuild / Keys.dependencyResolverTimeout), repositories)
-      .cached
-      .ignoringVersions(IgnoreFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateIgnores)))
-      .excludingRetracted(RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions)))
-      .pinningVersions(PinFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdatePins)))
-  }
-
+  /** Gates the callback on the dependencies file containing the requested group. Returns the state unchanged when the
+    * file is missing or the group isn't declared; otherwise invokes `f` with the project + parsed file. Finders are
+    * built once and passed as an implicit `Finders` for the callback's body to consume.
+    *
+    * The Scala version `Finders` is bound to is derived from `group`: `sbt-build` deps are sbt plugins (which always
+    * resolve against Scala 2.12 — the sbt-plugin publication shape), so we bind `"2.12.0"`. Every other group holds
+    * main-build deps that target the user's project, so we bind the project's `ThisBuild / scalaVersion`.
+    */
   private def withDependenciesFile(state: State, group: Group)(
-      f: VersionFinder => MigrationFinder => RetractionFinder => (Extracted, DependenciesFile) => State
+      f: (Extracted, DependenciesFile) => Finders => State
   ): State = {
     implicit val logger: Logger = state.log
 
@@ -833,16 +792,8 @@ class Commands {
 
     if (!file.exists() || !dependenciesFile.hasGroup(group)) state
     else {
-      implicit val configCache: ConfigCache =
-        ConfigCache(base / "target" / "sbt-dependencies" / "config-cache")
-
-      val retractionFinder = RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
-
-      val versionFinder = getVersionFinder(state, scalaVersion = "2.12.0")
-
-      val migrationFinder = MigrationFinder.fromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
-
-      f(versionFinder)(migrationFinder)(retractionFinder)(project, dependenciesFile)
+      val scalaV = if (group === `sbt-build`) "2.12.0" else project.get(ThisBuild / scalaVersion)
+      f(project, dependenciesFile)(Finders.fromState(state, scalaV))
     }
   }
 

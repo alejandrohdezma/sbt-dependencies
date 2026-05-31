@@ -21,6 +21,7 @@ import sbt.librarymanagement.ModuleID
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
+import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
@@ -30,6 +31,12 @@ class DependencySuite extends munit.FunSuite {
   implicit val migrationFinder: MigrationFinder = _ => None
 
   implicit val logger: Logger = TestLogger()
+
+  /** Bundles in-scope `VersionFinder` + `MigrationFinder` so the per-test `implicit val versionFinder` pattern keeps
+    * working.
+    */
+  implicit def finders(implicit vf: VersionFinder, mf: MigrationFinder): Finders =
+    Finders.noop.withVersionFinder(vf).withMigrationFinder(mf)
 
   // --- withVersion tests ---
 

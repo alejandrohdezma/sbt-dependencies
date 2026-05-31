@@ -27,9 +27,7 @@ import scala.util.Using
 import sbt._
 import sbt.util.Logger
 
-import com.alejandrohdezma.sbt.dependencies.finders.MigrationFinder
-import com.alejandrohdezma.sbt.dependencies.finders.RetractionFinder
-import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
+import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -42,12 +40,7 @@ object Scalafmt {
     * @return
     *   `true` if any version was updated, `false` otherwise.
     */
-  def updateVersion(baseDir: File)(implicit
-      versionFinder: VersionFinder,
-      migrationFinder: MigrationFinder,
-      retractionFinder: RetractionFinder,
-      logger: Logger
-  ): Boolean =
+  def updateVersion(baseDir: File)(implicit finders: Finders, logger: Logger): Boolean =
     Using.resource(Files.walk(baseDir.toPath)) { stream =>
       val file = Path(".scalafmt.conf").asPath
 
@@ -68,9 +61,7 @@ object Scalafmt {
     }
 
   private def updateVersionInFile(file: File, baseDir: File)(implicit
-      versionFinder: VersionFinder,
-      migrationFinder: MigrationFinder,
-      retractionFinder: RetractionFinder,
+      finders: Finders,
       logger: Logger
   ): Boolean = {
     val relativePath = baseDir.toPath.relativize(file.toPath)
@@ -87,7 +78,7 @@ object Scalafmt {
         val latest = dependency.findLatestVersion.version
 
         if (latest === current) {
-          retractionFinder.warnIfRetracted(dependency)
+          finders.retractionFinder.warnIfRetracted(dependency)
           logger.info(s" ↳ $GREEN✓$RESET $GREEN$relativePath: $current$RESET")
           false
         } else {

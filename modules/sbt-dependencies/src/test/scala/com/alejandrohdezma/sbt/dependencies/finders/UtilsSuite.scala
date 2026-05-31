@@ -35,6 +35,12 @@ class UtilsSuite extends munit.FunSuite {
 
   implicit val logger: TestLogger = TestLogger()
 
+  /** Bundles the in-scope `VersionFinder` + `MigrationFinder` into a `Finders` so tests can keep using the
+    * `implicit val versionFinder` pattern and have the bundle synthesized automatically.
+    */
+  implicit def finders(implicit vf: VersionFinder, mf: MigrationFinder): Finders =
+    Finders.noop.withVersionFinder(vf).withMigrationFinder(mf)
+
   override def beforeEach(context: BeforeEach): Unit = logger.cleanLogs()
 
   // Helper to parse a version string into Numeric with Minor marker (matching readScalaVersions behavior)
@@ -81,7 +87,7 @@ class UtilsSuite extends munit.FunSuite {
       mf: MigrationFinder,
       logger: Logger
   ): List[Dependency] =
-    Utils.resolveLatestVersions(deps, parallelism)(vf, mf, logger)
+    Utils.resolveLatestVersions(deps, parallelism)(finders(vf, mf), logger)
 
   // --- findLatestScalaVersion tests ---
 

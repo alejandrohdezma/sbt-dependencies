@@ -23,6 +23,7 @@ import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 
 import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
+import com.alejandrohdezma.sbt.dependencies.constraints.CooldownEntry
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.RetractedArtifact
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
@@ -60,6 +61,7 @@ object DependenciesPlugin extends AutoPlugin {
     dependencyUpdateRetractions       := RetractedArtifact.default,
     dependencyUpdateIgnores           := UpdateIgnore.default,
     dependencyUpdatePins              := UpdatePin.default,
+    dependencyCooldowns               := CooldownEntry.default,
     dependencyPostUpdateHooks         := PostUpdateHook.default,
     dependencyScalafixMigrations      := ScalafixMigration.default,
     dependencyResolverTimeout         := 60,

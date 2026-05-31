@@ -21,6 +21,7 @@ import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
+import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 
@@ -29,8 +30,10 @@ class DependencyParseSuite extends munit.FunSuite {
   implicit val logger: Logger = TestLogger()
 
   // Dummy VersionFinder that always returns 0.1.0
-  implicit val dummyVersionFinder: VersionFinder = (_, _, _, _) =>
+  val dummyVersionFinder: VersionFinder = (_, _, _, _) =>
     List(Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker))
+
+  implicit val finders: Finders = Finders.noop.withVersionFinder(dummyVersionFinder)
 
   test("parse cross-version dependency with version") {
     val result = Dependency.parse("org.typelevel::cats-core:2.10.0")
