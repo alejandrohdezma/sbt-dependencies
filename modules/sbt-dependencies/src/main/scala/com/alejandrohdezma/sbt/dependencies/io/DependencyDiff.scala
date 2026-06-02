@@ -33,21 +33,51 @@ import com.typesafe.config.ConfigValueFactory
 /** Utilities for snapshotting resolved dependencies and computing diffs. */
 object DependencyDiff {
 
-  /** A resolved dependency with organization, artifact name, and revision. */
-  final case class ResolvedDep(organization: String, name: String, revision: String)
+  /** A resolved dependency with organization, artifact name, revision, and the Ivy configuration it was resolved under
+    * (e.g. `"compile"`, `"test"`, `"test->test"`, `"sbt-plugin"`, `"compiler-plugin"`). A plain `libraryDependencies`
+    * entry is reported as `"compile"`.
+    */
+  final case class ResolvedDep(organization: String, name: String, revision: String, configuration: String = "compile")
 
   object ResolvedDep {
 
-    def from(dependency: Dependency): ResolvedDep =
-      ResolvedDep(dependency.organization, dependency.name, dependency.version.toVersionString)
+    // Post-resolution sbt/Ivy mappings often surface as combinations of Ivy's compile-equivalent configurations
+    // (`default`, `master`, `optional`, `compile`) — e.g. `"default;default;default"` or `"default;optional"`. From the
+    // user's perspective these are all the compile scope. Collapse them to a clean `"compile"` so downstream consumers
+    // see a single canonical value; any string containing a real scope name (e.g. `test`, `runtime`, `provided`) is
+    // left untouched.
+    private val CompileEquivalentConfigs = Set("default", "master", "optional", "compile")
 
-    def fromModuleID(m: ModuleID): ResolvedDep =
-      ResolvedDep(m.organization, m.name, m.revision)
+    private def normalizeConfiguration(raw: String): String =
+      if (raw.split(";").iterator.map(_.trim).forall(CompileEquivalentConfigs.contains)) "compile" else raw
+
+    def from(dependency: Dependency): ResolvedDep =
+      ResolvedDep(
+        dependency.organization,
+        dependency.name,
+        dependency.version.toVersionString,
+        normalizeConfiguration(dependency.configuration)
+      )
+
+    def fromModuleID(m: ModuleID): ResolvedDep = {
+      val configuration =
+        if (m.extraAttributes.contains("e:sbtVersion")) "sbt-plugin"
+        else if (m.configurations.contains(Dependency.CompilerPluginConfiguration)) "compiler-plugin"
+        else normalizeConfiguration(m.configurations.getOrElse("compile"))
+
+      ResolvedDep(m.organization, m.name, m.revision, configuration)
+    }
 
   }
 
   /** A dependency whose version changed between snapshots. */
-  final case class UpdatedDep(organization: String, name: String, from: String, to: String)
+  final case class UpdatedDep(
+      organization: String,
+      name: String,
+      from: String,
+      to: String,
+      configuration: String = "compile"
+  )
 
   /** Per-project diff of resolved dependencies. */
   final case class ProjectDiff(
@@ -67,9 +97,14 @@ object DependencyDiff {
       .sortBy(_._1)
       .map { case (group, deps) =>
         val depsList = deps.toList
-          .sortBy(d => (d.organization, d.name, d.revision))
+          .sortBy(d => (d.organization, d.name, d.configuration, d.revision))
           .map { dep =>
-            Map("organization" -> dep.organization, "name" -> dep.name, "revision" -> dep.revision).asJava
+            Map(
+              "organization"  -> dep.organization,
+              "name"          -> dep.name,
+              "revision"      -> dep.revision,
+              "configuration" -> dep.configuration
+            ).asJava
           }
           .asJava
 
@@ -95,7 +130,12 @@ object DependencyDiff {
           .getConfigList(group.name)
           .asScala
           .map { entry =>
-            ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("revision"))
+            ResolvedDep(
+              entry.getString("organization"),
+              entry.getString("name"),
+              entry.getString("revision"),
+              entry.getString("configuration")
+            )
           }
           .toSet
 
@@ -106,7 +146,8 @@ object DependencyDiff {
 
   /** Computes the diff between two dependency snapshots.
     *
-    * Keys on `(organization, artifact name)`, ignoring configurations. Returns only groups with non-empty diffs.
+    * Keys on `(organization, artifact name, configuration)`, so the same artifact resolved in two different scopes
+    * (e.g. `compile` and `test`) is diffed per-scope rather than collapsed. Returns only groups with non-empty diffs.
     */
   def compute(
       before: Map[Group, Set[ResolvedDep]],
@@ -116,8 +157,10 @@ object DependencyDiff {
 
     allProjects
       .collect(Function.unlift { project =>
-        val beforeDeps = before.getOrElse(project, Set.empty).map(d => (d.organization, d.name) -> d).toMap
-        val afterDeps  = after.getOrElse(project, Set.empty).map(d => (d.organization, d.name) -> d).toMap
+        val beforeDeps =
+          before.getOrElse(project, Set.empty).map(d => (d.organization, d.name, d.configuration) -> d).toMap
+        val afterDeps =
+          after.getOrElse(project, Set.empty).map(d => (d.organization, d.name, d.configuration) -> d).toMap
 
         val allKeys = (beforeDeps.keySet ++ afterDeps.keySet).toList.sorted
 
@@ -125,7 +168,7 @@ object DependencyDiff {
           case key
               if beforeDeps.contains(key) && afterDeps.contains(key) &&
                 (beforeDeps(key).revision !== afterDeps(key).revision) =>
-            UpdatedDep(key._1, key._2, beforeDeps(key).revision, afterDeps(key).revision)
+            UpdatedDep(key._1, key._2, beforeDeps(key).revision, afterDeps(key).revision, key._3)
         }
 
         val added = allKeys.collect {
@@ -154,20 +197,26 @@ object DependencyDiff {
         val groupConfig = config.getConfig(group.name)
 
         val updated = groupConfig.getConfigList("updated").asScala.toList.map { entry =>
-          UpdatedDep(
-            entry.getString("organization"),
-            entry.getString("name"),
-            entry.getString("from"),
-            entry.getString("to")
-          )
+          UpdatedDep(entry.getString("organization"), entry.getString("name"), entry.getString("from"),
+            entry.getString("to"), entry.getString("configuration"))
         }
 
         val added = groupConfig.getConfigList("added").asScala.toList.map { entry =>
-          ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("version"))
+          ResolvedDep(
+            entry.getString("organization"),
+            entry.getString("name"),
+            entry.getString("version"),
+            entry.getString("configuration")
+          )
         }
 
         val removed = groupConfig.getConfigList("removed").asScala.toList.map { entry =>
-          ResolvedDep(entry.getString("organization"), entry.getString("name"), entry.getString("version"))
+          ResolvedDep(
+            entry.getString("organization"),
+            entry.getString("name"),
+            entry.getString("version"),
+            entry.getString("configuration")
+          )
         }
 
         group -> ProjectDiff(updated, added, removed)
@@ -180,15 +229,31 @@ object DependencyDiff {
       .sortBy(_._1)
       .map { case (group, diff) =>
         val updatedList = diff.updated.map { u =>
-          Map("organization" -> u.organization, "name" -> u.name, "from" -> u.from, "to" -> u.to).asJava
+          Map(
+            "organization"  -> u.organization,
+            "name"          -> u.name,
+            "from"          -> u.from,
+            "to"            -> u.to,
+            "configuration" -> u.configuration
+          ).asJava
         }.asJava
 
         val addedList = diff.added.map { a =>
-          Map("organization" -> a.organization, "name" -> a.name, "version" -> a.revision).asJava
+          Map(
+            "organization"  -> a.organization,
+            "name"          -> a.name,
+            "version"       -> a.revision,
+            "configuration" -> a.configuration
+          ).asJava
         }.asJava
 
         val removedList = diff.removed.map { r =>
-          Map("organization" -> r.organization, "name" -> r.name, "version" -> r.revision).asJava
+          Map(
+            "organization"  -> r.organization,
+            "name"          -> r.name,
+            "version"       -> r.revision,
+            "configuration" -> r.configuration
+          ).asJava
         }.asJava
 
         val groupMap = Map(

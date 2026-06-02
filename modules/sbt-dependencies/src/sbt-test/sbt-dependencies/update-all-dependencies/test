@@ -7,7 +7,8 @@
 -$ exists target/sbt-dependencies/.sbt-plugin-snapshot
 -$ exists target/sbt-dependencies/.sbt-version-snapshot
 
-# Validate the diff file matches expected output
+# Validate the diff file matches expected output (covers compile + test configurations from
+# the munit:test dep added to dependencies.conf for scope coverage)
 $ must-mirror target/sbt-dependencies/.sbt-dependency-diff expected-diff
 
 # Validate the post-update hooks JSON matches expected output

@@ -22,16 +22,37 @@ import java.nio.file.Files
 import sbt.librarymanagement.ModuleID
 
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff._
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Group
 
 class DependencyDiffSuite extends munit.FunSuite {
 
   // --- ResolvedDep.fromModuleID ---
 
-  test("ResolvedDep.fromModuleID extracts org, name, revision") {
+  test("ResolvedDep.fromModuleID extracts org, name, revision; defaults configuration to compile") {
     val moduleID = ModuleID("org.typelevel", "cats-core_2.13", "2.10.0")
     val result   = ResolvedDep.fromModuleID(moduleID)
-    assertEquals(result, ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0"))
+    assertEquals(result, ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0", "compile"))
+  }
+
+  test("ResolvedDep.fromModuleID carries an explicit configuration (e.g. test)") {
+    val moduleID = ModuleID("org.scalameta", "munit_3", "1.3.0").withConfigurations(Some("test"))
+    val result   = ResolvedDep.fromModuleID(moduleID)
+    assertEquals(result, ResolvedDep("org.scalameta", "munit_3", "1.3.0", "test"))
+  }
+
+  test("ResolvedDep.fromModuleID classifies sbt plugins (e:sbtVersion extraAttributes) as sbt-plugin") {
+    val moduleID = ModuleID("com.alejandrohdezma", "sbt-dependencies", "0.25.0")
+      .withExtraAttributes(Map("e:sbtVersion" -> "1.0", "e:scalaVersion" -> "2.12"))
+    val result = ResolvedDep.fromModuleID(moduleID)
+    assertEquals(result, ResolvedDep("com.alejandrohdezma", "sbt-dependencies", "0.25.0", "sbt-plugin"))
+  }
+
+  test("ResolvedDep.fromModuleID classifies compiler plugins as compiler-plugin") {
+    val moduleID = ModuleID("org.typelevel", "kind-projector_2.13.18", "0.13.4")
+      .withConfigurations(Some(Dependency.CompilerPluginConfiguration))
+    val result = ResolvedDep.fromModuleID(moduleID)
+    assertEquals(result, ResolvedDep("org.typelevel", "kind-projector_2.13.18", "0.13.4", "compiler-plugin"))
   }
 
   // --- writeSnapshot / readSnapshot round-trip ---
@@ -54,11 +75,13 @@ class DependencyDiffSuite extends munit.FunSuite {
     val expected =
       """|core=[
          |    {
+         |        configuration=compile
          |        name="cats-core_2.13"
          |        organization="org.typelevel"
          |        revision="2.9.0"
          |    },
          |    {
+         |        configuration=compile
          |        name="cats-kernel_2.13"
          |        organization="org.typelevel"
          |        revision="2.9.0"
@@ -66,6 +89,7 @@ class DependencyDiffSuite extends munit.FunSuite {
          |]
          |web=[
          |    {
+         |        configuration=compile
          |        name="http4s-core_2.13"
          |        organization="org.http4s"
          |        revision="0.23.0"
@@ -245,6 +269,57 @@ class DependencyDiffSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  test("compute keys per (org, name, configuration): same artifact in compile and test diffs per scope") {
+    val before = Map(
+      Group("core") -> Set(
+        ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0", "compile"),
+        ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0", "test")
+      )
+    )
+    val after = Map(
+      Group("core") -> Set(
+        ResolvedDep("org.typelevel", "cats-core_2.13", "2.10.0", "compile"),
+        ResolvedDep("org.typelevel", "cats-core_2.13", "2.9.0", "test")
+      )
+    )
+
+    val result = compute(before, after)
+
+    val expected = Map(
+      Group("core") -> ProjectDiff(
+        updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0", "compile")),
+        added = Nil,
+        removed = Nil
+      )
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("compute treats same (org, name) in different scopes as independent on add and remove") {
+    val before = Map(
+      Group("core") -> Set(ResolvedDep("org.scalameta", "munit_3", "1.3.0", "test"))
+    )
+    val after = Map(
+      Group("core") -> Set(
+        ResolvedDep("org.scalameta", "munit_3", "1.3.0", "test"),
+        ResolvedDep("org.scalameta", "munit_3", "1.3.0", "compile")
+      )
+    )
+
+    val result = compute(before, after)
+
+    val expected = Map(
+      Group("core") -> ProjectDiff(
+        updated = Nil,
+        added = List(ResolvedDep("org.scalameta", "munit_3", "1.3.0", "compile")),
+        removed = Nil
+      )
+    )
+
+    assertEquals(result, expected)
+  }
+
   // --- toHocon ---
 
   test("toHocon renders all change types") {
@@ -262,6 +337,7 @@ class DependencyDiffSuite extends munit.FunSuite {
       """|core {
          |    added=[
          |        {
+         |            configuration=compile
          |            name="cats-parse_2.13"
          |            organization="org.typelevel"
          |            version="1.1.0"
@@ -269,6 +345,7 @@ class DependencyDiffSuite extends munit.FunSuite {
          |    ]
          |    removed=[
          |        {
+         |            configuration=compile
          |            name="cats-macros_2.13"
          |            organization="org.typelevel"
          |            version="2.9.0"
@@ -276,6 +353,7 @@ class DependencyDiffSuite extends munit.FunSuite {
          |    ]
          |    updated=[
          |        {
+         |            configuration=compile
          |            from="2.9.0"
          |            name="cats-core_2.13"
          |            organization="org.typelevel"
@@ -310,6 +388,7 @@ class DependencyDiffSuite extends munit.FunSuite {
          |    removed=[]
          |    updated=[
          |        {
+         |            configuration=compile
          |            from="2.9.0"
          |            name="cats-core_2.13"
          |            organization="org.typelevel"
@@ -320,6 +399,7 @@ class DependencyDiffSuite extends munit.FunSuite {
          |web {
          |    added=[
          |        {
+         |            configuration=compile
          |            name="http4s-core_2.13"
          |            organization="org.http4s"
          |            version="0.23.1"
@@ -350,6 +430,7 @@ class DependencyDiffSuite extends munit.FunSuite {
          |    removed=[]
          |    updated=[
          |        {
+         |            configuration=compile
          |            from="2.9.0"
          |            name="cats-core_2.13"
          |            organization="org.typelevel"
