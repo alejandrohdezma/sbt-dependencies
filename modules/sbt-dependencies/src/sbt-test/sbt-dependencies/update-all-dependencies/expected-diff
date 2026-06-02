@@ -1,6 +1,13 @@
 myproject {
     added=[
         {
+            configuration=compile
+            name=scala-reflect
+            organization="org.scala-lang"
+            version="2.12.21"
+        },
+        {
+            configuration=compile
             name="simulacrum-scalafix-annotations_2.12"
             organization="org.typelevel"
             version="0.5.4"
@@ -8,6 +15,13 @@ myproject {
     ]
     removed=[
         {
+            configuration=test
+            name=scala-reflect
+            organization="org.scala-lang"
+            version="2.12.15"
+        },
+        {
+            configuration=compile
             name="cats-macros_2.12"
             organization="org.typelevel"
             version="2.1.0"
@@ -15,78 +29,105 @@ myproject {
     ]
     updated=[
         {
+            configuration=compile
             from="2.2.2"
             name="fs2-core_2.12"
             organization="co.fs2"
             to="2.5.9"
         },
         {
+            configuration=compile
             from="2.2.2"
             name="fs2-io_2.12"
             organization="co.fs2"
             to="2.5.9"
         },
         {
+            configuration=test
+            from="4.13"
+            name=junit
+            organization=junit
+            to="4.13.2"
+        },
+        {
+            configuration=compile
             from="0.21.0"
             name="http4s-core_2.12"
             organization="org.http4s"
             to="0.21.34"
         },
         {
+            configuration=compile
             from="1.8.2"
             name="log4s_2.12"
             organization="org.log4s"
             to="1.10.0"
         },
         {
+            configuration=compile
             from="2.12.15"
             name=scala-compiler
             organization="org.scala-lang"
             to="2.12.21"
         },
         {
+            configuration=compile
             from="2.12.15"
             name=scala-library
             organization="org.scala-lang"
             to="2.12.21"
         },
         {
-            from="2.12.15"
-            name=scala-reflect
-            organization="org.scala-lang"
-            to="2.12.21"
-        },
-        {
+            configuration=compile
             from="1.0.6"
             name="scala-xml_2.12"
             organization="org.scala-lang.modules"
             to="2.3.0"
         },
         {
+            configuration=test
+            from="0.7.0"
+            name=junit-interface
+            organization="org.scalameta"
+            to="0.7.29"
+        },
+        {
+            configuration=test
+            from="0.7.0"
+            name="munit_2.12"
+            organization="org.scalameta"
+            to="0.7.29"
+        },
+        {
+            configuration=compile
             from="1.1.12"
             name="scodec-bits_2.12"
             organization="org.scodec"
             to="1.1.27"
         },
         {
+            configuration=compile
             from="1.7.25"
             name=slf4j-api
             organization="org.slf4j"
             to="1.7.31"
         },
         {
+            configuration=compile
             from="2.1.0"
             name="cats-core_2.12"
             organization="org.typelevel"
             to="2.6.1"
         },
         {
+            configuration=compile
             from="2.1.1"
             name="cats-effect_2.12"
             organization="org.typelevel"
             to="2.5.1"
         },
         {
+            configuration=compile
             from="2.1.0"
             name="cats-kernel_2.12"
             organization="org.typelevel"
@@ -99,6 +140,7 @@ sbt-build {
     removed=[]
     updated=[
         {
+            configuration=compile
             from="1.9.0"
             name=sbt
             organization="org.scala-sbt"

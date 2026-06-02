@@ -172,6 +172,28 @@ class Tasks {
     report
   }
 
+  def allProjectDependencies: Def.Initialize[Task[List[ModuleID]]] = Def.task {
+    val report = update.value
+
+    val priority = List("compile", "runtime", "provided", "test", "it")
+
+    val configByModule = scala.collection.mutable.LinkedHashMap.empty[(String, String), String]
+
+    for {
+      scope         <- priority
+      configuration <- report.configurations.find(_.configuration.name === scope).toSeq
+      mod           <- configuration.modules
+    } {
+      val key = (mod.module.organization, mod.module.name)
+      if (!configByModule.contains(key)) configByModule.put(key, scope)
+    }
+
+    report.allModules.toList.map { m =>
+      val config = configByModule.getOrElse((m.organization, m.name), m.configurations.getOrElse("compile"))
+      m.withConfigurations(Some(config))
+    }
+  }
+
   /** Parser for updateDependencies filter: `[org:artifact]`, `[org:]`, `[:artifact]`, or empty for all */
   private val updateFilterParser: Parser[UpdateFilter] = {
     val regex = """^([^:]+)?:([^:]+)?$""".r
