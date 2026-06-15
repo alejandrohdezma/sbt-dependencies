@@ -132,8 +132,9 @@ final case class DependenciesFile(file: File) {
 
   /** Writes dependencies for a specific group to the given HOCON file.
     *
-    * Other groups in the file are preserved. The format (simple vs advanced) of existing groups is preserved, unless
-    * scalaVersions or javaVersion is provided, in which case Advanced format is used.
+    * Other groups in the file are preserved, except fully-empty ones (no dependencies, no Scala/Java settings), which
+    * are dropped. The format (simple vs advanced) of existing groups is preserved, unless scalaVersions or javaVersion
+    * is provided, in which case Advanced format is used.
     *
     * Each dep's annotations (`note`, `intransitive`, `scalaFilter`, `crossVersion`) are emitted verbatim. Read-then-
     * write flows (`updateDependencies`, `install`) get this for free since `read` already populates annotations from
@@ -184,12 +185,7 @@ final case class DependenciesFile(file: File) {
 
       val updated = existingConfigs + (group -> newConfig)
 
-      val content = updated.toList
-        .sortBy(_._1)
-        .map { case (g, config) => config.format(g) }
-        .mkString("\n\n")
-
-      IO.write(file, content + "\n")
+      IO.write(file, render(updated) + "\n")
     }
 
   /** Returns each input dep with annotations from the existing file applied on top, keyed by
@@ -261,8 +257,8 @@ final case class DependenciesFile(file: File) {
 
   /** Writes Scala versions for a specific group to the given HOCON file.
     *
-    * Other groups and dependencies in the file are preserved. Version markers are preserved when writing. Existing
-    * `java-version` is preserved.
+    * Other groups and dependencies in the file are preserved, except fully-empty groups (no dependencies, no Scala/Java
+    * settings), which are dropped. Version markers are preserved when writing. Existing `java-version` is preserved.
     *
     * @param group
     *   The group to write Scala versions for.
@@ -280,12 +276,7 @@ final case class DependenciesFile(file: File) {
 
     val updated = existingConfigs + (group -> newConfig)
 
-    val content = updated.toList
-      .sortBy(_._1)
-      .map { case (g, config) => config.format(g) }
-      .mkString("\n\n")
-
-    IO.write(file, content + "\n")
+    IO.write(file, render(updated) + "\n")
   }
 
   /** Reads the `java-version` for a specific group from the given HOCON file.
@@ -302,16 +293,19 @@ final case class DependenciesFile(file: File) {
     *
     * Groups are sorted with `sbt-build` first, then alphabetically. Dependencies within each group are sorted by
     * (configuration, organization, name). All annotations, Scala versions, and format (Simple vs Advanced) are
-    * preserved.
+    * preserved. Fully-empty groups (no dependencies, no Scala/Java settings) are dropped.
     */
-  def format()(implicit logger: Logger): Unit = {
-    val content = readRaw(file).toList
+  def format()(implicit logger: Logger): Unit =
+    IO.write(file, render(readRaw(file).map { case (group, config) => group -> config.sorted }) + "\n")
+
+  private def render(configs: Iterable[(Group, GroupConfig)]): String =
+    configs.toList.filterNot { case (_, config) => isEmpty(config) }
       .sortBy(_._1)
-      .map { case (g, c) => c.sorted.format(g) }
+      .map { case (group, config) => config.format(group) }
       .mkString("\n\n")
 
-    IO.write(file, content + "\n")
-  }
+  private def isEmpty(config: GroupConfig): Boolean =
+    config.dependencies.isEmpty && config.scalaVersions.isEmpty && config.javaVersion.isEmpty
 
   /** Checks if a group exists in the given HOCON file.
     *
