@@ -52,24 +52,24 @@ sealed trait GroupConfig {
       s"""${group.name} = [\n${deps.map(d => indent(d.format, 2)).mkString("\n")}\n]"""
 
     case GroupConfig.Advanced(deps, versions, javaVersion) =>
-      val javaVersionSection = javaVersion match {
-        case Some(v) => s"""  java-version = "$v"\n"""
-        case None    => ""
+      val javaVersionLines = javaVersion.map(v => s"""  java-version = "$v"""").toList
+
+      val scalaVersionLines = versions match {
+        case Nil           => Nil
+        case single :: Nil => List(s"""  scala-version = "$single"""")
+        case multiple      => List(s"""  scala-versions = [${multiple.map(v => s""""$v"""").mkString(", ")}]""")
       }
 
-      val scalaVersionsSection = versions match {
-        case Nil           => ""
-        case single :: Nil => s"""  scala-version = "$single"\n"""
-        case multiple      =>
-          s"""  scala-versions = [${multiple.map(v => s""""$v"""").mkString(", ")}]\n"""
-      }
-
-      val depsSection =
+      val depsLines =
         if (deps.nonEmpty)
-          s"""  dependencies = [\n${deps.map(d => indent(d.format, 4)).mkString("\n")}\n  ]"""
-        else "  dependencies = []"
+          List(s"""  dependencies = [\n${deps.map(d => indent(d.format, 4)).mkString("\n")}\n  ]""")
+        else Nil
 
-      s"${group.name} {\n$javaVersionSection$scalaVersionsSection$depsSection\n}"
+      val sections = javaVersionLines ++ scalaVersionLines ++ depsLines
+
+      val body = if (sections.isEmpty) List("  dependencies = []") else sections
+
+      s"${group.name} {\n${body.mkString("\n")}\n}"
   }
 
   private def indent(s: String, n: Int): String = s.linesIterator.map((" " * n) + _).mkString("\n")

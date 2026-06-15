@@ -1014,7 +1014,6 @@ class DependenciesFileSuite extends munit.FunSuite {
     val expected =
       """|my-project {
          |  scala-versions = ["~2.13.12", "~2.12.18"]
-         |  dependencies = []
          |}
          |""".stripMargin
 
@@ -1081,7 +1080,6 @@ class DependenciesFileSuite extends munit.FunSuite {
     val expected =
       """|my-project {
          |  scala-version = "~2.13.12"
-         |  dependencies = []
          |}
          |
          |other-project = [
