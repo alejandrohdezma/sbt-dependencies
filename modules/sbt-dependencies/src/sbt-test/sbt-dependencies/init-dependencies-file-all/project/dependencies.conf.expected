@@ -1,6 +1,5 @@
 common-settings {
   scala-versions = ["2.13.12", "3.3.3"]
-  dependencies = []
 }
 
 myproject = [

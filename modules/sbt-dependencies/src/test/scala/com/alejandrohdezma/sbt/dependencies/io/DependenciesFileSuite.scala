@@ -1014,7 +1014,6 @@ class DependenciesFileSuite extends munit.FunSuite {
     val expected =
       """|my-project {
          |  scala-versions = ["~2.13.12", "~2.12.18"]
-         |  dependencies = []
          |}
          |""".stripMargin
 
@@ -1081,7 +1080,6 @@ class DependenciesFileSuite extends munit.FunSuite {
     val expected =
       """|my-project {
          |  scala-version = "~2.13.12"
-         |  dependencies = []
          |}
          |
          |other-project = [
@@ -1929,6 +1927,109 @@ class DependenciesFileSuite extends munit.FunSuite {
       """|my-project = [
          |  "com.google.guava:guava:33.4.0-jre"
          |  "org.typelevel::cats-core:{{catsVersion}}"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|empty-project = []
+       |
+       |my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
+       |""".stripMargin
+  }.test("format drops a fully-empty simple group") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  "org.typelevel::cats-core:2.10.0"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|empty-project {}
+       |
+       |my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
+       |""".stripMargin
+  }.test("format drops a fully-empty advanced group") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  "org.typelevel::cats-core:2.10.0"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|common-settings {
+       |  scala-versions = ["2.13.12", "3.3.3"]
+       |}
+       |
+       |my-project = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
+       |""".stripMargin
+  }.test("format keeps a scala-versions-only group and adds no empty dependencies") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+
+    val expected =
+      """|common-settings {
+         |  scala-versions = ["2.13.12", "3.3.3"]
+         |}
+         |
+         |my-project = [
+         |  "org.typelevel::cats-core:2.10.0"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
+  withDependenciesFile {
+    """|empty-project = []
+       |
+       |other-project = [
+       |  "org.scalameta::munit:1.2.1:test"
+       |]
+       |""".stripMargin
+  }.test("write drops a pre-existing fully-empty group") { file =>
+    val myProjectDeps = List(
+      Dependency(
+        "org.typelevel",
+        "cats-core",
+        Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
+        crossVersion = CrossVersion.binary
+      )
+    )
+
+    DependenciesFile(file).write(Group("my-project"), myProjectDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  "org.typelevel::cats-core:2.10.0"
+         |]
+         |
+         |other-project = [
+         |  "org.scalameta::munit:1.2.1:test"
          |]
          |""".stripMargin
 

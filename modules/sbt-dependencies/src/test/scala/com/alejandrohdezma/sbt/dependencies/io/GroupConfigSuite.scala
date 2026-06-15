@@ -327,7 +327,6 @@ class GroupConfigSuite extends munit.FunSuite {
     val expected =
       """|my-project {
          |  scala-versions = ["2.13.12", "2.12.18"]
-         |  dependencies = []
          |}""".stripMargin
 
     assertEquals(result, expected)
@@ -416,7 +415,19 @@ class GroupConfigSuite extends munit.FunSuite {
     val expected =
       """|my-project {
          |  java-version = "25"
-         |  dependencies = []
+         |}""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Advanced with java-version and scala-versions but no dependencies omits dependencies") {
+    val config = GroupConfig.Advanced(Nil, List("~3.3.7", "~2.13.18"), Some("17"))
+    val result = config.format(Group("common-settings"))
+
+    val expected =
+      """|common-settings {
+         |  java-version = "17"
+         |  scala-versions = ["~3.3.7", "~2.13.18"]
          |}""".stripMargin
 
     assertEquals(result, expected)
