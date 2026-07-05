@@ -74,7 +74,7 @@ object VersionFinder {
       val result = Versions()
         .withCache(FileCache().withTtl(None))
         .withModule(module)
-        .addRepositories(repositories: _*)
+        .addRepositories(repositories *)
         .versions()
         .future()
         .pipe(Await.result(_, timeoutSeconds.seconds))

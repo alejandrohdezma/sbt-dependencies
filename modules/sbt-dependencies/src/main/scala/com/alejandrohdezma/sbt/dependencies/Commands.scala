@@ -211,7 +211,7 @@ class Commands {
       "enableEvictionWarnings"      // Restore eviction errors
     )
 
-    runStepsSafely(steps: _*)(state, base / "target" / "sbt-dependencies")
+    runStepsSafely(steps *)(state, base / "target" / "sbt-dependencies")
   }
 
   /** Updates the configured SBT plugin. Checks `project/project/plugins.sbt` first, falling back to
@@ -823,7 +823,7 @@ class Commands {
     IO.delete(outputDir / ".sbt-version-snapshot")
     IO.delete(outputDir / ".sbt-post-update-hooks")
 
-    val remaining = ListBuffer(steps: _*)
+    val remaining = ListBuffer(steps *)
 
     var currentState = state // scalafix:ok
 
