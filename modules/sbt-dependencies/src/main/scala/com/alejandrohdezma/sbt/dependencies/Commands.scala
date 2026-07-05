@@ -387,7 +387,7 @@ class Commands {
 
     implicit val finders: Finders = Finders.fromState(state, "2.13.0")
 
-    Scalafmt.updateVersion(base)
+    val _ = Scalafmt.updateVersion(base)
 
     state
   }
@@ -456,7 +456,7 @@ class Commands {
     * `target/sbt-dependencies/.sbt-dependency-snapshot`.
     */
   lazy val snapshotDependencies = Command.command("snapshotDependencies") { state =>
-    Try {
+    val _ = Try {
       val snapshot = generateSnapshot(state)
 
       val outputDir =
@@ -495,7 +495,7 @@ class Commands {
       label: String
   ): Command =
     Command.command(commandName) { state =>
-      Try {
+      val _ = Try {
         withDependenciesFile(state, group) { (project, file) => _ =>
           implicit val logger: Logger = state.log
 
@@ -529,7 +529,7 @@ class Commands {
     * detect plugin version changes.
     */
   lazy val snapshotSbtPlugin = Command.command("snapshotSbtPlugin") { state =>
-    Try {
+    val _ = Try {
       readPluginVersion(state).foreach { pluginDep =>
         val outputFile =
           Project.extract(state).get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-plugin-snapshot"
@@ -554,7 +554,7 @@ class Commands {
     * detect SBT version changes.
     */
   lazy val snapshotSbtVersion = Command.command("snapshotSbtVersion") { state =>
-    Try {
+    val _ = Try {
       readSbtVersion(state).foreach { sbtDep =>
         val outputFile =
           Project
@@ -581,7 +581,7 @@ class Commands {
     * `target/sbt-dependencies/.sbt-dependency-diff`. Cleans up snapshot files after processing.
     */
   lazy val computeDependencyDiff = Command.command("computeDependencyDiff") { state =>
-    Try {
+    val _ = Try {
       implicit val logger: Logger = state.log
 
       val project = Project.extract(state)
@@ -658,7 +658,7 @@ class Commands {
     * Writes a JSON file to `target/sbt-dependencies/.sbt-post-update-hooks` listing scripts to run.
     */
   lazy val computePostUpdateHooks = Command.command("computePostUpdateHooks") { state =>
-    Try {
+    val _ = Try {
       implicit val logger: Logger = state.log
 
       val project = Project.extract(state)
@@ -831,7 +831,7 @@ class Commands {
     while (remaining.nonEmpty) { // scalafix:ok
       val step = remaining.head
 
-      remaining.remove(0)
+      val _ = remaining.remove(0)
 
       currentState = Try(Command.process(step, currentState, _ => ()))
         .flatMap(newState => Try(Project.extract(newState)).map(_ => newState))

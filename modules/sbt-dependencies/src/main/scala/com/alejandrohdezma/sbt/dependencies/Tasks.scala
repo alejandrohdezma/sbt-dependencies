@@ -185,7 +185,7 @@ class Tasks {
       mod           <- configuration.modules
     } {
       val key = (mod.module.organization, mod.module.name)
-      if (!configByModule.contains(key)) configByModule.put(key, scope)
+      if (!configByModule.contains(key)) { val _ = configByModule.put(key, scope) }
     }
 
     report.allModules.toList.map { m =>

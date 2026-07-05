@@ -64,15 +64,18 @@ object RetractedArtifact extends Cached[RetractedArtifact] {
         for {
           reason    <- config.as[String]("reason")
           doc       <- config.as[String]("doc")
-          artifacts <- config.as[List[RetractedArtifact]]("artifacts") {
-                         ConfigDecoder.configList[RetractedArtifact] { c =>
-                           for {
-                             groupId    <- c.as[String]("groupId")
-                             artifactId <- c.as[Option[String]]("artifactId")
-                             version    <- c.as[Option[VersionPattern]]("version")
-                           } yield RetractedArtifact(reason, doc, groupId, artifactId, version)
-                         }
-                       }
+          artifacts <- {
+            implicit val RetractedArtifactConfigDecoder: ConfigDecoder[List[RetractedArtifact]] =
+              ConfigDecoder.configList[RetractedArtifact] { c =>
+                for {
+                  groupId    <- c.as[String]("groupId")
+                  artifactId <- c.as[Option[String]]("artifactId")
+                  version    <- c.as[Option[VersionPattern]]("version")
+                } yield RetractedArtifact(reason, doc, groupId, artifactId, version)
+              }
+
+            config.as[List[RetractedArtifact]]("artifacts")
+          }
         } yield artifacts
       }
       .map(_.flatten)

@@ -101,46 +101,46 @@ trait Finders {
 object Finders {
 
   private class Impl(
-      implicit override val cooldownFinder: CooldownFinder,
-      implicit override val ageChecker: AgeChecker,
-      implicit override val ignoreFinder: IgnoreFinder,
-      implicit override val migrationFinder: MigrationFinder,
-      implicit override val pinFinder: PinFinder,
-      implicit override val retractionFinder: RetractionFinder,
-      implicit override val versionFinder: VersionFinder,
-      implicit override val scalaVersion: ScalaVersion
+      override val cooldownFinder: CooldownFinder,
+      override val ageChecker: AgeChecker,
+      override val ignoreFinder: IgnoreFinder,
+      override val migrationFinder: MigrationFinder,
+      override val pinFinder: PinFinder,
+      override val retractionFinder: RetractionFinder,
+      override val versionFinder: VersionFinder,
+      override val scalaVersion: ScalaVersion
   ) extends Finders {
 
     override def withCooldownFinder(_cooldownFinder: CooldownFinder): Finders =
-      new Impl()(_cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+      new Impl(_cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
         scalaVersion)
 
     override def withAgeChecker(_ageChecker: AgeChecker): Finders =
-      new Impl()(cooldownFinder, _ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+      new Impl(cooldownFinder, _ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
         scalaVersion)
 
     override def withIgnoreFinder(_ignoreFinder: IgnoreFinder): Finders =
-      new Impl()(cooldownFinder, ageChecker, _ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+      new Impl(cooldownFinder, ageChecker, _ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
         scalaVersion)
 
     override def withMigrationFinder(_migrationFinder: MigrationFinder): Finders =
-      new Impl()(cooldownFinder, ageChecker, ignoreFinder, _migrationFinder, pinFinder, retractionFinder, versionFinder,
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, _migrationFinder, pinFinder, retractionFinder, versionFinder,
         scalaVersion)
 
     override def withPinFinder(_pinFinder: PinFinder): Finders =
-      new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, _pinFinder, retractionFinder, versionFinder,
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, _pinFinder, retractionFinder, versionFinder,
         scalaVersion)
 
     override def withRetractionFinder(_retractionFinder: RetractionFinder): Finders =
-      new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, _retractionFinder, versionFinder,
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, _retractionFinder, versionFinder,
         scalaVersion)
 
     override def withVersionFinder(_versionFinder: VersionFinder): Finders =
-      new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, _versionFinder,
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, _versionFinder,
         scalaVersion)
 
     override def withScalaVersion(_scalaVersion: ScalaVersion): Finders =
-      new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
         _scalaVersion)
 
   }
@@ -199,11 +199,11 @@ object Finders {
 
     val scalaVersion: ScalaVersion = ScalaVersion(scalaV)
 
-    new Impl()(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
+    new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
       scalaVersion)
   }
 
-  val noop: Finders = new Impl()(
+  val noop: Finders = new Impl(
     cooldownFinder = CooldownFinder.empty,
     ageChecker = (_, _, _, _) => Right(()),
     ignoreFinder = IgnoreFinder.empty,
