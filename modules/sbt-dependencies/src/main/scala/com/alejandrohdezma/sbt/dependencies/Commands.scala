@@ -82,18 +82,19 @@ class Commands {
       project.structure.allProjectRefs.flatMap { ref =>
         val group: Group = if (isSbtBuild) `sbt-build` else Group(project.get(ref / name))
         project.get(ref / libraryDependencies).map(group -> _)
-      }.groupBy(_._1)
-        .mapValues(_.map(_._2).toList)
-        .mapValues(_.filterNot(_.organization === "org.scala-lang"))
-        .mapValues(_.filterNot(dep => dep.organization === pluginOrg && dep.name === pluginName))
-        .mapValues { modules =>
-          if (includeCompilerPlugins) modules
-          else modules.filterNot(_.configurations.contains(Dependency.CompilerPluginConfiguration))
-        }
-        .toMap
+      }.groupBy(_._1).map { case (group, pairs) =>
+        val modules = pairs
+          .map(_._2)
+          .toList
+          .filterNot(_.organization === "org.scala-lang")
+          .filterNot(dep => dep.organization === pluginOrg && dep.name === pluginName)
+
+        group -> (if (includeCompilerPlugins) modules
+                  else modules.filterNot(_.configurations.contains(Dependency.CompilerPluginConfiguration)))
+      }
 
     val dependenciesByGroup: Map[Group, List[Dependency]] =
-      moduleIDsByGroup.mapValues(_.flatMap(Dependency.fromModuleID(_).toList))
+      moduleIDsByGroup.map { case (group, modules) => group -> modules.flatMap(Dependency.fromModuleID(_).toList) }
 
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
     val scalaVersionsByGroup: Map[Group, List[String]] =
