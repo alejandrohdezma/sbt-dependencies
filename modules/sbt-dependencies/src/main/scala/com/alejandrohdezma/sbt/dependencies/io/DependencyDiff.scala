@@ -18,7 +18,7 @@ package com.alejandrohdezma.sbt.dependencies.io
 
 import java.io.File
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import sbt.IO
 import sbt.librarymanagement.ModuleID
