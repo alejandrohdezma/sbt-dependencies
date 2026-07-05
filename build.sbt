@@ -1,7 +1,8 @@
 ThisBuild / scalaVersion                  := _root_.scalafix.sbt.BuildInfo.scala212
+ThisBuild / crossScalaVersions            := Seq(scalaVersion.value, "3.8.4")
 ThisBuild / organization                  := "com.alejandrohdezma"
-ThisBuild / pluginCrossBuild / sbtVersion := "1.12.12"
-ThisBuild / versionPolicyIntention        := Compatibility.BinaryAndSourceCompatible
+ThisBuild / pluginCrossBuild / sbtVersion := scalaVersion.value.on(2)("1.12.12").getOrElse("2.0.0")
+ThisBuild / versionPolicyIntention        := Compatibility.None
 
 ThisBuild / fileTransformers += ".gitignore" -> { (content: String) =>
   content + """
@@ -14,7 +15,7 @@ ThisBuild / fileTransformers += ".gitignore" -> { (content: String) =>
 // Simplify testing the plugin in its own build
 addCommandAlias("reloadSelf", "reload; clean; publishLocal; updateSbtPlugin; reload")
 
-addCommandAlias("ci-test", "fix --check; versionPolicyCheck; mdoc; scripted")
+addCommandAlias("ci-test", "fix --check; mdoc; +versionPolicyCheck; +test; +publishLocal; +scripted")
 addCommandAlias("ci-docs", "github; mdoc; headerCreateAll")
 addCommandAlias("ci-publish", "versionCheck; github; ci-release")
 
