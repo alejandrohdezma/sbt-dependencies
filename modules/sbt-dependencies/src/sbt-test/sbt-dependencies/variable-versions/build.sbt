@@ -6,7 +6,7 @@ import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 
 ThisBuild / dependencyVersionVariables += "catsVersion" -> { (oa: OrganizationArtifactName) => oa % catsVersion }
 
-lazy val assertTest = taskKey[Unit]("Assert all test conditions")
+@transient lazy val assertTest = taskKey[Unit]("Assert all test conditions")
 
 assertTest := {
   val deps = (myproject / libraryDependencies).value

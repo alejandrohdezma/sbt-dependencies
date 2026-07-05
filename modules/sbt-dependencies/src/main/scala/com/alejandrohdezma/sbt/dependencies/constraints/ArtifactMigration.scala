@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import sbt.url
+import java.net.URI
 
 import com.alejandrohdezma.sbt.dependencies.config._
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
@@ -80,7 +80,9 @@ object ArtifactMigration extends Cached[ArtifactMigration] {
 
   /** The default list of artifact migrations. */
   val default = List(
-    url("https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/artifact-migrations.v2.conf")
+    new URI(
+      "https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/artifact-migrations.v2.conf"
+    )
   )
 
   def configToValue(config: Config): Either[String, List[ArtifactMigration]] =

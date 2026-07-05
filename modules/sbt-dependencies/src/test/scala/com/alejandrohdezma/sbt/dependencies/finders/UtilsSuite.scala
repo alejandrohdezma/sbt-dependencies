@@ -83,11 +83,13 @@ class UtilsSuite extends munit.FunSuite {
         .collect { case Version.Numeric(v) => v }
 
   def resolveLatestVersions(deps: List[Dependency], parallelism: Int)(implicit
-      vf: VersionFinder,
-      mf: MigrationFinder,
+      versionFinder: VersionFinder,
+      migrationFinder: MigrationFinder,
       logger: Logger
-  ): List[Dependency] =
-    Utils.resolveLatestVersions(deps, parallelism)(finders(vf, mf), logger)
+  ): List[Dependency] = {
+    implicit val finders: Finders = Finders.noop.withVersionFinder(versionFinder).withMigrationFinder(migrationFinder)
+    Utils.resolveLatestVersions(deps, parallelism)
+  }
 
   // --- findLatestScalaVersion tests ---
 
@@ -279,7 +281,7 @@ class UtilsSuite extends munit.FunSuite {
       Map(("org.typelevel", "cats-core") -> List("2.9.0", "2.10.0"))
     )
 
-    resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.9.0")), 1)
+    val _ = resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.9.0")), 1)
 
     val expected = List(s" ↳ $YELLOW⬆$RESET ${YELLOW}org.typelevel::cats-core:2.9.0$RESET -> ${CYAN}2.10.0$RESET")
 
@@ -291,7 +293,7 @@ class UtilsSuite extends munit.FunSuite {
       Map(("org.typelevel", "cats-core") -> List("2.10.0"))
     )
 
-    resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.10.0")), 1)
+    val _ = resolveLatestVersions(List(dep("org.typelevel", "cats-core", "2.10.0")), 1)
 
     val expected = List(s" ↳ $GREEN✓$RESET ${GREEN}org.typelevel::cats-core:2.10.0$RESET")
 
@@ -303,7 +305,7 @@ class UtilsSuite extends munit.FunSuite {
       Map(("org.typelevel", "cats-core") -> List("2.9.0", "2.10.0"))
     )
 
-    resolveLatestVersions(List(exactDep("org.typelevel", "cats-core", "2.9.0")), 1)
+    val _ = resolveLatestVersions(List(exactDep("org.typelevel", "cats-core", "2.9.0")), 1)
 
     val expected = List(s" ↳ $CYAN⊙$RESET ${CYAN}org.typelevel::cats-core:=2.9.0$RESET")
 
@@ -342,7 +344,7 @@ class UtilsSuite extends munit.FunSuite {
         Some(ArtifactMigration(Some("org.old"), "org.new", Some("old-lib"), "new-lib"))
       else None
 
-    resolveLatestVersions(List(dep("org.old", "old-lib", "1.0.0")), 1)
+    val _ = resolveLatestVersions(List(dep("org.old", "old-lib", "1.0.0")), 1)
 
     val expected =
       List(s" ↳ $YELLOW⇄$RESET ${YELLOW}org.old::old-lib:1.0.0$RESET -> ${CYAN}org.new::new-lib:2.0.0$RESET")

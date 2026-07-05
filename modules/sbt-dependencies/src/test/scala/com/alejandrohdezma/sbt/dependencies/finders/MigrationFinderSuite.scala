@@ -49,7 +49,7 @@ class MigrationFinderSuite extends munit.FunSuite {
     setup = { _ =>
       val file = Files.createTempFile("migrations", ".conf")
       IO.write(file.toFile(), contents)
-      MigrationFinder.fromUrls(List(file.toUri().toURL()))
+      MigrationFinder.fromUrls(List(file.toUri()))
     },
     teardown = _ => ()
   )

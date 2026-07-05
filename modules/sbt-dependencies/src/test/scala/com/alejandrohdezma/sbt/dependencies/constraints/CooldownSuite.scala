@@ -17,7 +17,7 @@
 package com.alejandrohdezma.sbt.dependencies.constraints
 
 import java.io.File
-import java.net.URL
+import java.net.URI
 import java.nio.file.Files
 
 import scala.Console._
@@ -168,16 +168,16 @@ class CooldownSuite extends munit.FunSuite {
   // Fixtures //
   //////////////
 
-  def withCooldownFile(contents: String*) = FunFixture[List[URL]](
+  def withCooldownFile(contents: String*) = FunFixture[List[URI]](
     setup = { _ =>
       contents.toList.map { content =>
         val file = Files.createTempFile("cooldown", ".conf")
         IO.write(file.toFile(), content)
-        file.toUri().toURL()
+        file.toUri()
       }
     },
     teardown = { urls =>
-      urls.foreach(url => IO.delete(new File(url.toURI())))
+      urls.foreach(url => IO.delete(new File(url)))
       ()
     }
   )

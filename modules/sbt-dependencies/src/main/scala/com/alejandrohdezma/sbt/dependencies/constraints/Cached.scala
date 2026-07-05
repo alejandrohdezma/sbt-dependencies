@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import java.net.URL
+import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 
 import scala.Console._
@@ -29,7 +29,7 @@ import com.typesafe.config.Config
 
 abstract class Cached[A: ClassTag] {
 
-  private val cache = new ConcurrentHashMap[URL, List[A]]() // scalafix:ok
+  private val cache = new ConcurrentHashMap[URI, List[A]]() // scalafix:ok
 
   val name = implicitly[ClassTag[A]].runtimeClass.getSimpleName // scalafix:ok
 
@@ -44,10 +44,10 @@ abstract class Cached[A: ClassTag] {
     * @return
     *   Combined list of all values from all URLs
     */
-  def loadFromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): List[A] =
+  def loadFromUrls(urls: List[URI])(implicit logger: Logger, configCache: ConfigCache): List[A] =
     urls.flatMap(cache.computeIfAbsent(_, loadFromUrl))
 
-  def loadFromUrl(url: URL)(implicit logger: Logger, configCache: ConfigCache): List[A] =
+  def loadFromUrl(url: URI)(implicit logger: Logger, configCache: ConfigCache): List[A] =
     configCache
       .get(url)
       .map { config =>

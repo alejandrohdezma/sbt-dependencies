@@ -1,6 +1,6 @@
 lazy val root = project.in(file("."))
 
-lazy val assertTest = taskKey[Unit]("Assert only non-ignored scalafmt was updated")
+@transient lazy val assertTest = taskKey[Unit]("Assert only non-ignored scalafmt was updated")
 
 assertTest := {
   val rootConf = baseDirectory.value / ".scalafmt.conf"

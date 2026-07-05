@@ -22,7 +22,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.concurrent.duration._
-import scala.language.reflectiveCalls
 import scala.util.Using
 import scala.util.chaining._
 
@@ -30,8 +29,8 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import coursier.MavenRepository
-import coursier.core.Authentication
+import lmcoursier.internal.shaded.coursier.MavenRepository
+import lmcoursier.internal.shaded.coursier.core.Authentication
 import munit.AnyFixture
 
 import com.sun.net.httpserver.HttpExchange
@@ -51,7 +50,7 @@ class AgeCheckerSuite extends munit.FunSuite {
     val clock   = () => publishedAt.plusSeconds(10 * 24 * 60 * 60) // 10 days after publish
     val checker = AgeChecker(Seq(MavenRepository(serverFixture.serverUrl("/200/"))), now = clock, timeoutSeconds = 5)
 
-    assertEquals(checker.check("org.example", "lib", "1.0.0", 7.days), Right(()))
+    assertEquals(checker.check("org.example", "lib", "1.0.0", 7.days), Right[AgeChecker.TooRecent, Unit](()))
   }
 
   test("check returns Left(TooRecent) when the artifact is younger than the cooldown") {
@@ -69,14 +68,14 @@ class AgeCheckerSuite extends munit.FunSuite {
     val checker =
       AgeChecker(Seq(MavenRepository(serverFixture.serverUrl("/no-date/"))), now = clock, timeoutSeconds = 5)
 
-    assertEquals(checker.check("org.example", "lib", "1.0.0", 7.days), Right(()))
+    assertEquals(checker.check("org.example", "lib", "1.0.0", 7.days), Right[AgeChecker.TooRecent, Unit](()))
   }
 
   test("check degrades to Right(()) when the POM is missing (404)") {
     val clock   = () => publishedAt
     val checker = AgeChecker(Seq(MavenRepository(serverFixture.serverUrl("/404/"))), now = clock, timeoutSeconds = 5)
 
-    assertEquals(checker.check("org.example", "lib", "1.0.0", 7.days), Right(()))
+    assertEquals(checker.check("org.example", "lib", "1.0.0", 7.days), Right[AgeChecker.TooRecent, Unit](()))
   }
 
   // --- HTTP integration tests: pomLastModified directly ---
@@ -180,7 +179,10 @@ class AgeCheckerSuite extends munit.FunSuite {
     val central = MavenRepository("https://repo1.maven.org/maven2/")
     val checker = AgeChecker(Seq(central), timeoutSeconds = 30)
 
-    assertEquals(checker.check("org.scala-lang", "scala-library", "2.13.0", 1.day), Right(()))
+    assertEquals(
+      checker.check("org.scala-lang", "scala-library", "2.13.0", 1.day),
+      Right[AgeChecker.TooRecent, Unit](())
+    )
   }
 
   // --- cached decorator ---
@@ -195,9 +197,11 @@ class AgeCheckerSuite extends munit.FunSuite {
 
     val cached = underlying.cached
 
-    cached.check("org.example", "lib", "1.0.0", 7.days)
-    cached.check("org.example", "lib", "1.0.0", 7.days)
-    cached.check("org.example", "lib", "1.0.0", 7.days)
+    val _ = (
+      cached.check("org.example", "lib", "1.0.0", 7.days),
+      cached.check("org.example", "lib", "1.0.0", 7.days),
+      cached.check("org.example", "lib", "1.0.0", 7.days)
+    )
 
     assertEquals(checkCalls.get(), 1)
   }
@@ -212,11 +216,13 @@ class AgeCheckerSuite extends munit.FunSuite {
 
     val cached = underlying.cached
 
-    cached.check("org.example", "lib", "1.0.0", 7.days)
-    cached.check("org.example", "lib", "2.0.0", 7.days)      // different version
-    cached.check("org.other", "lib", "1.0.0", 7.days)        // different org
-    cached.check("org.example", "lib_2.13", "1.0.0", 7.days) // different name
-    cached.check("org.example", "lib", "1.0.0", 14.days)     // different minimumAge
+    val _ = (
+      cached.check("org.example", "lib", "1.0.0", 7.days),
+      cached.check("org.example", "lib", "2.0.0", 7.days),      // different version
+      cached.check("org.other", "lib", "1.0.0", 7.days),        // different org
+      cached.check("org.example", "lib_2.13", "1.0.0", 7.days), // different name
+      cached.check("org.example", "lib", "1.0.0", 14.days)      // different minimumAge
+    )
 
     assertEquals(checkCalls.get(), 5)
   }
@@ -239,7 +245,7 @@ class AgeCheckerSuite extends munit.FunSuite {
   //////////////
 
   /** In-process HTTP server with deterministic responses for the HEAD tests. Started once per suite. */
-  val serverFixture = new AnyFixture[HttpServer]("Http Server") {
+  private class HttpServerFixture extends AnyFixture[HttpServer]("Http Server") {
 
     private def headHandler(status: Int, lastModified: Option[String]): HttpHandler =
       Using.resource(_) {
@@ -285,6 +291,8 @@ class AgeCheckerSuite extends munit.FunSuite {
 
   }
 
-  override def munitFixtures: Seq[AnyFixture[_]] = super.munitFixtures :+ serverFixture
+  private val serverFixture = new HttpServerFixture
+
+  override def munitFixtures = super.munitFixtures :+ serverFixture
 
 }

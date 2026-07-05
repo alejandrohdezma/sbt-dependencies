@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import sbt.url
+import java.net.URI
 
 import com.alejandrohdezma.sbt.dependencies.config._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -64,22 +64,27 @@ object RetractedArtifact extends Cached[RetractedArtifact] {
         for {
           reason    <- config.as[String]("reason")
           doc       <- config.as[String]("doc")
-          artifacts <- config.as[List[RetractedArtifact]]("artifacts") {
-                         ConfigDecoder.configList[RetractedArtifact] { c =>
-                           for {
-                             groupId    <- c.as[String]("groupId")
-                             artifactId <- c.as[Option[String]]("artifactId")
-                             version    <- c.as[Option[VersionPattern]]("version")
-                           } yield RetractedArtifact(reason, doc, groupId, artifactId, version)
-                         }
-                       }
+          artifacts <- {
+            implicit val RetractedArtifactConfigDecoder: ConfigDecoder[List[RetractedArtifact]] =
+              ConfigDecoder.configList[RetractedArtifact] { c =>
+                for {
+                  groupId    <- c.as[String]("groupId")
+                  artifactId <- c.as[Option[String]]("artifactId")
+                  version    <- c.as[Option[VersionPattern]]("version")
+                } yield RetractedArtifact(reason, doc, groupId, artifactId, version)
+              }
+
+            config.as[List[RetractedArtifact]]("artifacts")
+          }
         } yield artifacts
       }
       .map(_.flatten)
 
   /** The default list of retraction URLs. */
   val default = List(
-    url("https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/default.scala-steward.conf")
+    new URI(
+      "https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/default.scala-steward.conf"
+    )
   )
 
   def configToValue(config: Config): Either[String, List[RetractedArtifact]] =

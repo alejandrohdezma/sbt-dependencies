@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.finders
 
-import java.net.URL
+import java.net.URI
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -48,7 +48,7 @@ object CooldownFinder {
     *
     * If multiple URLs contribute a `CooldownDefault`, the first one wins — same precedence as "first override wins."
     */
-  def fromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): CooldownFinder = {
+  def fromUrls(urls: List[URI])(implicit logger: Logger, configCache: ConfigCache): CooldownFinder = {
     val entries = CooldownEntry.loadFromUrls(urls)
 
     val overrides = entries.collect { case o: CooldownOverride => o }

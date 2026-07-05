@@ -99,13 +99,13 @@ class Keys {
     * ThisBuild / dependencyMigrations := Nil
     *
     * // Add custom migrations URL
-    * ThisBuild / dependencyMigrations += url("https://example.com/my-migrations.conf")
+    * ThisBuild / dependencyMigrations += uri("https://example.com/my-migrations.conf")
     *
     * // Use a local file
-    * ThisBuild / dependencyMigrations += file("migrations.conf").toURI.toURL
+    * ThisBuild / dependencyMigrations += file("migrations.conf").toURI
     *   }}}
     */
-  val dependencyMigrations = settingKey[List[java.net.URL]] {
+  val dependencyMigrations = settingKey[List[java.net.URI]] {
     "URLs pointing to artifact migration files (Scala Steward HOCON format). Default: Scala Steward's public migrations"
   }
 
@@ -140,13 +140,13 @@ class Keys {
     * ThisBuild / dependencyUpdateRetractions := Nil
     *
     * // Add custom retraction URL
-    * ThisBuild / dependencyUpdateRetractions += url("https://example.com/my-retractions.conf")
+    * ThisBuild / dependencyUpdateRetractions += uri("https://example.com/my-retractions.conf")
     *
     * // Use a local file
-    * ThisBuild / dependencyUpdateRetractions += file("retractions.conf").toURI.toURL
+    * ThisBuild / dependencyUpdateRetractions += file("retractions.conf").toURI
     *   }}}
     */
-  val dependencyUpdateRetractions = settingKey[List[java.net.URL]] {
+  val dependencyUpdateRetractions = settingKey[List[java.net.URI]] {
     "URLs pointing to retracted-version files (Scala Steward HOCON format). Default: Scala Steward's public config"
   }
 
@@ -163,13 +163,13 @@ class Keys {
     * ThisBuild / dependencyUpdateIgnores := Nil
     *
     * // Add custom ignore URL
-    * ThisBuild / dependencyUpdateIgnores += url("https://example.com/my-ignores.conf")
+    * ThisBuild / dependencyUpdateIgnores += uri("https://example.com/my-ignores.conf")
     *
     * // Use a local file
-    * ThisBuild / dependencyUpdateIgnores += file("ignores.conf").toURI.toURL
+    * ThisBuild / dependencyUpdateIgnores += file("ignores.conf").toURI
     *   }}}
     */
-  val dependencyUpdateIgnores = settingKey[List[java.net.URL]] {
+  val dependencyUpdateIgnores = settingKey[List[java.net.URI]] {
     "URLs pointing to update-ignore files (Scala Steward HOCON format). Default: Scala Steward's public config"
   }
 
@@ -187,13 +187,13 @@ class Keys {
     * ThisBuild / dependencyUpdatePins := Nil
     *
     * // Add custom pin URL
-    * ThisBuild / dependencyUpdatePins += url("https://example.com/my-pins.conf")
+    * ThisBuild / dependencyUpdatePins += uri("https://example.com/my-pins.conf")
     *
     * // Use a local file
-    * ThisBuild / dependencyUpdatePins += file("pins.conf").toURI.toURL
+    * ThisBuild / dependencyUpdatePins += file("pins.conf").toURI
     *   }}}
     */
-  val dependencyUpdatePins = settingKey[List[java.net.URL]] {
+  val dependencyUpdatePins = settingKey[List[java.net.URI]] {
     "URLs pointing to update-pin files (Scala Steward HOCON format). Default: Scala Steward's public config"
   }
 
@@ -204,18 +204,18 @@ class Keys {
     * `updates.cooldown` + `dependencyOverrides[].cooldown.minimumAge` schema.
     *
     * Default: empty — cooldown is per-repo policy, not an ecosystem fact, so we don't point at any shared URL by
-    * default. Users opt in via `+= file("project/cooldown.conf").toURI.toURL` or any other URL.
+    * default. Users opt in via `+= file("project/cooldown.conf").toURI` or any other URL.
     *
     * @example
     *   {{{
     * // Local config file
-    * ThisBuild / dependencyCooldowns += file("project/cooldown.conf").toURI.toURL
+    * ThisBuild / dependencyCooldowns += file("project/cooldown.conf").toURI
     *
     * // Remote shared config
-    * ThisBuild / dependencyCooldowns += url("https://example.com/cooldown.conf")
+    * ThisBuild / dependencyCooldowns += uri("https://example.com/cooldown.conf")
     *   }}}
     */
-  val dependencyCooldowns = settingKey[List[java.net.URL]] {
+  val dependencyCooldowns = settingKey[List[java.net.URI]] {
     "URLs pointing to cooldown configuration files (Scala Steward HOCON format). Default: empty (no cooldown)"
   }
 
@@ -232,13 +232,13 @@ class Keys {
     * ThisBuild / dependencyPostUpdateHooks := Nil
     *
     * // Add custom hooks URL
-    * ThisBuild / dependencyPostUpdateHooks += url("https://example.com/my-hooks.conf")
+    * ThisBuild / dependencyPostUpdateHooks += uri("https://example.com/my-hooks.conf")
     *
     * // Use a local file
-    * ThisBuild / dependencyPostUpdateHooks += file("hooks.conf").toURI.toURL
+    * ThisBuild / dependencyPostUpdateHooks += file("hooks.conf").toURI
     *   }}}
     */
-  val dependencyPostUpdateHooks = settingKey[List[java.net.URL]] {
+  val dependencyPostUpdateHooks = settingKey[List[java.net.URI]] {
     "URLs pointing to post-update hook files (Scala Steward HOCON format). Default: Scala Steward's public config"
   }
 
@@ -256,13 +256,13 @@ class Keys {
     * ThisBuild / dependencyScalafixMigrations := Nil
     *
     * // Add custom migrations URL
-    * ThisBuild / dependencyScalafixMigrations += url("https://example.com/my-migrations.conf")
+    * ThisBuild / dependencyScalafixMigrations += uri("https://example.com/my-migrations.conf")
     *
     * // Use a local file
-    * ThisBuild / dependencyScalafixMigrations += file("migrations.conf").toURI.toURL
+    * ThisBuild / dependencyScalafixMigrations += file("migrations.conf").toURI
     *   }}}
     */
-  val dependencyScalafixMigrations = settingKey[List[java.net.URL]] {
+  val dependencyScalafixMigrations = settingKey[List[java.net.URI]] {
     "URLs pointing to scalafix migration files (Scala Steward HOCON format). Default: Scala Steward's public migrations"
   }
 

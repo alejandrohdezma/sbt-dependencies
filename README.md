@@ -29,6 +29,8 @@ addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.26.1")
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
 > manage both your build dependencies and your project dependencies.
 
+The plugin is published for both sbt 1.x (1.12.12+) and sbt 2.x.
+
 ## Usage
 
 This plugin manages your project's dependencies through a single `project/dependencies.conf` file. Instead of declaring `libraryDependencies` and `addSbtPlugin` in your build files, you list all dependencies in HOCON format grouped by project name:
@@ -610,10 +612,10 @@ You can customize the migration sources using the `dependencyMigrations` setting
 ThisBuild / dependencyMigrations := Nil
 
 // Add a custom migrations URL
-ThisBuild / dependencyMigrations += url("https://example.com/my-migrations.conf")
+ThisBuild / dependencyMigrations += uri("https://example.com/my-migrations.conf")
 
 // Use a local file
-ThisBuild / dependencyMigrations := List(file("project/artifact-migrations.conf").toURI.toURL)
+ThisBuild / dependencyMigrations := List(file("project/artifact-migrations.conf").toURI)
 ```
 
 Custom migration files use Scala Steward's HOCON format:
@@ -645,10 +647,10 @@ You can customize the ignore sources using the `dependencyUpdateIgnores` setting
 ThisBuild / dependencyUpdateIgnores := Nil
 
 // Add a custom ignore URL
-ThisBuild / dependencyUpdateIgnores += url("https://example.com/my-ignores.conf")
+ThisBuild / dependencyUpdateIgnores += uri("https://example.com/my-ignores.conf")
 
 // Use a local file
-ThisBuild / dependencyUpdateIgnores += file("ignores.conf").toURI.toURL
+ThisBuild / dependencyUpdateIgnores += file("ignores.conf").toURI
 ```
 
 Custom ignore files use Scala Steward's HOCON format:
@@ -684,10 +686,10 @@ You can customize the retraction sources using the `dependencyUpdateRetractions`
 ThisBuild / dependencyUpdateRetractions := Nil
 
 // Add a custom retraction URL
-ThisBuild / dependencyUpdateRetractions += url("https://example.com/my-retractions.conf")
+ThisBuild / dependencyUpdateRetractions += uri("https://example.com/my-retractions.conf")
 
 // Use a local file
-ThisBuild / dependencyUpdateRetractions += file("retractions.conf").toURI.toURL
+ThisBuild / dependencyUpdateRetractions += file("retractions.conf").toURI
 ```
 
 Custom retraction files use Scala Steward's HOCON format:
@@ -723,10 +725,10 @@ You can customize the pin sources using the `dependencyUpdatePins` setting:
 ThisBuild / dependencyUpdatePins := Nil
 
 // Add a custom pin URL
-ThisBuild / dependencyUpdatePins += url("https://example.com/my-pins.conf")
+ThisBuild / dependencyUpdatePins += uri("https://example.com/my-pins.conf")
 
 // Use a local file
-ThisBuild / dependencyUpdatePins += file("pins.conf").toURI.toURL
+ThisBuild / dependencyUpdatePins += file("pins.conf").toURI
 ```
 
 Custom pin files use Scala Steward's HOCON format:
@@ -756,10 +758,10 @@ Cooldown is **opt-in** — the default is no cooldown:
 
 ```scala
 // Apply a cooldown loaded from a local file
-ThisBuild / dependencyCooldowns += file("project/cooldown.conf").toURI.toURL
+ThisBuild / dependencyCooldowns += file("project/cooldown.conf").toURI
 
 // ...or load it from a remote URL
-ThisBuild / dependencyCooldowns += url("https://example.com/cooldown.conf")
+ThisBuild / dependencyCooldowns += uri("https://example.com/cooldown.conf")
 ```
 
 Cooldown files use Scala Steward's HOCON format:
@@ -817,10 +819,10 @@ You can customize the hook sources using the `dependencyPostUpdateHooks` setting
 ThisBuild / dependencyPostUpdateHooks := Nil
 
 // Add a custom hooks URL
-ThisBuild / dependencyPostUpdateHooks += url("https://example.com/my-hooks.conf")
+ThisBuild / dependencyPostUpdateHooks += uri("https://example.com/my-hooks.conf")
 
 // Use a local file
-ThisBuild / dependencyPostUpdateHooks += file("hooks.conf").toURI.toURL
+ThisBuild / dependencyPostUpdateHooks += file("hooks.conf").toURI
 ```
 
 Custom hook files use Scala Steward's HOCON format:
@@ -871,10 +873,10 @@ You can customize the migration sources using the `dependencyScalafixMigrations`
 ThisBuild / dependencyScalafixMigrations := Nil
 
 // Add a custom migrations URL
-ThisBuild / dependencyScalafixMigrations += url("https://example.com/my-migrations.conf")
+ThisBuild / dependencyScalafixMigrations += uri("https://example.com/my-migrations.conf")
 
 // Use a local file
-ThisBuild / dependencyScalafixMigrations += file("migrations.conf").toURI.toURL
+ThisBuild / dependencyScalafixMigrations += file("migrations.conf").toURI
 ```
 
 Custom migration files use Scala Steward's HOCON format:

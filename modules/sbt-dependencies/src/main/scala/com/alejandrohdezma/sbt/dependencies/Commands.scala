@@ -82,18 +82,19 @@ class Commands {
       project.structure.allProjectRefs.flatMap { ref =>
         val group: Group = if (isSbtBuild) `sbt-build` else Group(project.get(ref / name))
         project.get(ref / libraryDependencies).map(group -> _)
-      }.groupBy(_._1)
-        .mapValues(_.map(_._2).toList)
-        .mapValues(_.filterNot(_.organization === "org.scala-lang"))
-        .mapValues(_.filterNot(dep => dep.organization === pluginOrg && dep.name === pluginName))
-        .mapValues { modules =>
-          if (includeCompilerPlugins) modules
-          else modules.filterNot(_.configurations.contains(Dependency.CompilerPluginConfiguration))
-        }
-        .toMap
+      }.groupBy(_._1).map { case (group, pairs) =>
+        val modules = pairs
+          .map(_._2)
+          .toList
+          .filterNot(_.organization === "org.scala-lang")
+          .filterNot(dep => dep.organization === pluginOrg && dep.name === pluginName)
+
+        group -> (if (includeCompilerPlugins) modules
+                  else modules.filterNot(_.configurations.contains(Dependency.CompilerPluginConfiguration)))
+      }
 
     val dependenciesByGroup: Map[Group, List[Dependency]] =
-      moduleIDsByGroup.mapValues(_.flatMap(Dependency.fromModuleID(_).toList))
+      moduleIDsByGroup.map { case (group, modules) => group -> modules.flatMap(Dependency.fromModuleID(_).toList) }
 
     // Gather Scala versions for each group (skip in meta-build, always 2.12)
     val scalaVersionsByGroup: Map[Group, List[String]] =
@@ -210,7 +211,7 @@ class Commands {
       "enableEvictionWarnings"      // Restore eviction errors
     )
 
-    runStepsSafely(steps: _*)(state, base / "target" / "sbt-dependencies")
+    runStepsSafely(steps *)(state, base / "target" / "sbt-dependencies")
   }
 
   /** Updates the configured SBT plugin. Checks `project/project/plugins.sbt` first, falling back to
@@ -218,7 +219,7 @@ class Commands {
     */
   lazy val updateSbtPlugin = Command.command("updateSbtPlugin") { state =>
     implicit val logger: Logger   = state.log
-    implicit val finders: Finders = Finders.fromState(state, "2.12.0")
+    implicit val finders: Finders = Finders.fromState(state, PluginCompat.metaBuildScalaVersion)
 
     val project = Project.extract(state)
 
@@ -386,7 +387,7 @@ class Commands {
 
     implicit val finders: Finders = Finders.fromState(state, "2.13.0")
 
-    Scalafmt.updateVersion(base)
+    val _ = Scalafmt.updateVersion(base)
 
     state
   }
@@ -415,7 +416,7 @@ class Commands {
       } else {
         logger.info("\n↻ Checking for new versions of SBT\n")
 
-        implicit val finders: Finders = Finders.fromState(state, "2.12.0")
+        implicit val finders: Finders = Finders.fromState(state, PluginCompat.metaBuildScalaVersion)
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
@@ -443,19 +444,19 @@ class Commands {
 
   /** Downgrades eviction errors to info level, preventing them from failing the build. */
   lazy val disableEvictionWarnings = Command.command("disableEvictionWarnings") { state =>
-    Command.process("set ThisBuild / evictionErrorLevel := Level.Info", state)
+    Command.process("set ThisBuild / evictionErrorLevel := Level.Info", state, _ => ())
   }
 
   /** Restores eviction warnings to error level, causing eviction issues to fail the build. */
   lazy val enableEvictionWarnings = Command.command("enableEvictionWarnings") { state =>
-    Command.process("set ThisBuild / evictionErrorLevel := Level.Error", state)
+    Command.process("set ThisBuild / evictionErrorLevel := Level.Error", state, _ => ())
   }
 
   /** Snapshots all resolved dependencies (including transitives) for every project to
     * `target/sbt-dependencies/.sbt-dependency-snapshot`.
     */
   lazy val snapshotDependencies = Command.command("snapshotDependencies") { state =>
-    Try {
+    val _ = Try {
       val snapshot = generateSnapshot(state)
 
       val outputDir =
@@ -494,7 +495,7 @@ class Commands {
       label: String
   ): Command =
     Command.command(commandName) { state =>
-      Try {
+      val _ = Try {
         withDependenciesFile(state, group) { (project, file) => _ =>
           implicit val logger: Logger = state.log
 
@@ -528,7 +529,7 @@ class Commands {
     * detect plugin version changes.
     */
   lazy val snapshotSbtPlugin = Command.command("snapshotSbtPlugin") { state =>
-    Try {
+    val _ = Try {
       readPluginVersion(state).foreach { pluginDep =>
         val outputFile =
           Project.extract(state).get(ThisBuild / baseDirectory) / "target" / "sbt-dependencies" / ".sbt-plugin-snapshot"
@@ -553,7 +554,7 @@ class Commands {
     * detect SBT version changes.
     */
   lazy val snapshotSbtVersion = Command.command("snapshotSbtVersion") { state =>
-    Try {
+    val _ = Try {
       readSbtVersion(state).foreach { sbtDep =>
         val outputFile =
           Project
@@ -580,7 +581,7 @@ class Commands {
     * `target/sbt-dependencies/.sbt-dependency-diff`. Cleans up snapshot files after processing.
     */
   lazy val computeDependencyDiff = Command.command("computeDependencyDiff") { state =>
-    Try {
+    val _ = Try {
       implicit val logger: Logger = state.log
 
       val project = Project.extract(state)
@@ -657,7 +658,7 @@ class Commands {
     * Writes a JSON file to `target/sbt-dependencies/.sbt-post-update-hooks` listing scripts to run.
     */
   lazy val computePostUpdateHooks = Command.command("computePostUpdateHooks") { state =>
-    Try {
+    val _ = Try {
       implicit val logger: Logger = state.log
 
       val project = Project.extract(state)
@@ -776,9 +777,9 @@ class Commands {
     * file is missing or the group isn't declared; otherwise invokes `f` with the project + parsed file. Finders are
     * built once and passed as an implicit `Finders` for the callback's body to consume.
     *
-    * The Scala version `Finders` is bound to is derived from `group`: `sbt-build` deps are sbt plugins (which always
-    * resolve against Scala 2.12 — the sbt-plugin publication shape), so we bind `"2.12.0"`. Every other group holds
-    * main-build deps that target the user's project, so we bind the project's `ThisBuild / scalaVersion`.
+    * The Scala version `Finders` is bound to is derived from `group`: `sbt-build` deps target the meta-build (whose
+    * Scala version is fixed by the running sbt), so we bind `PluginCompat.metaBuildScalaVersion`. Every other group
+    * holds main-build deps that target the user's project, so we bind the project's `ThisBuild / scalaVersion`.
     */
   private def withDependenciesFile(state: State, group: Group)(
       f: (Extracted, DependenciesFile) => Finders => State
@@ -792,7 +793,8 @@ class Commands {
 
     if (!file.exists() || !dependenciesFile.hasGroup(group)) state
     else {
-      val scalaV = if (group === `sbt-build`) "2.12.0" else project.get(ThisBuild / scalaVersion)
+      val scalaV =
+        if (group === `sbt-build`) PluginCompat.metaBuildScalaVersion else project.get(ThisBuild / scalaVersion)
       f(project, dependenciesFile)(Finders.fromState(state, scalaV))
     }
   }
@@ -822,16 +824,16 @@ class Commands {
     IO.delete(outputDir / ".sbt-version-snapshot")
     IO.delete(outputDir / ".sbt-post-update-hooks")
 
-    val remaining = ListBuffer(steps: _*)
+    val remaining = ListBuffer(steps *)
 
     var currentState = state // scalafix:ok
 
     while (remaining.nonEmpty) { // scalafix:ok
       val step = remaining.head
 
-      remaining.remove(0)
+      val _ = remaining.remove(0)
 
-      currentState = Try(Command.process(step, currentState))
+      currentState = Try(Command.process(step, currentState, _ => ()))
         .flatMap(newState => Try(Project.extract(newState)).map(_ => newState))
         .onError { case e => logger.error(s"⚠ '$step' failed: ${e.getMessage}") }
         .onError { case _ if remaining.nonEmpty => logger.error(s"⚠ Skipped: ${remaining.mkString(", ")}") }

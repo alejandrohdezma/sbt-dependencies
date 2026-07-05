@@ -1,4 +1,4 @@
-# Run the full update flow (http4s-core 0.21.0 -> 0.21.34, sbt 1.9.0 -> 1.9.9)
+# Run the full update flow (http4s-core 0.21.0 -> 0.21.34, sbt 1.10.0 -> 1.10.11)
 > updateAllDependencies
 
 # Verify snapshots were cleaned up

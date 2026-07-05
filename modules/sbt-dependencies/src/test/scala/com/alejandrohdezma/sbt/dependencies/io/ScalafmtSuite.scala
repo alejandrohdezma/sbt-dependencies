@@ -385,7 +385,7 @@ class ScalafmtSuite extends munit.FunSuite {
   def withGitRepoScalafmtConf(gitignoreContent: String, files: (String, String)*): FunFixture[File] = FunFixture[File](
     setup = { _ =>
       val dir = Files.createTempDirectory("scalafmt-git-test").toFile
-      Process("git init", dir).!!
+      val _   = Process("git init", dir).!!
       IO.write(dir / ".gitignore", gitignoreContent)
       files.foreach { case (relativePath, content) =>
         val file = new File(dir, relativePath)

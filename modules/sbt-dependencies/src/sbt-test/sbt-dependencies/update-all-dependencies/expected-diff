@@ -141,10 +141,10 @@ sbt-build {
     updated=[
         {
             configuration=compile
-            from="1.9.0"
+            from="1.10.0"
             name=sbt
             organization="org.scala-sbt"
-            to="1.9.9"
+            to="1.10.11"
         }
     ]
 }

@@ -17,7 +17,7 @@
 package com.alejandrohdezma.sbt.dependencies.constraints
 
 import java.io.File
-import java.net.URL
+import java.net.URI
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
@@ -42,10 +42,10 @@ import com.typesafe.config.ConfigRenderOptions
   */
 final case class ConfigCache(cacheDir: File) {
 
-  private val cache = new ConcurrentHashMap[URL, Config]()
+  private val cache = new ConcurrentHashMap[URI, Config]()
 
   /** Returns the parsed `Config` for the given URL, fetching it at most once. */
-  def get(url: URL)(implicit logger: Logger): Either[String, Config] = Try {
+  def get(url: URI)(implicit logger: Logger): Either[String, Config] = Try {
     cache.computeIfAbsent(
       url,
       { url =>
@@ -55,7 +55,7 @@ final case class ConfigCache(cacheDir: File) {
         else {
           logger.info(s"↻ Loading config from $CYAN$url$RESET")
 
-          val config = ConfigFactory.parseURL(url)
+          val config = ConfigFactory.parseURL(url.toURL)
 
           cached.getParentFile.mkdirs()
           IO.write(cached, config.root().render(ConfigRenderOptions.concise().setJson(false)))
@@ -66,10 +66,10 @@ final case class ConfigCache(cacheDir: File) {
     )
   }.fold(e => Left(s"Failed to parse config from $url: ${e.getMessage}"), Right(_))
 
-  private def fileFor(url: URL): File = {
+  private def fileFor(url: URI): File = {
     val hash = MessageDigest
       .getInstance("SHA-256")
-      .digest(url.toExternalForm().getBytes("UTF-8"))
+      .digest(url.toString.getBytes("UTF-8"))
       .map("%02x".format(_))
       .mkString
 

@@ -1,8 +1,10 @@
+ThisBuild / scalaVersion := "2.13.16"
+
 lazy val defined = project
 
 lazy val undefined = project  // No matching group in YAML
 
-lazy val assertTest = taskKey[Unit]("Assert all test conditions")
+@transient lazy val assertTest = taskKey[Unit]("Assert all test conditions")
 
 assertTest := {
   // defined project should have exactly cats-core

@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import sbt.url
+import java.net.URI
 
 import com.alejandrohdezma.sbt.dependencies.config._
 import com.typesafe.config.Config
@@ -53,7 +53,9 @@ object PostUpdateHook extends Cached[PostUpdateHook] {
 
   /** The default list of post-update hook URLs. */
   val default = List(
-    url("https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/default.scala-steward.conf")
+    new URI(
+      "https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/default.scala-steward.conf"
+    )
   )
 
   def configToValue(config: Config): Either[String, List[PostUpdateHook]] =

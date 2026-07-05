@@ -27,10 +27,10 @@ import scala.util.Try
 
 import sbt.util.Logger
 
-import coursier.MavenRepository
-import coursier.cache.ConnectionBuilder
-import coursier.cache.FileCache
-import coursier.credentials.DirectCredentials
+import lmcoursier.internal.shaded.coursier.MavenRepository
+import lmcoursier.internal.shaded.coursier.cache.ConnectionBuilder
+import lmcoursier.internal.shaded.coursier.cache.FileCache
+import lmcoursier.internal.shaded.coursier.credentials.DirectCredentials
 
 /** Abstraction for deciding whether a published artifact is old enough to satisfy a configured cooldown.
   *
