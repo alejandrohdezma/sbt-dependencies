@@ -3,7 +3,7 @@ lazy val myproject = project
 @transient lazy val assertTest = taskKey[Unit]("Assert cats-effect was installed with a version")
 
 assertTest := {
-  val content = IO.read(baseDirectory.value / "project" / "dependencies.conf")
+  val content = IO.read((ThisBuild / baseDirectory).value / "project" / "dependencies.conf")
 
   // Verify cats-effect is present with a version (format: cats-effect:X.Y.Z)
   assert(content.contains("cats-effect:"), s"cats-effect should be in dependencies.conf, content: $content")

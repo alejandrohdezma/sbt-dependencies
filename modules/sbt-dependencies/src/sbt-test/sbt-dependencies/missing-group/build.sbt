@@ -1,3 +1,5 @@
+ThisBuild / scalaVersion := "2.13.16"
+
 lazy val defined = project
 
 lazy val undefined = project  // No matching group in YAML

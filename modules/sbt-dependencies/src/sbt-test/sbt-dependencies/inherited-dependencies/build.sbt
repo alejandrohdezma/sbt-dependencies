@@ -1,3 +1,5 @@
+ThisBuild / scalaVersion := "2.13.16"
+
 lazy val core = project
 
 lazy val app = project.dependsOn(core)

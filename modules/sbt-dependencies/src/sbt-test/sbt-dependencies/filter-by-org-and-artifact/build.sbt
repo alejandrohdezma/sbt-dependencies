@@ -3,7 +3,7 @@ lazy val myproject = project
 @transient lazy val assertTest = taskKey[Unit]("Assert filtering worked correctly")
 
 assertTest := {
-  val file = baseDirectory.value / "project" / "dependencies.conf"
+  val file = (ThisBuild / baseDirectory).value / "project" / "dependencies.conf"
   val content = IO.read(file)
   
   // cats-effect should have been updated (no longer 3.4.0)
