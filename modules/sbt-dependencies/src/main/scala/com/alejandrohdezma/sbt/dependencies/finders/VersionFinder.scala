@@ -167,7 +167,9 @@ object VersionFinder {
       (organization, name, configuration, crossVersion) =>
         cache.computeIfAbsent(
           (organization, name, configuration, crossVersion),
-          tuple => (underlying.findVersions _).tupled(tuple)
+          { case (org, name, configuration, crossVersion) =>
+            underlying.findVersions(org, name, configuration, crossVersion)
+          }
         )
     }
 
