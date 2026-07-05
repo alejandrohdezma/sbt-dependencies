@@ -167,7 +167,7 @@ class RetractionFinderSuite extends munit.FunSuite {
     setup = { _ =>
       val file = Files.createTempFile("retractions", ".conf")
       IO.write(file.toFile(), contents)
-      RetractionFinder.fromUrls(List(file.toUri().toURL()))
+      RetractionFinder.fromUrls(List(file.toUri()))
     },
     teardown = _ => ()
   )

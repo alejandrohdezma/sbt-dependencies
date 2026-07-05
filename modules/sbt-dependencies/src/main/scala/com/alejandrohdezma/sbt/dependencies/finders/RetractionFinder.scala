@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.finders
 
-import java.net.URL
+import java.net.URI
 
 import scala.Console._
 
@@ -56,7 +56,7 @@ trait RetractionFinder {
 object RetractionFinder {
 
   /** Creates a RetractionFinder that loads retraction entries from the given URLs. */
-  def fromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): RetractionFinder = {
+  def fromUrls(urls: List[URI])(implicit logger: Logger, configCache: ConfigCache): RetractionFinder = {
     val retractions = RetractedArtifact.loadFromUrls(urls)
 
     new RetractionFinder {

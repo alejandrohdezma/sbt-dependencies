@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.finders
 
-import java.net.URL
+import java.net.URI
 
 import sbt.util.Logger
 
@@ -44,7 +44,7 @@ trait IgnoreFinder {
 object IgnoreFinder {
 
   /** Creates an IgnoreFinder that loads ignore patterns from the given URLs. */
-  def fromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): IgnoreFinder = {
+  def fromUrls(urls: List[URI])(implicit logger: Logger, configCache: ConfigCache): IgnoreFinder = {
     val ignores = UpdateIgnore.loadFromUrls(urls)
 
     (organization, name, version) => ignores.exists(_.matches(organization, name, version))

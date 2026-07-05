@@ -110,7 +110,7 @@ class PinFinderSuite extends munit.FunSuite {
     setup = { _ =>
       val file = Files.createTempFile("pins", ".conf")
       IO.write(file.toFile(), contents)
-      PinFinder.fromUrls(List(file.toUri().toURL()))
+      PinFinder.fromUrls(List(file.toUri()))
     },
     teardown = _ => ()
   )

@@ -90,7 +90,7 @@ class IgnoreFinderSuite extends munit.FunSuite {
     setup = { _ =>
       val file = Files.createTempFile("ignores", ".conf")
       IO.write(file.toFile(), contents)
-      IgnoreFinder.fromUrls(List(file.toUri().toURL()))
+      IgnoreFinder.fromUrls(List(file.toUri()))
     },
     teardown = _ => ()
   )

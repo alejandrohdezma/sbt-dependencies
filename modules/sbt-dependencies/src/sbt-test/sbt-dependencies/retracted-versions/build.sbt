@@ -1,3 +1,3 @@
-ThisBuild / dependencyUpdateRetractions += file("project/retracted.conf").toURI.toURL
+ThisBuild / dependencyUpdateRetractions += file("project/retracted.conf").toURI
 
 lazy val myproject = project

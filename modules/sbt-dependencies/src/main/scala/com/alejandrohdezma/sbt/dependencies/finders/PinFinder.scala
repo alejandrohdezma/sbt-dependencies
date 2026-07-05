@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.finders
 
-import java.net.URL
+import java.net.URI
 
 import sbt.util.Logger
 
@@ -47,7 +47,7 @@ trait PinFinder {
 object PinFinder {
 
   /** Creates a PinFinder that loads pin patterns from the given URLs. */
-  def fromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): PinFinder = {
+  def fromUrls(urls: List[URI])(implicit logger: Logger, configCache: ConfigCache): PinFinder = {
     val pins = UpdatePin.loadFromUrls(urls)
 
     (organization, name, version) =>

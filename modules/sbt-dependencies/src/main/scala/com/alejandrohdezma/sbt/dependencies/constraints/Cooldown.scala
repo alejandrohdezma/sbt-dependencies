@@ -76,9 +76,9 @@ final case class CooldownOverride(
 object CooldownEntry extends Cached[CooldownEntry] {
 
   /** Default URL list: empty. Cooldown is per-repo user policy, not an ecosystem-wide fact, so we don't point at any
-    * Scala-Steward URL by default. Users opt in via `dependencyCooldowns += file("...").toURI.toURL`.
+    * Scala-Steward URL by default. Users opt in via `dependencyCooldowns += file("...").toURI`.
     */
-  val default: List[java.net.URL] = Nil
+  val default: List[java.net.URI] = Nil
 
   def configToValue(config: Config): Either[String, List[CooldownEntry]] =
     for {

@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.finders
 
-import java.net.URL
+import java.net.URI
 
 import sbt.util.Logger
 
@@ -41,7 +41,7 @@ trait MigrationFinder {
 object MigrationFinder {
 
   /** Creates a MigrationFinder that loads migrations from the given URLs. */
-  def fromUrls(urls: List[URL])(implicit logger: Logger, configCache: ConfigCache): MigrationFinder = {
+  def fromUrls(urls: List[URI])(implicit logger: Logger, configCache: ConfigCache): MigrationFinder = {
     val migrations = ArtifactMigration.loadFromUrls(urls)
 
     dep => migrations.find(_.matches(dep))

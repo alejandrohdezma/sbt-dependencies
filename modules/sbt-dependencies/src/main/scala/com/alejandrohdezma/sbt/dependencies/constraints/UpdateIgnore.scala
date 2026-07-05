@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import sbt.url
+import java.net.URI
 
 import com.alejandrohdezma.sbt.dependencies.config._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -61,7 +61,9 @@ object UpdateIgnore extends Cached[UpdateIgnore] {
 
   /** The default list of update-ignore URLs. */
   val default = List(
-    url("https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/default.scala-steward.conf")
+    new URI(
+      "https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/default.scala-steward.conf"
+    )
   )
 
   def configToValue(config: Config): Either[String, List[UpdateIgnore]] =

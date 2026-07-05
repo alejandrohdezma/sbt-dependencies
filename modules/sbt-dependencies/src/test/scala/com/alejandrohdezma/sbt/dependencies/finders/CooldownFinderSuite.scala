@@ -99,7 +99,7 @@ class CooldownFinderSuite extends munit.FunSuite {
     setup = { _ =>
       val file = Files.createTempFile("cooldown", ".conf")
       IO.write(file.toFile(), contents)
-      CooldownFinder.fromUrls(List(file.toUri().toURL()))
+      CooldownFinder.fromUrls(List(file.toUri()))
     },
     teardown = _ => ()
   )

@@ -17,7 +17,7 @@
 package com.alejandrohdezma.sbt.dependencies.constraints
 
 import java.io.File
-import java.net.URL
+import java.net.URI
 import java.nio.file.Files
 
 import sbt.IO
@@ -349,16 +349,16 @@ class ScalafixMigrationSuite extends munit.FunSuite {
   // Fixtures //
   //////////////
 
-  def withMigrationFile(contents: String*) = FunFixture[List[URL]](
+  def withMigrationFile(contents: String*) = FunFixture[List[URI]](
     setup = { _ =>
       contents.toList.map { content =>
         val file = Files.createTempFile("migrations", ".conf")
         IO.write(file.toFile(), content)
-        file.toUri().toURL()
+        file.toUri()
       }
     },
     teardown = { urls =>
-      urls.foreach(url => IO.delete(new File(url.toURI())))
+      urls.foreach(url => IO.delete(new File(url)))
       ()
     }
   )

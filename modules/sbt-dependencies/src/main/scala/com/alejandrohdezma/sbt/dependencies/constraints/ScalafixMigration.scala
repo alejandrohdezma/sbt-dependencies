@@ -16,11 +16,10 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
+import java.net.URI
 import java.util.regex.Pattern
 
 import scala.math.Ordering.Implicits._
-
-import sbt.url
 
 import com.alejandrohdezma.sbt.dependencies.config._
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff.UpdatedDep
@@ -114,7 +113,9 @@ object ScalafixMigration extends Cached[ScalafixMigration] {
 
   /** The default list of scalafix migration URLs. */
   val default = List(
-    url("https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/scalafix-migrations.conf")
+    new URI(
+      "https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/scalafix-migrations.conf"
+    )
   )
 
   def configToValue(config: Config): Either[String, List[ScalafixMigration]] =

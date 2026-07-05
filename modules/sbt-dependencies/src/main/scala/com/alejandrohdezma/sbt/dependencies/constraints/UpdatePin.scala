@@ -16,7 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import sbt.url
+import java.net.URI
 
 import com.alejandrohdezma.sbt.dependencies.config._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -66,7 +66,9 @@ object UpdatePin extends Cached[UpdatePin] {
 
   /** The default list of update-pin URLs. */
   val default = List(
-    url("https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/default.scala-steward.conf")
+    new URI(
+      "https://raw.githubusercontent.com/scala-steward-org/scala-steward/main/modules/core/src/main/resources/default.scala-steward.conf"
+    )
   )
 
   def configToValue(config: Config): Either[String, List[UpdatePin]] =
