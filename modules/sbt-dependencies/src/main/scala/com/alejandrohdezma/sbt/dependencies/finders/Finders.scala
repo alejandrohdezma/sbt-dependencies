@@ -150,8 +150,8 @@ object Finders {
     *
     * @param scalaV
     *   the Scala version the resolver pipeline is bound to. Main-build commands typically pass `scalaVersion.value`;
-    *   meta-build commands (sbt-plugin / sbt / scalafmt updates) pass a fixed `"2.12.0"` or `"2.13.0"` because they
-    *   resolve against artifacts published under those Scala binary versions.
+    *   meta-build commands (sbt-plugin / sbt / scalafmt updates) pass `PluginCompat.metaBuildScalaVersion` because they
+    *   resolve against artifacts published for the running sbt's build definition.
     */
   def fromState(state: State, scalaV: String): Finders = {
     implicit val logger: Logger = state.log

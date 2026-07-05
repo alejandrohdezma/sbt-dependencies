@@ -219,7 +219,7 @@ class Commands {
     */
   lazy val updateSbtPlugin = Command.command("updateSbtPlugin") { state =>
     implicit val logger: Logger   = state.log
-    implicit val finders: Finders = Finders.fromState(state, "2.12.0")
+    implicit val finders: Finders = Finders.fromState(state, PluginCompat.metaBuildScalaVersion)
 
     val project = Project.extract(state)
 
@@ -416,7 +416,7 @@ class Commands {
       } else {
         logger.info("\n↻ Checking for new versions of SBT\n")
 
-        implicit val finders: Finders = Finders.fromState(state, "2.12.0")
+        implicit val finders: Finders = Finders.fromState(state, PluginCompat.metaBuildScalaVersion)
 
         val updatedLines = lines.map {
           case line @ sbtVersionRegex(Numeric(current)) =>
@@ -777,9 +777,9 @@ class Commands {
     * file is missing or the group isn't declared; otherwise invokes `f` with the project + parsed file. Finders are
     * built once and passed as an implicit `Finders` for the callback's body to consume.
     *
-    * The Scala version `Finders` is bound to is derived from `group`: `sbt-build` deps are sbt plugins (which always
-    * resolve against Scala 2.12 — the sbt-plugin publication shape), so we bind `"2.12.0"`. Every other group holds
-    * main-build deps that target the user's project, so we bind the project's `ThisBuild / scalaVersion`.
+    * The Scala version `Finders` is bound to is derived from `group`: `sbt-build` deps target the meta-build (whose
+    * Scala version is fixed by the running sbt), so we bind `PluginCompat.metaBuildScalaVersion`. Every other group
+    * holds main-build deps that target the user's project, so we bind the project's `ThisBuild / scalaVersion`.
     */
   private def withDependenciesFile(state: State, group: Group)(
       f: (Extracted, DependenciesFile) => Finders => State
@@ -793,7 +793,8 @@ class Commands {
 
     if (!file.exists() || !dependenciesFile.hasGroup(group)) state
     else {
-      val scalaV = if (group === `sbt-build`) "2.12.0" else project.get(ThisBuild / scalaVersion)
+      val scalaV =
+        if (group === `sbt-build`) PluginCompat.metaBuildScalaVersion else project.get(ThisBuild / scalaVersion)
       f(project, dependenciesFile)(Finders.fromState(state, scalaV))
     }
   }

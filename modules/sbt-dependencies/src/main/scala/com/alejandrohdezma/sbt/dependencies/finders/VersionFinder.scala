@@ -27,6 +27,7 @@ import scala.util.chaining._
 import sbt.librarymanagement.CrossVersion
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.PluginCompat
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import coursier.cache.FileCache
 import coursier.{Dependency => _, _}
@@ -37,7 +38,8 @@ trait VersionFinder {
   /** Finds all available versions for the given dependency coordinates.
     *
     * The Maven module shape queried is derived from `(configuration, crossVersion)`:
-    *   - `configuration == "sbt-plugin"` → sbt-plugin module shape (binary `name_2.12_1.0` plus the attributes form).
+    *   - `configuration == "sbt-plugin"` → sbt-plugin module shape for the sbt axis this plugin is built for (binary
+    *     `name_2.12_1.0` plus the Ivy-attributes form on sbt 1, `name_sbt2_3` on sbt 2).
     *   - `crossVersion: Full | Patch` → `name_<scalaVersion>` (full patch version).
     *   - `crossVersion: Binary` → `name_<scalaBinaryVersion>`.
     *   - `crossVersion == CrossVersion.disabled` → `name`.
@@ -124,11 +126,12 @@ object VersionFinder {
       val binaryModule =
         Module(Organization(organization), mavenArtifactName(name, scalaVersion)("sbt-plugin", crossVersion))
 
-      val moduleWithAttributes =
-        Module(Organization(organization), ModuleName(name), Map("scalaVersion" -> "2.12", "sbtVersion" -> "1.0"))
+      val moduleWithAttributes = PluginCompat.sbtPluginAttributes.map { attributes =>
+        Module(Organization(organization), ModuleName(name), attributes)
+      }
 
       findVersionsUsingCoursier(binaryModule, repositories, timeout) ++
-        findVersionsUsingCoursier(moduleWithAttributes, repositories, timeout)
+        moduleWithAttributes.toList.flatMap(findVersionsUsingCoursier(_, repositories, timeout))
 
     case (organization, name, configuration, crossVersion) =>
       findVersionsUsingCoursier(
@@ -143,7 +146,7 @@ object VersionFinder {
     * cross-version handling.
     */
   def mavenArtifactName(name: String, scalaVersion: String): (String, CrossVersion) => ModuleName = {
-    case ("sbt-plugin", _)                                 => ModuleName(s"${name}_2.12_1.0")
+    case ("sbt-plugin", _)                                 => ModuleName(name + PluginCompat.sbtPluginArtifactSuffix)
     case (_, _: CrossVersion.Full | _: CrossVersion.Patch) => ModuleName(s"${name}_$scalaVersion")
     case (_, _: CrossVersion.Binary)                       => ModuleName(s"${name}_${CrossVersion.binaryScalaVersion(scalaVersion)}")
     case (_, _)                                            => ModuleName(name)
