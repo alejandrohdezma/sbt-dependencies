@@ -29,8 +29,8 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.PluginCompat
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
-import coursier.cache.FileCache
-import coursier.{Dependency => _, _}
+import lmcoursier.internal.shaded.coursier.cache.FileCache
+import lmcoursier.internal.shaded.coursier.{Dependency => _, _}
 
 /** Abstraction for finding available versions of a dependency. */
 trait VersionFinder {

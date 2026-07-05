@@ -23,8 +23,8 @@ import com.alejandrohdezma.sbt.dependencies.Keys
 import com.alejandrohdezma.sbt.dependencies.ListOps
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.model.ScalaVersion
-import coursier.MavenRepository
-import coursier.Resolve
+import lmcoursier.internal.shaded.coursier.MavenRepository
+import lmcoursier.internal.shaded.coursier.Resolve
 
 /** Bundle of every resolver-pipeline component needed for one command/task invocation.
   *
