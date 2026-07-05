@@ -105,7 +105,9 @@ final case class Dependency(
   /** Converts this dependency to an SBT ModuleID for use in libraryDependencies.
     *
     * The `compiler-plugin` configuration is mapped to `plugin->default(compile)` (what `addCompilerPlugin` produces).
-    * Applies the `intransitive` flag and `crossVersion` directly.
+    * Applies the `intransitive` flag and `crossVersion` directly. `sbt-plugin` dependencies keep whatever
+    * `sbtPluginExtra` decides: on sbt 1 plugin-ness travels as Ivy extra attributes, but on sbt 2 it IS the
+    * cross-version (`name_sbt2_3`), so overriding it with the parsed `crossVersion` would break resolution there.
     */
   def toModuleID(sbtBinaryVersion: String, scalaBinaryVersion: String): ModuleID = {
     val module = ModuleID(organization, name, version.toVersionString)
@@ -115,13 +117,13 @@ final case class Dependency(
         sbtPluginExtra(module, sbtBinaryVersion, scalaBinaryVersion)
 
       case "compiler-plugin" =>
-        module.withConfigurations(Some(Dependency.CompilerPluginConfiguration))
+        module.withConfigurations(Some(Dependency.CompilerPluginConfiguration)).withCrossVersion(crossVersion)
 
       case other =>
-        module.withConfigurations(Some(other).filterNot(_ === "compile"))
+        module.withConfigurations(Some(other).filterNot(_ === "compile")).withCrossVersion(crossVersion)
     }
 
-    withConfig.withCrossVersion(crossVersion).withIsTransitive(!intransitive)
+    withConfig.withIsTransitive(!intransitive)
   }
 
   /** Checks if the dependency is the same artifact as another dependency. Cross vs Java is part of the artifact
