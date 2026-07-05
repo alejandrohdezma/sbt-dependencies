@@ -2,7 +2,7 @@ lazy val myproject = project
 
 lazy val otherproject = project
 
-lazy val assertTest = taskKey[Unit]("Assert all test conditions")
+@transient lazy val assertTest = taskKey[Unit]("Assert all test conditions")
 
 assertTest := {
   // Check ThisBuild scalaVersion (from sbt-build group)

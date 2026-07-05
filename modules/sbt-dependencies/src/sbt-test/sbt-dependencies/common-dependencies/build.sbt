@@ -1,7 +1,7 @@
 lazy val myproject    = project
 lazy val otherproject = project
 
-lazy val assertTest = taskKey[Unit]("Assert all test conditions")
+@transient lazy val assertTest = taskKey[Unit]("Assert all test conditions")
 
 assertTest := {
   // myproject inherits both common deps verbatim

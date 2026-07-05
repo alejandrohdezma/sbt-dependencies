@@ -1,6 +1,6 @@
 lazy val myproject = project
 
-lazy val assertTest = taskKey[Unit]("Assert all test conditions")
+@transient lazy val assertTest = taskKey[Unit]("Assert all test conditions")
 
 myproject / assertTest := {
   val scalaV     = (myproject / scalaVersion).value

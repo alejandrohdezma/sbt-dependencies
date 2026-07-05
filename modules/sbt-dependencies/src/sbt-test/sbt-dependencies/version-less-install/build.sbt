@@ -1,6 +1,6 @@
 lazy val myproject = project
 
-lazy val assertTest = taskKey[Unit]("Assert cats-effect was installed with a version")
+@transient lazy val assertTest = taskKey[Unit]("Assert cats-effect was installed with a version")
 
 assertTest := {
   val content = IO.read(baseDirectory.value / "project" / "dependencies.conf")

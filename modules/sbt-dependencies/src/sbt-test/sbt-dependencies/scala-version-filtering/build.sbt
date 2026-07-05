@@ -1,6 +1,6 @@
 lazy val myproject = project
 
-lazy val assertTest = taskKey[Unit]("Assert all test conditions")
+@transient lazy val assertTest = taskKey[Unit]("Assert all test conditions")
 
 assertTest := {
   val deps = (myproject / libraryDependencies).value.map(_.name).sorted

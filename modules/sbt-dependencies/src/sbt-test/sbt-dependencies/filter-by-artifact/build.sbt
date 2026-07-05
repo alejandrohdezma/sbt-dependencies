@@ -1,6 +1,6 @@
 lazy val myproject = project
 
-lazy val assertTest = taskKey[Unit]("Assert filtering worked correctly")
+@transient lazy val assertTest = taskKey[Unit]("Assert filtering worked correctly")
 
 assertTest := {
   val file = baseDirectory.value / "project" / "dependencies.conf"

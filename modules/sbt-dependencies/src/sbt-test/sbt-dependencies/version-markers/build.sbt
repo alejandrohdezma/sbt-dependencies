@@ -1,6 +1,6 @@
 lazy val myproject = project
 
-lazy val assertTest = taskKey[Unit]("Assert version markers work correctly")
+@transient lazy val assertTest = taskKey[Unit]("Assert version markers work correctly")
 
 assertTest := {
   val confContent = IO.read(file("project/dependencies.conf"))

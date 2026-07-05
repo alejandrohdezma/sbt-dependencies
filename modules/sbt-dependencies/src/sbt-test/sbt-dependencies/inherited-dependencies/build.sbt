@@ -2,7 +2,7 @@ lazy val core = project
 
 lazy val app = project.dependsOn(core)
 
-lazy val assertTest = taskKey[Unit]("Assert all test conditions")
+@transient lazy val assertTest = taskKey[Unit]("Assert all test conditions")
 
 assertTest := {
   // core should have exactly cats-core
