@@ -48,12 +48,12 @@ object DependenciesPlugin extends AutoPlugin {
   private val Exclusive = Tags.Tag("dependencies-exclusive")
 
   /** Global settings: reads dependencies file and registers commands. */
-  override def globalSettings: Seq[Def.Setting[_]] = Seq(
+  override def globalSettings = Seq(
     concurrentRestrictions += Tags.limit(Exclusive, 1),
     commands              ++= Commands.all
   )
 
-  override def buildSettings: Seq[Setting[_]] = Seq(
+  override def buildSettings = Seq(
     dependencyVersionVariables        := Map.empty,
     sbtDependenciesPluginOrganization := "com.alejandrohdezma",
     sbtDependenciesPluginName         := "sbt-dependencies",
@@ -85,7 +85,7 @@ object DependenciesPlugin extends AutoPlugin {
   )
 
   /** Project settings: wires libraryDependencies and registers tasks. */
-  override def projectSettings: Seq[Def.Setting[_]] = Seq(
+  override def projectSettings = Seq(
     dependencyVersionVariables += "scala" -> { (oa: OrganizationArtifactName) => oa % scalaVersion.value },
     dependenciesFromFile       := Settings.dependenciesFromFile.value,
     libraryDependencies       ++= Settings.libraryDependencies.value,
