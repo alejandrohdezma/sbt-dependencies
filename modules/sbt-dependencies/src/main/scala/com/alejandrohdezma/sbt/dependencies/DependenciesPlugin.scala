@@ -95,8 +95,6 @@ object DependenciesPlugin extends AutoPlugin {
     updateScalaVersions        := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
     install                    := Tasks.install.tag(Exclusive).evaluated,
     dependenciesCheck          := Nil,
-    update                     := Tasks.updateWithChecks.value,
-    allProjectDependencies     := Tasks.allProjectDependencies.value,
     install / aggregate        := false,
     scalaVersion               := Def.settingDyn {
       val file = Settings.dependenciesFile.value
@@ -140,6 +138,6 @@ object DependenciesPlugin extends AutoPlugin {
       }
       else Def.setting(Seq.empty[String])
     }.value
-  )
+  ) ++ PluginCompat.uncachedTaskSettings
 
 }

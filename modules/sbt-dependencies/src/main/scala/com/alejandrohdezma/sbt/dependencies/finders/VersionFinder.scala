@@ -80,7 +80,7 @@ object VersionFinder {
         .versions()
         .future()
         .pipe(Await.result(_, timeoutSeconds.seconds))
-        .available
+        .pipe(PluginCompat.availableVersions)
         .collect { case Dependency.Version.Numeric(v) => v }
 
       logger.debug {

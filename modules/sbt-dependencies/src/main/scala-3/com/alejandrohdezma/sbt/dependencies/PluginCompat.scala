@@ -16,8 +16,17 @@
 
 package com.alejandrohdezma.sbt.dependencies
 
-/** Constants that depend on the sbt axis this plugin is built for. This is the sbt 2.x (Scala 3) side. */
+import sbt.Keys.update
+import sbt.{Keys as _, *}
+
+/** Constants and settings that depend on the sbt axis this plugin is built for. This is the sbt 2.x (Scala 3) side. */
 private[dependencies] object PluginCompat {
+
+  /** Task overrides whose values sbt 2 cannot cache (no `JsonFormat`), opted out explicitly with `Def.uncached`. */
+  def uncachedTaskSettings: Seq[Def.Setting[?]] = Seq(
+    update                      := Def.uncached(Tasks.updateWithChecks.value),
+    Keys.allProjectDependencies := Def.uncached(Tasks.allProjectDependencies.value)
+  )
 
   /** Maven artifact-name suffix of plugins targeting the running sbt. */
   val sbtPluginArtifactSuffix: String = "_sbt2_3"
@@ -27,5 +36,11 @@ private[dependencies] object PluginCompat {
 
   /** Scala version assumed for the meta-build when resolving `sbt-build` group dependencies. */
   val metaBuildScalaVersion: String = "3.8.4"
+
+  /** Available version strings of a coursier version listing. sbt 1 bundles coursier 2.1.13, where `available` is the
+    * only spelling; sbt 2 bundles 2.1.25+, where it is deprecated in favor of `available0`.
+    */
+  def availableVersions(versions: lmcoursier.internal.shaded.coursier.core.Versions): List[String] =
+    versions.available0.map(_.repr)
 
 }
