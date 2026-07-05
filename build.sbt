@@ -1,6 +1,6 @@
 ThisBuild / scalaVersion                  := _root_.scalafix.sbt.BuildInfo.scala212
 ThisBuild / organization                  := "com.alejandrohdezma"
-ThisBuild / pluginCrossBuild / sbtVersion := "1.4.0"
+ThisBuild / pluginCrossBuild / sbtVersion := "1.12.12"
 ThisBuild / versionPolicyIntention        := Compatibility.BinaryAndSourceCompatible
 
 ThisBuild / fileTransformers += ".gitignore" -> { (content: String) =>

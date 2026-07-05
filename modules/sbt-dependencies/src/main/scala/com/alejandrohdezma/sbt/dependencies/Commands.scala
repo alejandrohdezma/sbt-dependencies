@@ -443,12 +443,12 @@ class Commands {
 
   /** Downgrades eviction errors to info level, preventing them from failing the build. */
   lazy val disableEvictionWarnings = Command.command("disableEvictionWarnings") { state =>
-    Command.process("set ThisBuild / evictionErrorLevel := Level.Info", state)
+    Command.process("set ThisBuild / evictionErrorLevel := Level.Info", state, _ => ())
   }
 
   /** Restores eviction warnings to error level, causing eviction issues to fail the build. */
   lazy val enableEvictionWarnings = Command.command("enableEvictionWarnings") { state =>
-    Command.process("set ThisBuild / evictionErrorLevel := Level.Error", state)
+    Command.process("set ThisBuild / evictionErrorLevel := Level.Error", state, _ => ())
   }
 
   /** Snapshots all resolved dependencies (including transitives) for every project to
@@ -831,7 +831,7 @@ class Commands {
 
       remaining.remove(0)
 
-      currentState = Try(Command.process(step, currentState))
+      currentState = Try(Command.process(step, currentState, _ => ()))
         .flatMap(newState => Try(Project.extract(newState)).map(_ => newState))
         .onError { case e => logger.error(s"⚠ '$step' failed: ${e.getMessage}") }
         .onError { case _ if remaining.nonEmpty => logger.error(s"⚠ Skipped: ${remaining.mkString(", ")}") }
