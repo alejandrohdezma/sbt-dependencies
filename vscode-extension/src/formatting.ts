@@ -244,9 +244,10 @@ function formatObjectFields(
   const crossVersionField = crossVersion ? `cross-version = "${crossVersion}"` : undefined;
   const fields = [noteField, intransitiveField, scalaFilterField, crossVersionField].filter(Boolean).join(", ");
 
-  const singleLine = `${indent}{ dependency = "${depString}", ${fields} }`;
+  // The threshold applies to the unindented object text, mirroring `AnnotatedDependency.format`.
+  const singleLine = `{ dependency = "${depString}", ${fields} }`;
   if (singleLine.length <= maxObjectLineLength) {
-    return { depLine: singleLine, sortKey: buildSortKey(depString) };
+    return { depLine: `${indent}${singleLine}`, sortKey: buildSortKey(depString) };
   } else {
     const noteSection = note ? `\n${indent}  note = "${note}"` : "";
     const intransitiveSection = isIntransitive ? `\n${indent}  intransitive = true` : "";
@@ -285,19 +286,19 @@ export function convertSbtDependency(line: string): string | undefined {
 }
 
 /**
- * Builds a composite sort key: config + \0 + org + separator + artifact.
+ * Builds a composite sort key: config + \0 + org + \0 + artifact.
  *
- * Empty config sorts before any named config (e.g. `test`, `sbt-plugin`),
- * so runtime deps appear before test deps.
+ * Mirrors the Scala-side `AnnotatedDependencyOrdering`: entries without a
+ * configuration sort as `compile` (so e.g. `bom` sorts before them and `test`
+ * after), and unparseable lines sort last.
  */
 function buildSortKey(depString: string): string {
   const m = dependencyPattern.exec(depString);
-  if (!m) return depString.toLowerCase();
+  if (!m) return `zzz\0${depString.toLowerCase()}\0`;
 
   const org = m[1].toLowerCase();
-  const separator = m[2];
   const artifact = m[3].toLowerCase();
-  const config = (m[5] ?? "").toLowerCase();
+  const config = (m[5] ?? "compile").toLowerCase();
 
   return `${config}\0${org}\0${artifact}`;
 }

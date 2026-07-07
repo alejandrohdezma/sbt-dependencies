@@ -285,11 +285,12 @@ describe("formatDocument", () => {
     ].join("\n") + "\n");
   });
 
-  it("sorts by config first (empty before named) then by org:artifact", () => {
+  it("sorts by config first (unconfigured entries sort as compile) then by org:artifact", () => {
     const lines = [
       'my-group = [',
       '  "org.scalameta::munit:1.0.0:test"',
       '  "org.typelevel::cats-core:^2.10.0"',
+      '  "com.google.cloud:libraries-bom-protobuf3:26.74.0:bom"',
       '  "co.fs2::fs2-core:^3.9.4"',
       '  "org.typelevel::munit-cats-effect:2.0.0:test"',
       ']',
@@ -297,11 +298,35 @@ describe("formatDocument", () => {
     const result = formatDocument(lines);
     expect(result).toBe([
       'my-group = [',
+      '  "com.google.cloud:libraries-bom-protobuf3:26.74.0:bom"',
       '  "co.fs2::fs2-core:^3.9.4"',
       '  "org.typelevel::cats-core:^2.10.0"',
       '  "org.scalameta::munit:1.0.0:test"',
       '  "org.typelevel::munit-cats-effect:2.0.0:test"',
       ']',
+    ].join("\n") + "\n");
+  });
+
+  it("measures the single-line object threshold without indentation, like the SBT plugin", () => {
+    // 118 characters unindented: single-line for the SBT formatter, so it must
+    // stay single-line here even with the advanced group's 4-space indent.
+    const entry = '{ dependency = "org.typelevel::kind-projector:0.13.4:compiler-plugin", scala-filter = "2.13", cross-version = "full" }';
+    const lines = [
+      'my-group {',
+      '  scala-version = "~2.13.18"',
+      '  dependencies = [',
+      `    ${entry}`,
+      '  ]',
+      '}',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group {',
+      '  scala-version = "~2.13.18"',
+      '  dependencies = [',
+      `    ${entry}`,
+      '  ]',
+      '}',
     ].join("\n") + "\n");
   });
 
