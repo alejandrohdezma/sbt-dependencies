@@ -167,7 +167,7 @@ final case class DependenciesFile(file: File) {
         .sorted
         .map(AnnotatedDependency.from)
 
-      val versions = Option(scalaVersions).filter(_.nonEmpty)
+      val versions = Option(scalaVersions.flatMap(version => Numeric.unapply(version))).filter(_.nonEmpty)
 
       val newConfig =
         existingConfigs.get(group) match {
@@ -245,13 +245,9 @@ final case class DependenciesFile(file: File) {
     *   List of valid Scala versions, or empty list if not defined.
     */
   def readScalaVersions(group: Group): List[Numeric] =
-    readGroups().get(group).map(_.scalaVersions).getOrElse(Nil).flatMap {
-      case Numeric(v) =>
-        // Default to Minor marker for Scala versions without explicit marker (safer than NoMarker)
-        val version = if (v.marker === Numeric.Marker.NoMarker) v.withMarker(Numeric.Marker.Minor) else v
-        List(version)
-      case _ =>
-        Nil
+    readGroups().get(group).map(_.scalaVersions).getOrElse(Nil).map { version =>
+      // Default to Minor marker for Scala versions without explicit marker (safer than NoMarker)
+      if (version.marker === Numeric.Marker.NoMarker) version.withMarker(Numeric.Marker.Minor) else version
     }
 
   /** Writes Scala versions for a specific group to the given HOCON file.
@@ -269,8 +265,8 @@ final case class DependenciesFile(file: File) {
 
     val newConfig = existingConfigs.get(group) match {
       case Some(existing) =>
-        GroupConfig.Advanced(existing.dependencies, scalaVersions.map(_.show), existing.javaVersion)
-      case None => GroupConfig.Advanced(Nil, scalaVersions.map(_.show))
+        GroupConfig.Advanced(existing.dependencies, scalaVersions, existing.javaVersion)
+      case None => GroupConfig.Advanced(Nil, scalaVersions)
     }
 
     val updated = existingConfigs + (group -> newConfig)

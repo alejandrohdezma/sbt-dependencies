@@ -19,6 +19,7 @@ package com.alejandrohdezma.sbt.dependencies.io
 import scala.jdk.CollectionConverters._
 
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.Config
@@ -33,8 +34,8 @@ sealed trait GroupConfig {
   /** The dependency lines (without notes) for this group. */
   def dependencyLines: List[String] = dependencies.map(_.line)
 
-  /** The list of Scala versions for this group. */
-  def scalaVersions: List[String] = Nil
+  /** The list of Scala versions for this group, parsed with their pinning markers. */
+  def scalaVersions: List[Numeric] = Nil
 
   /** Optional Java target version for this group (e.g. `"17"`, `"25"`). When set, controls the bytecode level produced
     * for this group's modules.
@@ -56,8 +57,8 @@ sealed trait GroupConfig {
 
       val scalaVersionLines = versions match {
         case Nil           => Nil
-        case single :: Nil => List(s"""  scala-version = "$single"""")
-        case multiple      => List(s"""  scala-versions = [${multiple.map(v => s""""$v"""").mkString(", ")}]""")
+        case single :: Nil => List(s"""  scala-version = "${single.show}"""")
+        case multiple      => List(s"""  scala-versions = [${multiple.map(v => s""""${v.show}"""").mkString(", ")}]""")
       }
 
       val depsLines =
@@ -114,12 +115,12 @@ object GroupConfig {
               case ConfigValueType.LIST =>
                 val list = groupConfig.getStringList("scala-versions").asScala.toList
                 if (list.isEmpty) Left("'scala-versions' cannot be empty")
-                else Right(list)
+                else parseScalaVersions(list)
               case other => Left(s"'scala-versions' must be a list, got $other")
             }
           case (false, true) =>
             groupConfig.getValue("scala-version").valueType() match {
-              case ConfigValueType.STRING => Right(List(groupConfig.getString("scala-version")))
+              case ConfigValueType.STRING => parseScalaVersions(List(groupConfig.getString("scala-version")))
               case other                  => Left(s"'scala-version' must be a string, got $other")
             }
           case (false, false) => Right(Nil)
@@ -142,6 +143,18 @@ object GroupConfig {
 
       case other =>
         Left(s"expected list or object, got $other")
+    }
+
+  /** Parses raw Scala-version strings into [[Numeric]]s, preserving their pinning markers, and fails on the first one
+    * that isn't a valid version. Parsing at read time keeps [[GroupConfig.scalaVersions]] honestly typed and surfaces a
+    * malformed version as a structural conf error rather than silently dropping it.
+    */
+  private def parseScalaVersions(raw: List[String]): Either[String, List[Numeric]] =
+    raw.foldRight[Either[String, List[Numeric]]](Right(Nil)) { (version, acc) =>
+      for {
+        versions <- acc
+        parsed   <- Numeric.unapply(version).toRight(s"Invalid Scala version: $version")
+      } yield parsed :: versions
     }
 
   /** Rejects two entries that share the same `(organization, name, configuration)`. The merge in
@@ -193,7 +206,7 @@ object GroupConfig {
     */
   final case class Advanced(
       dependencies: List[AnnotatedDependency],
-      override val scalaVersions: List[String] = Nil,
+      override val scalaVersions: List[Numeric] = Nil,
       override val javaVersion: Option[String] = None
   ) extends GroupConfig
 
