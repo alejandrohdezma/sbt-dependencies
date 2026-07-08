@@ -25,6 +25,8 @@ class Keys {
 
   val dependenciesFromFile = settingKey[List[Dependency]]("Dependencies read from the file `project/dependencies`")
 
+  val moduleIdsFromFile = settingKey[Seq[ModuleID]]("Module IDs read from the file `project/dependencies`")
+
   val updateDependencies = inputKey[Unit]("Update dependencies to their latest versions")
 
   val updateScalaVersions = inputKey[Unit]("Update Scala versions to their latest versions")

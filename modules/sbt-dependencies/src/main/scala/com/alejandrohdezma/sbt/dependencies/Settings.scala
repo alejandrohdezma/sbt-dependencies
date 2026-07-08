@@ -127,7 +127,7 @@ class Settings {
     *
     * In the meta-build, only the project group is read — `common-settings.dependencies` are not for plugins.
     */
-  val libraryDependencies: Def.Initialize[Seq[ModuleID]] = Def.setting {
+  val moduleIdsFromFile: Def.Initialize[Seq[ModuleID]] = Def.setting {
     val sbtV                    = (pluginCrossBuild / sbtBinaryVersion).value
     val scalaV                  = (update / scalaBinaryVersion).value
     implicit val logger: Logger = sLog.value

@@ -93,7 +93,8 @@ object DependenciesPlugin extends AutoPlugin {
   override def projectSettings = Seq(
     dependencyVersionVariables += "scala" -> { (oa: OrganizationArtifactName) => oa % scalaVersion.value },
     dependenciesFromFile       := Settings.dependenciesFromFile.value,
-    libraryDependencies       ++= Settings.libraryDependencies.value,
+    moduleIdsFromFile          := Settings.moduleIdsFromFile.value,
+    libraryDependencies       ++= moduleIdsFromFile.value,
     inheritedDependencies      := Settings.inheritedDependencies.value,
     showLibraryDependencies    := Tasks.showLibraryDependencies.tag(Exclusive).value,
     updateDependencies         := Tasks.updateDependencies.tag(Exclusive).evaluated,
