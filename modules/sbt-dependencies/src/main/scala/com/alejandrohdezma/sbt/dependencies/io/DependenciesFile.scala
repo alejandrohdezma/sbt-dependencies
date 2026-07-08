@@ -69,7 +69,7 @@ final case class DependenciesFile(file: File) {
   def read(group: Group, variableResolvers: Map[String, OrganizationArtifactName => ModuleID])(implicit
       logger: Logger
   ): List[Dependency] = {
-    val deps = readRaw(file).get(group).toList.flatMap(_.dependencies).map(toDependency(_, variableResolvers))
+    val deps = readGroups().get(group).toList.flatMap(_.dependencies).map(toDependency(_, variableResolvers))
     deps.foreach(validateResolved(_, variableResolvers))
     deps
   }
@@ -156,9 +156,9 @@ final case class DependenciesFile(file: File) {
       dependencies: List[Dependency],
       scalaVersions: List[String] = Nil,
       javaVersion: Option[String] = None
-  )(implicit logger: Logger): Unit =
+  ): Unit =
     if (dependencies.nonEmpty || scalaVersions.nonEmpty || javaVersion.nonEmpty) {
-      val existingConfigs = readRaw(file)
+      val existingConfigs = readGroups()
 
       val dependencyLines = dependencies
         .foldLeft(List.empty[Dependency]) { (acc, dep) =>
@@ -198,8 +198,8 @@ final case class DependenciesFile(file: File) {
     * Read-then-write flows don't need this — `read` already populates annotations from the file via
     * `Dependency.withAnnotations` in `toDependency`.
     */
-  def applyExistingAnnotations(group: Group, deps: List[Dependency])(implicit logger: Logger): List[Dependency] = {
-    val existing: Map[(String, String, String), AnnotatedDependency] = readRaw(file)
+  def applyExistingAnnotations(group: Group, deps: List[Dependency]): List[Dependency] = {
+    val existing: Map[(String, String, String), AnnotatedDependency] = readGroups()
       .get(group)
       .toList
       .flatMap(_.dependencies)
@@ -244,14 +244,13 @@ final case class DependenciesFile(file: File) {
     * @return
     *   List of valid Scala versions, or empty list if not defined.
     */
-  def readScalaVersions(group: Group)(implicit logger: Logger): List[Numeric] =
-    readRaw(file).get(group).map(_.scalaVersions).getOrElse(Nil).flatMap {
+  def readScalaVersions(group: Group): List[Numeric] =
+    readGroups().get(group).map(_.scalaVersions).getOrElse(Nil).flatMap {
       case Numeric(v) =>
         // Default to Minor marker for Scala versions without explicit marker (safer than NoMarker)
         val version = if (v.marker === Numeric.Marker.NoMarker) v.withMarker(Numeric.Marker.Minor) else v
         List(version)
-      case invalid =>
-        logger.warn(s"Invalid Scala version format: $invalid")
+      case _ =>
         Nil
     }
 
@@ -265,8 +264,8 @@ final case class DependenciesFile(file: File) {
     * @param scalaVersions
     *   The list of Scala versions to write (including markers).
     */
-  def writeScalaVersions(group: Group, scalaVersions: List[Numeric])(implicit logger: Logger): Unit = {
-    val existingConfigs = readRaw(file)
+  def writeScalaVersions(group: Group, scalaVersions: List[Numeric]): Unit = {
+    val existingConfigs = readGroups()
 
     val newConfig = existingConfigs.get(group) match {
       case Some(existing) =>
@@ -286,8 +285,8 @@ final case class DependenciesFile(file: File) {
     * @return
     *   The configured Java version for the group, or `None` if not set.
     */
-  def readJavaVersion(group: Group)(implicit logger: Logger): Option[String] =
-    readRaw(file).get(group).flatMap(_.javaVersion)
+  def readJavaVersion(group: Group): Option[String] =
+    readGroups().get(group).flatMap(_.javaVersion)
 
   /** Sorts dependencies within each group and rewrites the file with consistent formatting.
     *
@@ -295,8 +294,8 @@ final case class DependenciesFile(file: File) {
     * (configuration, organization, name). All annotations, Scala versions, and format (Simple vs Advanced) are
     * preserved. Fully-empty groups (no dependencies, no Scala/Java settings) are dropped.
     */
-  def format()(implicit logger: Logger): Unit =
-    IO.write(file, render(readRaw(file).map { case (group, config) => group -> config.sorted }) + "\n")
+  def format(): Unit =
+    IO.write(file, render(readGroups().map { case (group, config) => group -> config.sorted }) + "\n")
 
   private def render(configs: Iterable[(Group, GroupConfig)]): String =
     configs.toList.filterNot { case (_, config) => isEmpty(config) }
@@ -314,16 +313,19 @@ final case class DependenciesFile(file: File) {
     * @return
     *   `true` if the group exists in the file, `false` otherwise.
     */
-  def hasGroup(group: Group)(implicit logger: Logger): Boolean =
-    readRaw(file).contains(group)
+  def hasGroup(group: Group): Boolean =
+    readGroups().contains(group)
 
-  /** Reads the raw HOCON file as a map of groups to group configurations.
+  /** Reads the HOCON file as a map of groups to group configurations.
     *
     * Supports two formats:
     *   - Simple: group maps to list of strings
     *   - Advanced: group maps to object with "dependencies" key
+    *
+    * Requires no `Logger`, so it can be called at build-load time (outside a Setting). A structural parse error throws
+    * with the offending group and reason.
     */
-  private def readRaw(file: File)(implicit logger: Logger): Map[Group, GroupConfig] =
+  def readGroups(): Map[Group, GroupConfig] =
     if (!file.exists()) Map.empty
     else {
       val content = IO.read(file)
@@ -339,7 +341,7 @@ final case class DependenciesFile(file: File) {
             val group = Group(name)
             GroupConfig.parse(config, group) match {
               case Right(groupConfig) => group -> groupConfig
-              case Left(error)        => Utils.fail(s"Failed to parse group `$name`: $error")
+              case Left(error)        => sys.error(s"Failed to parse group `$name`: $error")
             }
           }
           .toMap
@@ -351,5 +353,12 @@ final case class DependenciesFile(file: File) {
 object DependenciesFile {
 
   def apply(file: File): DependenciesFile = new DependenciesFile(file)
+
+  /** The project's dependencies file at its canonical build-root location (`project/dependencies.conf`).
+    *
+    * Resolved from the current working directory, so it is meaningful at build-load time (in `build.sbt` or a `project`
+    * source file) where `baseDirectory` is not yet available. Reading it never requires a `Logger`.
+    */
+  lazy val default: DependenciesFile = DependenciesFile(new File("project/dependencies.conf"))
 
 }

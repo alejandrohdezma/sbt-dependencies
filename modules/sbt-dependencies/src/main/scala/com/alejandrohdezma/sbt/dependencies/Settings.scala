@@ -60,8 +60,6 @@ class Settings {
     * meta-build (`project/`) layer must keep using SBT's plugin convention (2.12).
     */
   val commonScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
-    implicit val logger: Logger = sLog.value
-
     if (isSbtBuild.value) Nil
     else dependenciesFile.value.readScalaVersions(`common-settings`).map(_.toVersionString)
   }
@@ -71,24 +69,18 @@ class Settings {
     * Returns `Nil` when in the meta-build for the same reason as [[commonScalaVersions]].
     */
   val projectScalaVersions: Def.Initialize[Seq[String]] = Def.setting {
-    implicit val logger: Logger = sLog.value
-
     if (isSbtBuild.value) Nil
     else dependenciesFile.value.readScalaVersions(currentGroup.value).map(_.toVersionString)
   }
 
   /** Java target version from the `common-settings` group, used as a default for every non-meta project. */
   val commonJavaVersion: Def.Initialize[Option[String]] = Def.setting {
-    implicit val logger: Logger = sLog.value
-
     if (isSbtBuild.value) None
     else dependenciesFile.value.readJavaVersion(`common-settings`)
   }
 
   /** Java target version from the current project's group. */
   val projectJavaVersion: Def.Initialize[Option[String]] = Def.setting {
-    implicit val logger: Logger = sLog.value
-
     if (isSbtBuild.value) None
     else dependenciesFile.value.readJavaVersion(currentGroup.value)
   }

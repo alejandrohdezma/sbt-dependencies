@@ -784,8 +784,6 @@ class Commands {
   private def withDependenciesFile(state: State, group: Group)(
       f: (Extracted, DependenciesFile) => Finders => State
   ): State = {
-    implicit val logger: Logger = state.log
-
     val project          = Project.extract(state)
     val base             = project.get(ThisBuild / baseDirectory)
     val file             = base / "project" / "dependencies.conf"
