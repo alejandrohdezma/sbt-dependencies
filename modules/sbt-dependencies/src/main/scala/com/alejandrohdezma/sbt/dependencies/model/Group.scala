@@ -17,10 +17,13 @@
 package com.alejandrohdezma.sbt.dependencies.model
 
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import sbt.LocalProject
 
 sealed abstract class Group(val name: String) {
 
   override def toString: String = name
+
+  def project = LocalProject(name)
 
 }
 
