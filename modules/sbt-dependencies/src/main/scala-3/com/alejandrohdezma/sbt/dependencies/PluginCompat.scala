@@ -17,10 +17,40 @@
 package com.alejandrohdezma.sbt.dependencies
 
 import sbt.Keys.update
+import sbt.internal.librarymanagement.ivy.InlineIvyConfiguration
+import sbt.internal.librarymanagement.ivy.IvyCredentials
+import sbt.internal.librarymanagement.ivy.IvyDependencyResolution
+import sbt.librarymanagement.DependencyResolution
+import sbt.util.Logger
 import sbt.{Keys as _, *}
 
 /** Constants and settings that depend on the sbt axis this plugin is built for. This is the sbt 2.x (Scala 3) side. */
 private[dependencies] object PluginCompat {
+
+  type IvyPaths = sbt.librarymanagement.IvyPaths
+
+  type UpdateOptions = sbt.internal.librarymanagement.ivy.UpdateOptions
+
+  /** An ivy-backed `DependencyResolution` over the given resolvers. Ivy (not coursier) because coursier does not report
+    * pom-type artifacts, which `BomReader` needs. On sbt 2 the ivy resolver moved to `sbt.internal`.
+    */
+  def ivyDependencyResolution(
+      resolvers: Seq[Resolver],
+      updateOptions: UpdateOptions,
+      ivyPaths: IvyPaths,
+      log: Logger
+  ): DependencyResolution =
+    IvyDependencyResolution(
+      InlineIvyConfiguration()
+        .withResolvers(resolvers.toVector)
+        .withUpdateOptions(updateOptions)
+        .withPaths(ivyPaths)
+        .withLog(log)
+    )
+
+  /** Registers credentials from the given file into Ivy's global store. sbt 2 offers a combined load-and-register. */
+  def registerCredentials(file: File, log: Logger): Unit =
+    IvyCredentials.add(file, log)
 
   /** Task overrides whose values sbt 2 cannot cache (no `JsonFormat`), opted out explicitly with `Def.uncached`. */
   def uncachedTaskSettings: Seq[Def.Setting[?]] = Seq(
