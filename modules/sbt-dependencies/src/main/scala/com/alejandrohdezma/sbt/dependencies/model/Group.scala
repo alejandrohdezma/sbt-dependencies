@@ -16,8 +16,9 @@
 
 package com.alejandrohdezma.sbt.dependencies.model
 
-import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import sbt.LocalProject
+
+import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 sealed abstract class Group(val name: String) {
 
