@@ -16,6 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.io
 
+import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.ConfigFactory
 
@@ -26,6 +27,9 @@ class GroupConfigSuite extends munit.FunSuite {
 
   /** Helper to create an AnnotatedDependency with a note. */
   private def dep(line: String, note: String): AnnotatedDependency = AnnotatedDependency(line, Some(note))
+
+  /** Helper to parse a Scala version string into a Numeric, preserving its marker (matching `GroupConfig.parse`). */
+  implicit def numeric(version: String): Numeric = Numeric.unapply(version).get // scalafix:ok
 
   def parseGroup(hocon: String, group: String): Either[String, GroupConfig] = {
     val config = ConfigFactory.parseString(hocon)
@@ -753,7 +757,7 @@ class GroupConfigSuite extends munit.FunSuite {
   test("Advanced.scalaVersions returns the configured versions") {
     val config = GroupConfig.Advanced(List("dep1"), List("2.13.12", "2.12.18"))
 
-    assertEquals(config.scalaVersions, List("2.13.12", "2.12.18"))
+    assertEquals(config.scalaVersions, List(numeric("2.13.12"), numeric("2.12.18")))
   }
 
   test("Advanced.scalaVersions returns empty list when not configured") {

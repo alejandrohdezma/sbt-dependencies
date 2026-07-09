@@ -29,6 +29,7 @@ import com.alejandrohdezma.sbt.dependencies.constraints.RetractedArtifact
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdateIgnore
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdatePin
+import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 
 /** SBT plugin for managing dependencies through a `project/dependencies` file.
   *
@@ -40,7 +41,11 @@ object DependenciesPlugin extends AutoPlugin {
   override def trigger = allRequirements
 
   /** Keys exported by this plugin (dependenciesFromFile, updateDependencies, install). */
-  object autoImport extends Keys
+  object autoImport extends Keys {
+
+    val dependenciesFile = DependenciesFile.default
+
+  }
 
   import autoImport._
 
@@ -88,7 +93,8 @@ object DependenciesPlugin extends AutoPlugin {
   override def projectSettings = Seq(
     dependencyVersionVariables += "scala" -> { (oa: OrganizationArtifactName) => oa % scalaVersion.value },
     dependenciesFromFile       := Settings.dependenciesFromFile.value,
-    libraryDependencies       ++= Settings.libraryDependencies.value,
+    moduleIdsFromFile          := Settings.moduleIdsFromFile.value,
+    libraryDependencies       ++= moduleIdsFromFile.value,
     inheritedDependencies      := Settings.inheritedDependencies.value,
     showLibraryDependencies    := Tasks.showLibraryDependencies.tag(Exclusive).value,
     updateDependencies         := Tasks.updateDependencies.tag(Exclusive).evaluated,
