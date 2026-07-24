@@ -35,6 +35,40 @@ private[bom] case class Pom(
     entries: Seq[Entry]
 ) {
 
+  /** The parent pom, fetched, when this pom declares one. */
+  def parentPom(implicit fetcher: ModuleFetcher, log: Logger): Option[Pom] = parent.map(Pom.fetch)
+
+  /** This pom and its parents, root-first; fails when the parent chain forms a cycle. */
+  def ancestry(implicit fetcher: ModuleFetcher, log: Logger): List[Pom] = {
+    def chain(current: Pom, acc: List[Pom]): List[Pom] = {
+      if (acc.exists(_.coords === current.coords)) sys.error(s"Parents of ${current.coords} form a cycle")
+
+      current.parentPom.map(chain(_, current :: acc)).getOrElse(current :: acc)
+    }
+
+    chain(this, Nil)
+  }
+
+  /** Resolves this pom and its ancestors, nearest-first: properties are inherited root-first over `inherited` (each
+    * pom's own entries win), and each pom's entries carry a priority growing with distance from this pom — itself at
+    * `priority`, its parent at `priority + 1`, and so on.
+    */
+  def resolve(priority: Priority, inherited: Map[String, String])(implicit
+      fetcher: ModuleFetcher,
+      log: Logger
+  ): List[Pom.Resolved] = {
+    val rootFirst = ancestry
+
+    rootFirst
+      .foldLeft((List.empty[Pom.Resolved], inherited, priority + rootFirst.size - 1)) {
+        case ((acc, properties, priority), pom) =>
+          val resolved = Pom.Resolved.from(pom, properties, priority)
+
+          (resolved :: acc, resolved.properties, priority - 1)
+      }
+      ._1
+  }
+
   /** Properties derived from the pom's coordinate. */
   def derivedProperties: Map[String, String] = Map(
     "project.version"    -> coords.version,
@@ -110,6 +144,19 @@ private[bom] object Pom {
           None
         }
       }
+
+  }
+
+  object Resolved {
+
+    /** `pom` resolved at the given `priority`, with its effective properties computed from the `properties` inherited
+      * from its ancestors.
+      */
+    def from(pom: Pom, properties: Map[String, String], priority: Priority): Resolved = {
+      val effective = pom.effectiveProperties(properties)
+
+      Pom.Resolved(pom, effective, priority)
+    }
 
   }
 

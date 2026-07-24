@@ -226,6 +226,87 @@ class PomSuite extends munit.FunSuite {
     intercept[RuntimeException](Pom.fetch(Coords("com.example.nopom", "library", "1.0.0")))
   }
 
+  test("Pom.ancestry returns the pom and its parents root-first") {
+    val parents = Map("child" -> "middle", "middle" -> "root")
+
+    implicit val fetcher: ModuleFetcher = module => pomArtifact(module, parents.get(module.name))
+
+    val pom = Pom.fetch(Coords("com.example.ancestry", "child", "1.0.0"))
+
+    assertEquals(pom.ancestry.map(_.coords.artifact), List("root", "middle", "child"))
+  }
+
+  test("Pom.ancestry fails when the parent chain forms a cycle") {
+    val parents = Map("ouroboros-a" -> "ouroboros-b", "ouroboros-b" -> "ouroboros-a")
+
+    implicit val fetcher: ModuleFetcher = module => pomArtifact(module, parents.get(module.name))
+
+    val pom = Pom.fetch(Coords("com.example.cycle", "ouroboros-a", "1.0.0"))
+
+    intercept[RuntimeException](pom.ancestry)
+  }
+
+  test("Pom.resolve inherits properties root-first and assigns priorities by distance") {
+    implicit val fetcher: ModuleFetcher = module => {
+      val (parentXml, properties) = module.name match {
+        case "kid" =>
+          val parent =
+            "<parent><groupId>com.example.resolve</groupId><artifactId>dad</artifactId><version>1.0.0</version></parent>"
+
+          (parent, "<a>kid</a>")
+        case _ =>
+          ("", "<a>dad</a><b>dad</b>")
+      }
+
+      val file = Files.createTempFile(module.name, ".pom").toFile
+
+      IO.write(
+        file,
+        s"""<?xml version="1.0" encoding="UTF-8"?>
+           |<project>
+           |  $parentXml
+           |  <groupId>com.example.resolve</groupId>
+           |  <artifactId>${module.name}</artifactId>
+           |  <version>1.0.0</version>
+           |  <properties>$properties</properties>
+           |</project>""".stripMargin
+      )
+
+      Vector((Artifact(module.name, "pom", "pom"), file))
+    }
+
+    val resolved = Pom.fetch(Coords("com.example.resolve", "kid", "1.0.0")).resolve(3, Map("seed" -> "s"))
+
+    val expected = List(
+      (
+        "kid",
+        3,
+        Map(
+          "seed"               -> "s",
+          "a"                  -> "kid",
+          "b"                  -> "dad",
+          "project.version"    -> "1.0.0",
+          "project.groupId"    -> "com.example.resolve",
+          "project.artifactId" -> "kid"
+        )
+      ),
+      (
+        "dad",
+        4,
+        Map(
+          "seed"               -> "s",
+          "a"                  -> "dad",
+          "b"                  -> "dad",
+          "project.version"    -> "1.0.0",
+          "project.groupId"    -> "com.example.resolve",
+          "project.artifactId" -> "dad"
+        )
+      )
+    )
+
+    assertEquals(resolved.map(r => (r.pom.coords.artifact, r.priority, r.properties)), expected)
+  }
+
   def pomArtifact(module: ModuleID, parent: Option[String]): Vector[(Artifact, File)] = {
     val parentXml = parent.fold("") { name =>
       s"<parent><groupId>${module.organization}</groupId><artifactId>$name</artifactId><version>1.0.0</version></parent>"
