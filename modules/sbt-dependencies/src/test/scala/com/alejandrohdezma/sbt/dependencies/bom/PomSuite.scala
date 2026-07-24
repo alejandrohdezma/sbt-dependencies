@@ -61,6 +61,43 @@ class PomSuite extends munit.FunSuite {
     assertEquals(effective, expected)
   }
 
+  test("Pom.Resolved.entries expands entry placeholders against the effective properties") {
+    val pom = Pom(
+      coords = Coords("com.example", "bom", "1.0.0"),
+      parent = None,
+      properties = Map.empty,
+      entries = List(
+        Entry(Coords("io.netty", "netty-bom", "${netty.version}"), isImport = true),
+        Entry(Coords("com.example", "library", "1.2.3"), isImport = false)
+      )
+    )
+
+    val resolved = Pom.Resolved(pom, Map("netty.version" -> "4.1.100.Final"), 0)
+
+    val expected = List(
+      Entry(Coords("io.netty", "netty-bom", "4.1.100.Final"), isImport = true),
+      Entry(Coords("com.example", "library", "1.2.3"), isImport = false)
+    )
+
+    assertEquals(resolved.entries.toList, expected)
+  }
+
+  test("Pom.Resolved.entries drops entries whose placeholders can't be resolved") {
+    val pom = Pom(
+      coords = Coords("com.example", "bom", "1.0.0"),
+      parent = None,
+      properties = Map.empty,
+      entries = List(
+        Entry(Coords("com.example", "library", "${undefined}"), isImport = false),
+        Entry(Coords("com.example", "other", "1.2.3"), isImport = false)
+      )
+    )
+
+    val resolved = Pom.Resolved(pom, Map.empty, 0)
+
+    assertEquals(resolved.entries.toList, List(Entry(Coords("com.example", "other", "1.2.3"), isImport = false)))
+  }
+
   withPomFile {
     """<?xml version="1.0" encoding="UTF-8"?>
       |<project>

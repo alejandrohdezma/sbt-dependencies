@@ -77,6 +77,20 @@ private[bom] object Pom {
   }
 
   /** A pom from a parent chain, its effective properties, and the `Priority` its entries carry. */
-  case class Resolved(pom: Pom, properties: Map[String, String], priority: Priority)
+  case class Resolved(pom: Pom, properties: Map[String, String], priority: Priority) {
+
+    /** The pom's entries with placeholders expanded against the effective properties; entries that can't be resolved
+      * are logged and dropped.
+      */
+    def entries(implicit log: Logger): Seq[Entry] =
+      pom.entries.flatMap { entry =>
+        entry.resolve(properties).orElse {
+          log.warn(s"Failed to resolve ${entry.coords} in ${pom.coords}. Ignoring this element.")
+
+          None
+        }
+      }
+
+  }
 
 }
