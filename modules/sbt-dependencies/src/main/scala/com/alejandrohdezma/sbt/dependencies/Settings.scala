@@ -140,6 +140,7 @@ class Settings {
     def readGroup(group: Group): Seq[ModuleID] =
       file
         .read(group, variableResolvers)
+        .filterNot(_.configuration === "bom") // `:bom` entries go to `dependenciesFromBom`, not `libraryDependencies`
         .filter(_.matchesScalaVersion(scalaV))
         .filter(dep => dep.scalaFilter.forall(scalaV.startsWith))
         .map(_.toModuleID(sbtV, scalaV))
