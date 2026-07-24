@@ -31,3 +31,4 @@ lazy val `sbt-dependencies` = module
   .enablePlugins(BuildInfoPlugin)
   .settings(buildInfoKeys := Seq[BuildInfoKey](version))
   .settings(buildInfoPackage := "com.alejandrohdezma.sbt.dependencies")
+  .settings(Test / scalacOptions ++= scalaVersion.value.on(3)("-Wconf:msg=@nowarn annotation does:s"))
