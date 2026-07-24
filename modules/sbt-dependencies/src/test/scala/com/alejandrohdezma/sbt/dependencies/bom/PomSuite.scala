@@ -17,6 +17,8 @@
 package com.alejandrohdezma.sbt.dependencies.bom
 
 import java.nio.file.Files
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 import scala.annotation.nowarn
 
@@ -186,6 +188,63 @@ class PomSuite extends munit.FunSuite {
     )
 
     assertEquals(pom, expected)
+  }
+
+  test("Pom.fetch loads each coordinate only once") {
+    val loads = new AtomicInteger(0)
+
+    implicit val fetcher: ModuleFetcher = module => {
+      loads.incrementAndGet()
+
+      pomArtifact(module, parent = None)
+    }
+
+    val coords = Coords("com.example.cache", "library", UUID.randomUUID().toString)
+
+    val first  = Pom.fetch(coords)
+    val second = Pom.fetch(coords)
+
+    assertEquals(first, second)
+    assertEquals(loads.get(), 1)
+  }
+
+  test("Pom.fetch picks the pom artifact among the module's artifacts") {
+    implicit val fetcher: ModuleFetcher = module => {
+      val jar = Files.createTempFile(module.name, ".jar").toFile
+
+      (Artifact(module.name, "jar", "jar"), jar) +: pomArtifact(module, parent = None)
+    }
+
+    val pom = Pom.fetch(Coords("com.example.artifacts", "library", "1.0.0"))
+
+    assertEquals(pom.coords, Coords("com.example.artifacts", "library", "1.0.0"))
+  }
+
+  test("Pom.fetch fails when the module has no pom artifact") {
+    implicit val fetcher: ModuleFetcher = _ => Vector.empty
+
+    intercept[RuntimeException](Pom.fetch(Coords("com.example.nopom", "library", "1.0.0")))
+  }
+
+  def pomArtifact(module: ModuleID, parent: Option[String]): Vector[(Artifact, File)] = {
+    val parentXml = parent.fold("") { name =>
+      s"<parent><groupId>${module.organization}</groupId><artifactId>$name</artifactId><version>1.0.0</version></parent>"
+    }
+
+    val xml =
+      s"""<?xml version="1.0" encoding="UTF-8"?>
+         |<project>
+         |  $parentXml
+         |  <groupId>${module.organization}</groupId>
+         |  <artifactId>${module.name}</artifactId>
+         |  <version>${module.revision}</version>
+         |</project>""".stripMargin
+
+    val file = Files.createTempFile(module.name, ".pom").toFile
+
+    IO.write(file, xml)
+
+    Vector((Artifact(module.name, "pom", "pom"), file))
   }
 
   def withPomFile(content: String): FunFixture[File] = FunFixture[File](
