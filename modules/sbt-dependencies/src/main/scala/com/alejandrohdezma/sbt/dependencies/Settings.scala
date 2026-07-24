@@ -21,6 +21,8 @@ import sbt.Keys._
 import sbt.util.Logger
 import sbt.{Keys => _, _}
 
+import com.alejandrohdezma.sbt.dependencies.bom.BomReader
+import com.alejandrohdezma.sbt.dependencies.bom.ModuleFetcher
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -156,6 +158,44 @@ class Settings {
 
     // Add self when in meta-build so the plugin is available in the build definition
     merged ++ (if (isSbtBuild.value) Seq(self) else Seq.empty)
+  }
+
+  /** The flattened managed dependencies of every BOM this project declares with the `bom` configuration — its own group
+    * plus, for non-meta projects, `common-settings` (so an org-wide BOM in `common-settings` is inherited by every
+    * module). Each BOM's parent chain and `<scope>import</scope>` tree is resolved to a flat list of pins by
+    * `BomReader`.
+    *
+    * It reads poms at load, so it Nil-fasts when the project declares no `:bom` entries.
+    */
+  val dependenciesFromBom: Def.Initialize[Seq[ModuleID]] = Def.setting {
+    val sbtV   = (pluginCrossBuild / sbtBinaryVersion).value
+    val scalaV = (update / scalaBinaryVersion).value
+
+    val variableResolvers = Keys.dependencyVersionVariables.value
+    val repositories      = (update / resolvers).value ++ (update / appResolvers).value.getOrElse(Seq.empty)
+    val options           = (update / updateOptions).value
+    val paths             = (update / ivyPaths).value
+
+    implicit val logger: Logger = sLog.value
+
+    BomReader.loadCredentials
+
+    implicit val fetcher: ModuleFetcher = ModuleFetcher.fromIvyDependencyResolution {
+      PluginCompat.ivyDependencyResolution(repositories, options, paths, logger)
+    }
+
+    def bomsOf(group: Group): Seq[ModuleID] =
+      dependenciesFile.value
+        .read(group, variableResolvers)
+        .filter(_.configuration === "bom")
+        .map(_.toModuleID(sbtV, scalaV))
+
+    bomsOf(currentGroup.value)
+      .++(if (isSbtBuild.value) Nil else bomsOf(`common-settings`))
+      .distinct
+      .flatMap(BomReader.read(_, scalaV))
+      .distinct
+      .sortBy(m => (m.organization, m.name))
   }
 
   /** Regex to match configuration transformations like `test->test`. */
