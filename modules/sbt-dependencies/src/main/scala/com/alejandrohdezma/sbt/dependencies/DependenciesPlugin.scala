@@ -94,6 +94,7 @@ object DependenciesPlugin extends AutoPlugin {
     dependencyVersionVariables += "scala" -> { (oa: OrganizationArtifactName) => oa % scalaVersion.value },
     dependenciesFromFile       := Settings.dependenciesFromFile.value,
     moduleIdsFromFile          := Settings.moduleIdsFromFile.value,
+    dependenciesFromBom        := Settings.dependenciesFromBom.value,
     libraryDependencies       ++= moduleIdsFromFile.value,
     inheritedDependencies      := Settings.inheritedDependencies.value,
     showLibraryDependencies    := Tasks.showLibraryDependencies.tag(Exclusive).value,

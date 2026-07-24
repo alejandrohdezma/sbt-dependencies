@@ -27,6 +27,10 @@ class Keys {
 
   val moduleIdsFromFile = settingKey[Seq[ModuleID]]("Module IDs read from the file `project/dependencies`")
 
+  val dependenciesFromBom = settingKey[Seq[ModuleID]] {
+    "Flattened managed dependencies read from the group's (and common-settings') `:bom` BOMs"
+  }
+
   val updateDependencies = inputKey[Unit]("Update dependencies to their latest versions")
 
   val updateScalaVersions = inputKey[Unit]("Update Scala versions to their latest versions")
