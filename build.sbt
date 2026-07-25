@@ -2,7 +2,7 @@ ThisBuild / scalaVersion                  := _root_.scalafix.sbt.BuildInfo.scala
 ThisBuild / crossScalaVersions            := Seq(scalaVersion.value, "3.8.4")
 ThisBuild / organization                  := "com.alejandrohdezma"
 ThisBuild / pluginCrossBuild / sbtVersion := scalaVersion.value.on(2)("1.12.12").getOrElse("2.0.0")
-ThisBuild / versionPolicyIntention        := Compatibility.BinaryAndSourceCompatible
+ThisBuild / versionPolicyIntention        := Compatibility.None
 
 ThisBuild / fileTransformers += ".gitignore" -> { (content: String) =>
   content + """
@@ -31,3 +31,4 @@ lazy val `sbt-dependencies` = module
   .enablePlugins(BuildInfoPlugin)
   .settings(buildInfoKeys := Seq[BuildInfoKey](version))
   .settings(buildInfoPackage := "com.alejandrohdezma.sbt.dependencies")
+  .settings(Test / scalacOptions ++= scalaVersion.value.on(3)("-Wconf:msg=@nowarn annotation does:s"))

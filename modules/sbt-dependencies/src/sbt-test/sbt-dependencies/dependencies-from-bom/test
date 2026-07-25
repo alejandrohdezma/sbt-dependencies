@@ -1,0 +1,4 @@
+# A `:bom` dep is diverted out of libraryDependencies and flattened into dependenciesFromBom, and a `:bom` in
+# common-settings is inherited by every module.
+> compile
+> assertTest
