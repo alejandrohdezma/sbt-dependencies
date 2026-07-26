@@ -81,6 +81,10 @@ class Tasks {
     val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
     val dependency   = Dependency.parseIncludingMissingVersion(installParser.parsed)
 
+    Dependency.validateBomRestrictions(dependency)
+
+    val _ = Settings.resolveBomVersion(dependency, Keys.dependenciesFromBom.value, (update / scalaBinaryVersion).value)
+
     logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 
     val updated = dependencies.filterNot(_.isSameArtifact(dependency)) :+ dependency
