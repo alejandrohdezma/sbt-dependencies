@@ -32,6 +32,25 @@ class Keys {
       " inherited through dependsOn, in declaration order (`*` versions resolve to the first matching entry)"
   }
 
+  /** BOM pins added to `dependencyOverrides` so transitive dependencies align with the BOMs visible to this project.
+    *
+    * Defaults to [[dependenciesFromBom]] deduplicated by `organization:name` keeping the first entry, so when two BOMs
+    * pin the same artifact the first-declared BOM wins — the same precedence `*` versions follow.
+    *
+    * @example
+    *   {{{
+    * // Opt out entirely
+    * dependencyOverridesFromBom := Nil
+    *
+    * // Drop just some pins
+    * dependencyOverridesFromBom ~= (_.filterNot(_.organization == "com.google.protobuf"))
+    *   }}}
+    */
+  val dependencyOverridesFromBom = settingKey[Seq[ModuleID]] {
+    "BOM pins added to dependencyOverrides so transitive dependencies align with the BOMs. Defaults to" +
+      " dependenciesFromBom deduplicated by module (first BOM wins). Set to Nil to opt out."
+  }
+
   val updateDependencies = inputKey[Unit]("Update dependencies to their latest versions")
 
   val updateScalaVersions = inputKey[Unit]("Update Scala versions to their latest versions")

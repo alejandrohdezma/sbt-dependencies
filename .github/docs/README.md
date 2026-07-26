@@ -16,7 +16,7 @@
 - Generate [post-update hooks](#user-content-configure-post-update-hooks) and [scalafix migrations](#user-content-configure-scalafix-migrations) for CI automation using Scala Steward's configuration.
 - Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
 - Share versions across dependencies with [version variables](#user-content-use-shared-version-variables).
-- Import [Maven BOMs](#user-content-use-bom-managed-versions) with the `bom` configuration and use `*` to take dependency versions from them.
+- Import [Maven BOMs](#user-content-use-bom-managed-versions) with the `bom` configuration, use `*` to take dependency versions from them and align transitive versions through `dependencyOverrides`.
 - [VS Code / Cursor extension](#vs-code--cursor-extension) with syntax highlighting for `dependencies.conf`.
 
 ## Installation
@@ -409,6 +409,17 @@ lazy val app  = project.dependsOn(core)
 **Precedence** — pins keep BOM declaration order: the project's own group first, then `common-settings`, then the projects it depends on. The first BOM pinning an artifact wins, matching Maven's import semantics.
 
 **Updates** — `updateDependencies` never rewrites a `*`: it shows the version it currently resolves to (and whether something newer exists), but updating means bumping the BOM entry itself, which is a regular versioned dependency.
+
+**Transitive dependencies** — the BOM pins are also added to sbt's `dependencyOverrides`, so *transitive* dependencies resolve to the BOM's versions too, matching Maven's `dependencyManagement` behavior. When two BOMs pin the same artifact, the first-declared BOM wins — the same precedence `*` versions follow. Opt out (or trim the pins) through the `dependencyOverridesFromBom` setting:
+
+```scala
+// Opt out entirely
+lazy val myproject = project.settings(dependencyOverridesFromBom := Nil)
+
+// Or drop just some pins
+lazy val otherproject = project
+  .settings(dependencyOverridesFromBom ~= (_.filterNot(_.organization == "com.google.protobuf")))
+```
 
 A dependency declaring `*` that no visible BOM pins fails the build with a descriptive error. `*` cannot be combined with the `bom` or `sbt-plugin` configurations, nor with `cross-version = "full"`/`"patch"`.
 

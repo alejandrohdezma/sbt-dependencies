@@ -95,6 +95,8 @@ object DependenciesPlugin extends AutoPlugin {
     dependenciesFromFile       := Settings.dependenciesFromFile.value,
     moduleIdsFromFile          := Settings.moduleIdsFromFile.value,
     dependenciesFromBom        := Settings.dependenciesFromBom.value,
+    dependencyOverridesFromBom := Settings.dependencyOverridesFromBom.value,
+    dependencyOverrides       ++= dependencyOverridesFromBom.value,
     libraryDependencies       ++= moduleIdsFromFile.value,
     inheritedDependencies      := Settings.inheritedDependencies.value,
     showLibraryDependencies    := Tasks.showLibraryDependencies.tag(Exclusive).value,
