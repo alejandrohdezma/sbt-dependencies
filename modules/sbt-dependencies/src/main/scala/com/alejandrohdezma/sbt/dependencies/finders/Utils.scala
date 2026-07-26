@@ -148,6 +148,13 @@ object Utils {
           .map(num => findLatestVersion(dependency.withVersion(num)))
           .getOrElse(Utils.fail(s"Unable to resolve ${dependency.toLine}"))
 
+      // BOM-managed (`*`): recurse with the pinned Numeric for the informational lookup. Unresolved BOM versions are
+      // returned as-is (unlike variables they are legal without context, e.g. in group-level update commands).
+      case (bom: Dependency.Version.Bom, _) =>
+        bom.resolved
+          .map(num => findLatestVersion(dependency.withVersion(num)))
+          .getOrElse(dependency)
+
       // Exact-pinned (`=`) numeric: skip the lookup entirely, the user has opted out of updates.
       case (numeric: Dependency.Version.Numeric, _) if numeric.marker.isExact =>
         dependency
