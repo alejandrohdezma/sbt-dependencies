@@ -1,0 +1,11 @@
+# `*` versions are resolved from the group's BOMs (own group + common-settings) when computing
+# libraryDependencies, and update commands leave the `*` placeholder untouched in the file — including for `*`
+# deps living in common-settings, where the update/snapshot pipeline runs without BOM context.
+> compile
+> assertTest
+> myproject/updateDependencies
+> assertFileKeepsStars
+> snapshotCommonDependencies
+> updateCommonDependencies
+> assertFileKeepsStars
+> assertCommonSnapshot

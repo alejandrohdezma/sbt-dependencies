@@ -51,13 +51,23 @@ object DependencyDiff {
     private def normalizeConfiguration(raw: String): String =
       if (raw.split(";").iterator.map(_.trim).forall(CompileEquivalentConfigs.contains)) "compile" else raw
 
-    def from(dependency: Dependency): ResolvedDep =
+    /** Builds a `ResolvedDep` from a declared dependency. BOM-managed versions snapshot as the literal `*` (resolved or
+      * not, so both snapshot sides agree): their effective version changes are already captured by the BOM coordinate's
+      * own entry.
+      */
+    def from(dependency: Dependency): ResolvedDep = {
+      val revision = dependency.version match {
+        case Dependency.Version.Bom(_) => dependency.version.show
+        case version                   => version.toVersionString
+      }
+
       ResolvedDep(
         dependency.organization,
         dependency.name,
-        dependency.version.toVersionString,
+        revision,
         normalizeConfiguration(dependency.configuration)
       )
+    }
 
     def fromModuleID(m: ModuleID): ResolvedDep = {
       val configuration =

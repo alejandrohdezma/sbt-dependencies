@@ -1,0 +1,4 @@
+# A project inherits the BOM pins of the projects it depends on: `core` declares junit-bom, `app` only depends
+# on `core`, and both resolve their `*` versions from that single BOM.
+> compile
+> assertTest

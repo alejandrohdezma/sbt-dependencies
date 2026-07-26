@@ -102,6 +102,32 @@ final case class Dependency(
     case _ => this
   }
 
+  /** When this dependency's version is an unresolved BOM version (`*`) and `pins` contains its concrete artifact,
+    * replaces the `Bom` with one that carries the pinned `Numeric`. The concrete artifact name is the dep's name
+    * suffixed with `scalaBinaryVersion` for cross-compiled deps (BOM entries always carry concrete, already-suffixed
+    * artifact names) and the plain name for Java ones. The first matching pin wins, so `pins` must be ordered by BOM
+    * declaration (Maven's import semantics: the first-declared BOM takes precedence).
+    *
+    * Pins without a matching entry leave the version unresolved — the consuming seam reports the error, so round-trip
+    * paths can tolerate `Bom(None)`. A matching pin whose version cannot be parsed fails right away.
+    */
+  def resolveBom(pins: Seq[ModuleID], scalaBinaryVersion: String)(implicit logger: Logger): Dependency =
+    version match {
+      case Dependency.Version.Bom(None) =>
+        val artifact = if (isCross) s"${name}_$scalaBinaryVersion" else name
+
+        pins.find(pin => pin.organization === organization && pin.name === artifact) match {
+          case None      => this
+          case Some(pin) =>
+            Dependency.Version.Numeric.unapply(pin.revision) match {
+              case Some(numeric) => withVersion(Dependency.Version.Bom(Some(numeric)))
+              case None          =>
+                Utils.fail(s"BOM version '${pin.revision}' for $organization:$artifact is not a valid version")
+            }
+        }
+      case _ => this
+    }
+
   /** Converts this dependency to an SBT ModuleID for use in libraryDependencies.
     *
     * The `compiler-plugin` configuration is mapped to `plugin->default(compile)` (what `addCompilerPlugin` produces).
@@ -345,22 +371,62 @@ object Dependency {
         Dependency.parse(other)
     }
 
-  /** Returns true if the given string looks like a numeric version (`1.2.3`, `=1.0`, `~2.x.y`) or a variable reference
-    * (`{{name}}`). Used to disambiguate the `version` slot from a `config` slot when the version is missing.
+  /** Returns true if the given string looks like a numeric version (`1.2.3`, `=1.0`, `~2.x.y`), a variable reference
+    * (`{{name}}`) or a BOM-managed version (`*`). Used to disambiguate the `version` slot from a `config` slot when the
+    * version is missing.
     */
   private def looksLikeVersion(s: String): Boolean =
-    Version.Numeric.unapply(s).isDefined || Version.Variable.regex.findFirstMatchIn(s).isDefined
+    Version.Numeric.unapply(s).isDefined || Version.Variable.regex.findFirstMatchIn(s).isDefined || s === "*"
+
+  /** Fails when a BOM-managed version (`*`) is combined with something it cannot work with: the `bom` configuration (a
+    * BOM coordinate cannot take its version from a BOM), the `sbt-plugin` configuration (BOMs cannot pin sbt plugin
+    * coordinates) or a `full`/`patch` cross-version (BOM entries are looked up by binary suffix). Called from the read
+    * seam and from `install`, so invalid lines are rejected before they ever reach the file.
+    */
+  def validateBomRestrictions(dependency: Dependency)(implicit logger: Logger): Unit =
+    dependency.version match {
+      case Version.Bom(_) if dependency.configuration === "bom" =>
+        Utils.fail {
+          s"${dependency.organization}:${dependency.name} declares version '*' with the 'bom' configuration — " +
+            "a BOM coordinate cannot take its version from a BOM."
+        }
+
+      case Version.Bom(_) if dependency.configuration === "sbt-plugin" =>
+        Utils.fail {
+          s"${dependency.organization}:${dependency.name} declares version '*' with the 'sbt-plugin' configuration" +
+            " — BOMs cannot pin sbt plugin coordinates."
+        }
+
+      case Version.Bom(_) if !List(CrossVersion.binary, CrossVersion.disabled).contains(dependency.crossVersion) =>
+        Utils.fail {
+          s"Version '*' on ${dependency.organization}:${dependency.name} cannot be combined with " +
+            s"cross-version = '${crossVersionKeyword(dependency.crossVersion).getOrElse("?")}' — " +
+            "only 'binary' and 'disabled' are supported when the version comes from a BOM."
+        }
+
+      case _ => ()
+    }
 
   /** Parses a dependency line into a dependency.
     *
     * Variables (`{{name}}`) are produced unresolved (`Variable(name, None)`) — resolution happens later via
     * [[Dependency.resolveVariable]], where the dep's final `crossVersion` (after annotation merge) is known and can be
-    * passed to the resolver function.
+    * passed to the resolver function. BOM-managed versions (`*`) are likewise produced unresolved (`Bom(None)`) —
+    * resolution happens via [[Dependency.resolveBom]] once the group's flattened BOM pins are available.
     */
   def parse(line: String)(implicit logger: Logger): Dependency =
     line match {
       case dependencyRegex(_, _, _, null, _) => // scalafix:ok
         Utils.fail(s"$line is missing a version")
+
+      case dependencyRegex(org, sep, name, "*", config) =>
+        Dependency(
+          org,
+          name,
+          Version.Bom(None),
+          configuration = Option(config).getOrElse("compile"),
+          crossVersion = if (sep === "::") CrossVersion.binary else CrossVersion.disabled
+        )
 
       case dependencyRegex(org, sep, name, Version.Variable.regex(variable), config) =>
         Dependency(
@@ -386,7 +452,8 @@ object Dependency {
 
   /** A version specification for a dependency.
     *
-    * Can be either a numeric version (e.g., `1.2.3`) or a variable reference (e.g., `{{myVar}}`).
+    * Can be a numeric version (e.g., `1.2.3`), a variable reference (e.g., `{{myVar}}`) or a BOM-managed version (`*`,
+    * resolved from the group's `bom`-configured entries).
     */
   sealed trait Version {
 
@@ -422,6 +489,12 @@ object Dependency {
           case _                  => false
         }
         a.name === b.name && resolvedSame
+      case (a: Bom, b: Bom) =>
+        (a.resolved, b.resolved) match {
+          case (Some(x), Some(y)) => VersionEq.eqv(x, y)
+          case (None, None)       => true
+          case _                  => false
+        }
       case _ => false
     }
 
@@ -613,6 +686,45 @@ object Dependency {
 
       /** Regex for variable references. Only allows alphanumeric characters and underscores. */
       val regex = """\{\{(\w+)\}\}""".r
+
+    }
+
+    /** A version taken from the group's BOMs (`*` in the file).
+      *
+      * @param resolved
+      *   The numeric version pinned by the first BOM in the group that manages this artifact. `None` when the `*` was
+      *   parsed without BOM context — e.g. during `format()` round-trips or inside `dependenciesFromBom`'s own read.
+      *   Paths that need a concrete version (`toModuleID`, version-finding) require this to be defined.
+      */
+    final case class Bom(resolved: Option[Numeric]) extends Version {
+
+      /** Full string representation: always the `*` placeholder. */
+      def show: String = "*"
+
+      /** Resolved version string. Throws if the version hasn't been resolved — callers reaching this without resolution
+        * have bypassed the seam where BOM resolution is enforced.
+        */
+      def toVersionString: String = resolved match {
+        case Some(num) => num.toVersionString
+        case None      => sys.error("BOM-managed version (*) accessed before resolution")
+      }
+
+      override def isVariable: Boolean = false
+
+      override def isSameVersion(other: Version): Boolean = other match {
+        case n: Numeric => resolved.exists(_.isSameVersion(n))
+        case _          => false
+      }
+
+      /** Checks if a candidate version is valid for this version. Always `false` for unresolved BOM versions. */
+      override def isValidCandidate(candidate: Numeric): Boolean =
+        resolved.exists(_.isValidCandidate(candidate))
+
+    }
+
+    object Bom {
+
+      implicit val BomEq: Eq[Bom] = (a, b) => VersionEq.eqv(a, b)
 
     }
 

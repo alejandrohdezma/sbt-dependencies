@@ -29,6 +29,14 @@ class DependencyDiffSuite extends munit.FunSuite {
 
   // --- ResolvedDep.fromModuleID ---
 
+  test("ResolvedDep.from snapshots BOM-managed versions as the literal *") {
+    val dependency = Dependency("com.fasterxml.jackson.core", "jackson-databind", Dependency.Version.Bom(None))
+
+    val result = ResolvedDep.from(dependency)
+
+    assertEquals(result, ResolvedDep("com.fasterxml.jackson.core", "jackson-databind", "*", "compile"))
+  }
+
   test("ResolvedDep.fromModuleID extracts org, name, revision; defaults configuration to compile") {
     val moduleID = ModuleID("org.typelevel", "cats-core_2.13", "2.10.0")
     val result   = ResolvedDep.fromModuleID(moduleID)

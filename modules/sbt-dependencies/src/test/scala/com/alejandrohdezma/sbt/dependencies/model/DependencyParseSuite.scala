@@ -362,4 +362,101 @@ class DependencyParseSuite extends munit.FunSuite {
     assertEquals(alreadyResolved.resolveVariable(resolvers), alreadyResolved)
   }
 
+  // --- BOM-managed (`*`) version tests ---
+
+  test("parse cross-version dependency with * produces unresolved Bom") {
+    val result = Dependency.parse("org.typelevel::cats-core:*")
+
+    val expected = Dependency(
+      organization = "org.typelevel",
+      name = "cats-core",
+      version = Version.Bom(None),
+      crossVersion = CrossVersion.binary
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("parse dependency with * and configuration") {
+    val result = Dependency.parse("org.scalameta::munit:*:test")
+
+    val expected = Dependency(
+      organization = "org.scalameta", name = "munit", version = Version.Bom(None), configuration = "test",
+      crossVersion = CrossVersion.binary
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("parse java dependency with *") {
+    val result = Dependency.parse("com.google.guava:guava:*")
+
+    val expected = Dependency(
+      organization = "com.google.guava",
+      name = "guava",
+      version = Version.Bom(None)
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("parse dependency with * toLine preserves the placeholder") {
+    val result = Dependency.parse("org.typelevel::cats-core:*")
+
+    assertEquals(result.toLine, "org.typelevel::cats-core:*")
+  }
+
+  test("parseIncludingMissingVersion treats * as a version, not a configuration") {
+    val result = Dependency.parseIncludingMissingVersion("org.typelevel::cats-core:*")
+
+    assertEquals(result.version, Version.Bom(None): Version)
+  }
+
+  // --- resolveBom tests ---
+
+  test("resolveBom resolves a cross-compiled dependency against the suffixed pin") {
+    val pins = List("org.typelevel" % "cats-core_2.13" % "2.10.0")
+
+    val result = Dependency.parse("org.typelevel::cats-core:*").resolveBom(pins, "2.13")
+
+    val expected = Version.Bom(Some(Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker)))
+
+    assertEquals(result.version, expected: Version)
+  }
+
+  test("resolveBom resolves a java dependency against the plain pin") {
+    val pins = List("com.google.guava" % "guava" % "33.4.0-jre")
+
+    val result = Dependency.parse("com.google.guava:guava:*").resolveBom(pins, "2.13")
+
+    assertEquals(result.version.toVersionString, "33.4.0-jre")
+  }
+
+  test("resolveBom picks the first matching pin when several BOMs pin the artifact") {
+    val pins = List(
+      "org.typelevel" % "cats-core_2.13" % "2.10.0",
+      "org.typelevel" % "cats-core_2.13" % "2.13.0"
+    )
+
+    val result = Dependency.parse("org.typelevel::cats-core:*").resolveBom(pins, "2.13")
+
+    assertEquals(result.version.toVersionString, "2.10.0")
+  }
+
+  test("resolveBom leaves the dep unchanged when no pin matches") {
+    val pins = List("org.typelevel" % "cats-core_2.12" % "2.10.0")
+
+    val result = Dependency.parse("org.typelevel::cats-core:*").resolveBom(pins, "2.13")
+
+    assertEquals(result.version, Version.Bom(None): Version)
+  }
+
+  test("resolveBom is a no-op for numeric and variable versions") {
+    val pins = List("org.typelevel" % "cats-core_2.13" % "9.9.9")
+
+    val numeric = Dependency.parse("org.typelevel::cats-core:2.10.0")
+
+    assertEquals(numeric.resolveBom(pins, "2.13"), numeric)
+  }
+
 }

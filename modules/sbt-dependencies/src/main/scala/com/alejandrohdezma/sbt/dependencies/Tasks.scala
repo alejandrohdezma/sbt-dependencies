@@ -38,11 +38,17 @@ class Tasks {
     implicit val logger: Logger   = streams.value.log
     implicit val finders: Finders = Finders.fromState(state.value, scalaVersion.value)
 
-    val file         = Settings.dependenciesFile.value
-    val group        = Settings.currentGroup.value
-    val groupExists  = file.hasGroup(group)
-    val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
-    val filter       = updateFilterParser.parsed
+    val file        = Settings.dependenciesFile.value
+    val group       = Settings.currentGroup.value
+    val groupExists = file.hasGroup(group)
+    val bomPins     = Keys.dependenciesFromBom.value
+    val scalaBinary = (update / scalaBinaryVersion).value
+
+    val dependencies = file
+      .read(group, Keys.dependencyVersionVariables.value)
+      .map(_.resolveBom(bomPins, scalaBinary))
+
+    val filter = updateFilterParser.parsed
 
     if (!groupExists) {
       // Group not in YAML file - silently skip
@@ -74,6 +80,10 @@ class Tasks {
     val group        = Settings.currentGroup.value
     val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
     val dependency   = Dependency.parseIncludingMissingVersion(installParser.parsed)
+
+    Dependency.validateBomRestrictions(dependency)
+
+    val _ = Settings.resolveBomVersion(dependency, Keys.dependenciesFromBom.value, (update / scalaBinaryVersion).value)
 
     logger.info(s"➕ [$group] $YELLOW${dependency.toLine}$RESET")
 

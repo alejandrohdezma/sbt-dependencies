@@ -106,6 +106,47 @@ object Utils {
 
           original
 
+        // BOM-managed (`*`) at the BOM-pinned version, but the artifact has migrated — surface the migration without
+        // changing the line (the BOM governs the version; the user resolves the migration in the BOM or the conf).
+        case (original @ Dependency.Version(bom: Bom), latest)
+            if !latest.isSameArtifact(original) && bom.isSameVersion(latest.version) =>
+          logger.info {
+            s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `$bom` via BOM), migration " +
+              s"to ${latest.organization}:${latest.name} available"
+          }
+
+          original
+
+        // BOM-managed (`*`) with both a newer version and a migration available — surface both, keep the line unchanged.
+        case (original @ Dependency.Version(bom: Bom), latest) if !latest.isSameArtifact(original) =>
+          logger.info {
+            s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `$bom` via BOM, " +
+              s"latest: `$YELLOW${latest.version}$RESET`, migration to ${latest.organization}:${latest.name} available)"
+          }
+
+          original
+
+        // BOM-managed (`*`) at the BOM-pinned version, which is also the latest available: keep as-is.
+        case (original @ Dependency.Version(bom: Bom), latest) if bom.isSameVersion(latest.version) =>
+          logger.info(s" ↳ $GREEN✓$RESET $GREEN${original.toLine}$RESET (resolves to `$bom` via BOM)")
+
+          original
+
+        // BOM-managed (`*`) without BOM context (e.g. group-level commands): keep, the BOMs govern the version.
+        case (original @ Dependency.Version(Bom(None)), _) =>
+          logger.info(s" ↳ $CYAN⊙$RESET $CYAN${original.toLine}$RESET (follows the group's BOMs)")
+
+          original
+
+        // BOM-managed (`*`) behind the latest available: log the gap, keep the line (updating means bumping the BOM).
+        case (original @ Dependency.Version(bom: Bom), latest) =>
+          logger.info {
+            s" ↳ $CYAN⊸$RESET $CYAN${original.toLine}$RESET (resolves to `$bom` via BOM, " +
+              s"latest: `$YELLOW${latest.version}$RESET`)"
+          }
+
+          original
+
         // Variable behind the latest: log the gap, leave the line untouched (the user updates the variable in build.sbt).
         case (original, latest) =>
           logger.info {
@@ -147,6 +188,13 @@ object Utils {
         variable.resolved
           .map(num => findLatestVersion(dependency.withVersion(num)))
           .getOrElse(Utils.fail(s"Unable to resolve ${dependency.toLine}"))
+
+      // BOM-managed (`*`): recurse with the pinned Numeric for the informational lookup. Unresolved BOM versions are
+      // returned as-is (unlike variables they are legal without context, e.g. in group-level update commands).
+      case (bom: Dependency.Version.Bom, _) =>
+        bom.resolved
+          .map(num => findLatestVersion(dependency.withVersion(num)))
+          .getOrElse(dependency)
 
       // Exact-pinned (`=`) numeric: skip the lookup entirely, the user has opted out of updates.
       case (numeric: Dependency.Version.Numeric, _) if numeric.marker.isExact =>

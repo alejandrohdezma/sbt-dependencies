@@ -15,7 +15,8 @@
 - [Delay brand-new versions](#user-content-configure-cooldown) until they've been around long enough (`dependencyCooldowns`), with per-dependency overrides.
 - Generate [post-update hooks](#user-content-configure-post-update-hooks) and [scalafix migrations](#user-content-configure-scalafix-migrations) for CI automation using Scala Steward's configuration.
 - Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
-- Share versions across dependencies with [version variables](#user-content-use-shared-version-variables), including [BOM support](https://github.com/heremaps/here-sbt-bom).
+- Share versions across dependencies with [version variables](#user-content-use-shared-version-variables).
+- Import [Maven BOMs](#user-content-use-bom-managed-versions) with the `bom` configuration and use `*` to take dependency versions from them.
 - [VS Code / Cursor extension](#vs-code--cursor-extension) with syntax highlighting for `dependencies.conf`.
 
 ## Installation
@@ -64,6 +65,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Add a note to a pinned dependency](#user-content-add-a-note-to-a-pinned-dependency)
   + [Mark a dependency as intransitive](#user-content-mark-a-dependency-as-intransitive)
   + [Use shared version variables](#user-content-use-shared-version-variables)
+  + [Use BOM-managed versions](#user-content-use-bom-managed-versions)
   + [Configure Scala versions](#user-content-configure-scala-versions)
   + [Use the advanced group format](#user-content-use-advanced-group-format)
   + [Install a new dependency](#user-content-install-a-new-dependency)
@@ -350,25 +352,65 @@ dependencyVersionVariables := Map(
 
 When running `updateDependencies`, variable-based dependencies show their resolved version and the latest available version, but the variable reference is preserved in the file.
 
-#### Using with [here-sbt-bom](https://github.com/heremaps/here-sbt-bom)
+> **Note:** for versions that come from a Maven BOM you don't need variables — see [Use BOM-managed versions](#user-content-use-bom-managed-versions).
 
-The `here-sbt-bom` plugin reads Maven BOM files and exposes version constants. You can reference these in your `dependencies.conf`:
+---
+
+</details>
+
+<details><summary><b id="use-bom-managed-versions">Use BOM-managed versions</b></summary><br/>
+
+Declare a [Maven BOM](https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html#bill-of-materials-bom-poms) with the `bom` configuration and use `*` as the version of any dependency the BOM pins:
 
 ```hocon
 my-project = [
-  "com.fasterxml.jackson.core:jackson-core:{{jackson}}"
-  "com.fasterxml.jackson.core:jackson-databind:{{jackson}}"
+  "com.fasterxml.jackson:jackson-bom:2.17.2:bom"
+  "com.fasterxml.jackson.core:jackson-databind:*"
+  "com.fasterxml.jackson.module::jackson-module-scala:*"
+]
+```
+
+The BOM coordinate itself never reaches `libraryDependencies`: the plugin resolves its pom (including parent poms and nested `<scope>import</scope>` BOMs), flattens it into concrete pins — exposed as the `dependenciesFromBom` setting — and fills every `*` in. Cross-compiled (`::`) dependencies are matched against the BOM entry suffixed with the current Scala binary version (`jackson-module-scala_2.13`).
+
+This mirrors [sbt 2's native BOM support](https://www.scala-sbt.org/2.x/docs/en/changes/sbt-2.0-change-summary.html) (`.pomOnly()` + `"*"` versions), but works on sbt 1.x too and keeps everything in `dependencies.conf`.
+
+**Inheritance** — a `bom` entry in `common-settings` is visible to every non-meta project, so a single org-wide BOM can drive `*` versions across the whole build:
+
+```hocon
+common-settings {
+  dependencies = [
+    "com.example::platform-bom:1.0.0:bom"
+  ]
+}
+
+my-project = [
+  "com.example::platform-core:*"
+]
+```
+
+BOMs also flow through `dependsOn` (transitively, and regardless of the dependency's configuration — a `dependsOn(x % Test)` contributes pins to every scope, since pins only select versions and never add artifacts): a project inherits the BOM pins of every project it depends on, so declaring the BOM once in a core module is enough for its dependents to use `*`:
+
+```hocon
+core = [
+  "com.fasterxml.jackson:jackson-bom:2.17.2:bom"
+  "com.fasterxml.jackson.core:jackson-databind:*"
+]
+
+app = [
+  "com.fasterxml.jackson.core:jackson-core:*"
 ]
 ```
 
 ```scala
-// build.sbt
-val jacksonBom = Bom("com.fasterxml.jackson" % "jackson-bom" % "2.14.2")
-
-dependencyVersionVariables := Map(
-  "jackson" -> { artifact => artifact % jacksonBom.key.value }
-)
+lazy val core = project
+lazy val app  = project.dependsOn(core)
 ```
+
+**Precedence** — pins keep BOM declaration order: the project's own group first, then `common-settings`, then the projects it depends on. The first BOM pinning an artifact wins, matching Maven's import semantics.
+
+**Updates** — `updateDependencies` never rewrites a `*`: it shows the version it currently resolves to (and whether something newer exists), but updating means bumping the BOM entry itself, which is a regular versioned dependency.
+
+A dependency declaring `*` that no visible BOM pins fails the build with a descriptive error. `*` cannot be combined with the `bom` or `sbt-plugin` configurations, nor with `cross-version = "full"`/`"patch"`.
 
 ---
 
