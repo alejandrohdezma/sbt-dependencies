@@ -23,6 +23,7 @@ import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.bom.BomReader
 import com.alejandrohdezma.sbt.dependencies.bom.ModuleFetcher
+import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -127,6 +128,10 @@ class Settings {
     * Merges `common-settings.dependencies` with the project group's own dependencies. When both groups declare a
     * dependency with the same `(organization, name)`, the project entry wins regardless of configuration.
     *
+    * BOM-managed versions (`*`) are resolved here against [[dependenciesFromBom]] (the group's flattened BOM pins, in
+    * declaration order, so the first BOM pinning an artifact wins). A `*` dependency that no BOM pins fails the build
+    * with a descriptive message.
+    *
     * In the meta-build, only the project group is read — `common-settings.dependencies` are not for plugins.
     */
   val moduleIdsFromFile: Def.Initialize[Seq[ModuleID]] = Def.setting {
@@ -136,6 +141,7 @@ class Settings {
 
     val variableResolvers = Keys.dependencyVersionVariables.value
     val file              = dependenciesFile.value
+    val bomPins           = Keys.dependenciesFromBom.value
 
     def readGroup(group: Group): Seq[ModuleID] =
       file
@@ -143,6 +149,7 @@ class Settings {
         .filterNot(_.configuration === "bom") // `:bom` entries go to `dependenciesFromBom`, not `libraryDependencies`
         .filter(_.matchesScalaVersion(scalaV))
         .filter(dep => dep.scalaFilter.forall(scalaV.startsWith))
+        .map(resolveBomVersion(_, bomPins, scalaV))
         .map(_.toModuleID(sbtV, scalaV))
 
     val projectDeps = readGroup(currentGroup.value)
@@ -165,6 +172,10 @@ class Settings {
     * plus, for non-meta projects, `common-settings` (so an org-wide BOM in `common-settings` is inherited by every
     * module). Each BOM's parent chain and `<scope>import</scope>` tree is resolved to a flat list of pins by
     * `BomReader`.
+    *
+    * Pins keep BOM declaration order — the project group's BOMs before `common-settings`', each flattened to entries
+    * sorted by organization/name. BOM-managed versions (`*`) resolve to the first matching pin, so the first BOM
+    * pinning an artifact wins (Maven's import semantics).
     *
     * It reads poms at load, so it Nil-fasts when the project declares no `:bom` entries.
     */
@@ -196,7 +207,25 @@ class Settings {
       .distinct
       .flatMap(BomReader.read(_, scalaV))
       .distinct
-      .sortBy(m => (m.organization, m.name))
+  }
+
+  /** Resolves a BOM-managed version (`*`) against the group's flattened BOM pins, failing the build when no BOM pins
+    * the artifact. Dependencies with any other version shape pass through untouched.
+    */
+  private[dependencies] def resolveBomVersion(dependency: Dependency, pins: Seq[ModuleID], scalaBinaryVersion: String)(
+      implicit logger: Logger
+  ): Dependency = {
+    val resolved = dependency.resolveBom(pins, scalaBinaryVersion)
+
+    resolved.version match {
+      case Dependency.Version.Bom(None) =>
+        val artifact = if (resolved.isCross) s"${resolved.name}_$scalaBinaryVersion" else resolved.name
+        Utils.fail {
+          s"${resolved.organization}:${resolved.name} declares version '*' but no BOM visible to this project pins " +
+            s"${resolved.organization}:$artifact. Declare a dependency with the 'bom' configuration that manages it."
+        }
+      case _ => resolved
+    }
   }
 
   /** Regex to match configuration transformations like `test->test`. */
