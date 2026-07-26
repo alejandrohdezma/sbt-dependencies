@@ -19,6 +19,7 @@ package com.alejandrohdezma.sbt.dependencies
 import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 
+import com.alejandrohdezma.sbt.dependencies.io.ResolutionsDump
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 
 class Keys {
@@ -78,6 +79,11 @@ class Keys {
     settingKey[Map[String, OrganizationArtifactName => ModuleID]](
       "Map of variable names to resolver functions for variable-based dependency versions"
     )
+
+  val dependencyResolutions =
+    settingKey[Seq[ResolutionsDump.ProjectResolutions]] {
+      "Structured BOM pins and variable resolutions for this project, dumped to target/sbt-dependencies/.sbt-resolutions"
+    }.withRank(KeyRanks.Invisible)
 
   val sbtDependenciesPluginOrganization =
     settingKey[String] {
