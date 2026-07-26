@@ -2036,4 +2036,91 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertNoDiff(content, expected)
   }
 
+  // --- BOM-managed (`*`) version tests ---
+
+  withDependenciesFile {
+    """|my-project = [
+       |  "org.typelevel::cats-core:*"
+       |  "com.fasterxml.jackson:jackson-bom:2.17.1:bom"
+       |]
+       |""".stripMargin
+  }.test("read produces unresolved Bom versions for * dependencies") { file =>
+    val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
+
+    val expected = List(
+      Dependency("org.typelevel", "cats-core", Version.Bom(None), crossVersion = CrossVersion.binary),
+      Dependency(
+        "com.fasterxml.jackson",
+        "jackson-bom",
+        Version.Numeric(List(2, 17, 1), None, Version.Numeric.Marker.NoMarker),
+        configuration = "bom"
+      )
+    )
+
+    assertEquals(result, expected)
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  "com.fasterxml.jackson:jackson-bom:*:bom"
+       |]
+       |""".stripMargin
+  }.test("read rejects * on a bom-configured dependency") { file =>
+    val ex = intercept[Exception] {
+      DependenciesFile(file).read(Group("my-project"), variableResolvers)
+    }
+    assert(
+      ex.getMessage.contains("cannot take its version from a BOM"),
+      s"expected message to mention the bom restriction, got: ${ex.getMessage}"
+    )
+  }
+
+  withDependenciesFile {
+    """|sbt-build = [
+       |  "ch.epfl.scala:sbt-scalafix:*:sbt-plugin"
+       |]
+       |""".stripMargin
+  }.test("read rejects * on an sbt-plugin dependency") { file =>
+    val ex = intercept[Exception] {
+      DependenciesFile(file).read(Group("sbt-build"), variableResolvers)
+    }
+    assert(
+      ex.getMessage.contains("BOMs cannot pin sbt plugin coordinates"),
+      s"expected message to mention the sbt-plugin restriction, got: ${ex.getMessage}"
+    )
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "org.typelevel::kind-projector:*:compiler-plugin", cross-version = "full" }
+       |]
+       |""".stripMargin
+  }.test("read rejects * + cross-version = full combination") { file =>
+    val ex = intercept[Exception] {
+      DependenciesFile(file).read(Group("my-project"), variableResolvers)
+    }
+    assert(ex.getMessage.contains("full"), s"expected message to mention 'full', got: ${ex.getMessage}")
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  "org.typelevel::cats-core:*"
+       |  "com.google.guava:guava:*"
+       |]
+       |""".stripMargin
+  }.test("format preserves * versions") { file =>
+    DependenciesFile(file).format()
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  "com.google.guava:guava:*"
+         |  "org.typelevel::cats-core:*"
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
 }

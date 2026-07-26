@@ -83,6 +83,11 @@ final case class DependenciesFile(file: File) {
     * ArtifactName` constructor is `private[sbt]`, so we can only pass `Binary` or `Disabled` shapes to the resolver,
     * and the canonical BOM resolver (`here-sbt-bom`) only looks up by binary suffix anyway. Failing fast with a clear
     * message is better than silently degrading to `Binary`.
+    *
+    * BOM-managed versions (`*`) get the same `full`/`patch` rejection (BOM entries are looked up by binary suffix) plus
+    * one of their own: a `bom`-configured entry cannot itself use `*`, since BOM coordinates are what `*` versions are
+    * resolved from. Resolution of `*` doesn't happen here — `dependenciesFromBom` needs this `read` to find the group's
+    * BOM coordinates first — but at the seams that have the flattened pins (via `Dependency.resolveBom`).
     */
   private def toDependency(
       annotated: AnnotatedDependency,
@@ -110,6 +115,8 @@ final case class DependenciesFile(file: File) {
           "only 'binary' and 'disabled' are supported when the version is a variable."
       }
     }
+
+    Dependency.validateBomRestrictions(dep)
 
     dep.resolveVariable(variableResolvers)
   }
