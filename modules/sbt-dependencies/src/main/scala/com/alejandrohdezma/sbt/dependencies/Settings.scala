@@ -222,6 +222,17 @@ class Settings {
     }
   }
 
+  /** The BOM pins added to `dependencyOverrides`: [[dependenciesFromBom]] deduplicated by `organization:name` keeping
+    * the first entry. The dedupe matters because [[dependenciesFromBom]] can carry the same module at two versions when
+    * two BOMs conflict, and coursier's force-versions map would let the last one win, inverting the first-BOM-wins
+    * contract `*` versions follow.
+    */
+  val dependencyOverridesFromBom: Def.Initialize[Seq[ModuleID]] = Def.setting {
+    Keys.dependenciesFromBom.value.foldLeft(Vector.empty[ModuleID]) { (acc, module) =>
+      if (acc.exists(m => m.organization === module.organization && m.name === module.name)) acc else acc :+ module
+    }
+  }
+
   /** Resolves a BOM-managed version (`*`) against the group's flattened BOM pins, failing the build when no BOM pins
     * the artifact. Dependencies with any other version shape pass through untouched.
     */

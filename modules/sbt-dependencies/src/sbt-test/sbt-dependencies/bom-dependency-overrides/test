@@ -1,0 +1,5 @@
+# BOM pins flow into dependencyOverrides by default, forcing transitive dependencies to the BOM's
+# versions, and `dependencyOverridesFromBom := Nil` opts a project out.
+> assertOverridden
+> assertNotOverridden
+> assertDeduped
