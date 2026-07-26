@@ -64,17 +64,20 @@ object RetractionFinder {
       override def isRetracted(organization: String, name: String, version: String): Boolean =
         retractions.exists(_.matches(organization, name, version))
 
-      override def warnIfRetracted(dependency: Dependency): Unit = {
-        val version = dependency.version.toVersionString
+      override def warnIfRetracted(dependency: Dependency): Unit = dependency.version match {
+        case Dependency.Version.Bom(None) => ()
 
-        retractions.find(_.matches(dependency.organization, dependency.name, version)).foreach { retraction =>
-          logger.warn {
-            s"""⚠ $CYAN${dependency.organization}:${dependency.name}$RESET $version is retracted.
-               |  Reason: ${retraction.reason}
-               |  Documentation: $CYAN${retraction.doc}$RESET
-               |  You should consider using a different version.""".stripMargin.boxed
+        case version =>
+          val versionString = version.toVersionString
+
+          retractions.find(_.matches(dependency.organization, dependency.name, versionString)).foreach { retraction =>
+            logger.warn {
+              s"""⚠ $CYAN${dependency.organization}:${dependency.name}$RESET $versionString is retracted.
+                 |  Reason: ${retraction.reason}
+                 |  Documentation: $CYAN${retraction.doc}$RESET
+                 |  You should consider using a different version.""".stripMargin.boxed
+            }
           }
-        }
       }
 
     }
