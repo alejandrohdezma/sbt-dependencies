@@ -896,6 +896,34 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile {
+    """|advanced {
+       |  scala-versions = ["2.13.12", "3.3.1"]
+       |  dependencies = [
+       |    "org.typelevel::cats-core:2.10.0"
+       |  ]
+       |}
+       |
+       |simple = [
+       |  "org.typelevel::cats-core:2.10.0"
+       |]
+       |""".stripMargin
+  }.test("readScalaVersions (all groups) maps every group to its declared versions") { file =>
+    val result = DependenciesFile(file).readScalaVersions()
+
+    assertEquals(
+      result.map { case (group, versions) => group -> versions.map(_.toVersionString) },
+      Map[Group, List[String]](
+        Group("advanced") -> List("2.13.12", "3.3.1"),
+        Group("simple")   -> List.empty
+      )
+    )
+  }
+
+  nonExistentFile.test("readScalaVersions (all groups) returns an empty map for a non-existent file") { file =>
+    assertEquals(DependenciesFile(file).readScalaVersions(), Map.empty[Group, List[Numeric]])
+  }
+
+  withDependenciesFile {
     """|my-project {
        |  scala-versions = ["2.13.12", "2.12.18"]
        |  dependencies = [
