@@ -1,11 +1,14 @@
 import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { parseCodeLenses } from "./codelens";
-import { parsePinnedWithoutNote } from "./dep-codelens";
+import { parseResolvedDecorations } from "./resolved-decorations";
+import { dumpPathsFor, parseResolutionsDump, ResolutionsIndex, ResolutionLookup } from "./resolutions";
+import { parsePinnedWithoutNote, parseBomManagedVersions } from "./dep-codelens";
 import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
 import { COMMON_SETTINGS, SBT_BUILD } from "./groups";
-import { parseDependency, buildHoverMarkdown } from "./hover";
+import { parseDependency, buildHoverMarkdown, HoverResolution } from "./hover";
 import { parseGroupHeader, buildGroupHoverMarkdown } from "./group-hover";
 import { parseDocumentLinks } from "./links";
 import { parseNoteDecorations } from "./note-decorations";
@@ -43,6 +46,107 @@ function updateDiagnostics(
   });
 
   collection.set(document.uri, diagnostics);
+}
+
+/** Cache of parsed resolutions dumps, keyed by conf path and invalidated when either dump's mtime changes. */
+const resolutionsCache = new Map<string, { index: ResolutionsIndex; mainMtime: number; metaMtime: number }>();
+
+/** The file's modification time in millis, or `0` when it doesn't exist. */
+function mtimeOf(filePath: string): number {
+  try {
+    return fs.statSync(filePath).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+/** Reads and parses a dump file, returning `undefined` when absent or malformed. */
+function readDump(filePath: string) {
+  try {
+    return parseResolutionsDump(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Returns a resolution lookup for a `dependencies.conf` document, or `undefined` when no dump exists (feature off).
+ *
+ * The parsed dumps are cached and only re-read when a dump's mtime changes. Staleness is an exact SHA-1 mismatch
+ * between the current buffer and the hash the plugin recorded when it wrote the dump.
+ */
+function getResolutions(document: vscode.TextDocument): ResolutionLookup | undefined {
+  if (document.languageId !== "sbt-dependencies") return undefined;
+
+  const conf = document.uri.fsPath;
+  const { main, meta } = dumpPathsFor(conf);
+  const mainMtime = mtimeOf(main);
+  const metaMtime = mtimeOf(meta);
+
+  if (mainMtime === 0 && metaMtime === 0) {
+    resolutionsCache.delete(conf);
+    return undefined;
+  }
+
+  let entry = resolutionsCache.get(conf);
+  if (!entry || entry.mainMtime !== mainMtime || entry.metaMtime !== metaMtime) {
+    entry = {
+      index: new ResolutionsIndex(mainMtime ? readDump(main) : undefined, metaMtime ? readDump(meta) : undefined),
+      mainMtime,
+      metaMtime,
+    };
+    resolutionsCache.set(conf, entry);
+  }
+
+  if (!entry.index.hasData) return undefined;
+
+  const bufferHash = crypto.createHash("sha1").update(document.getText(), "utf8").digest("hex");
+  const stale = entry.index.sourceHash !== undefined && entry.index.sourceHash !== bufferHash;
+
+  return entry.index.asLookup(stale);
+}
+
+/** The name of the group whose range contains `line`, or `undefined` when outside any group. */
+function groupAtLine(lines: string[], line: number): string | undefined {
+  return parseDocumentSymbols(lines).find(
+    (s) => s.kind === "group" && line >= s.range.startLine && line <= s.range.endLine
+  )?.name;
+}
+
+/**
+ * Resolves the hover provenance for a `*` or `{{variable}}` dependency at `line`, or `undefined` for any other version
+ * or when no dump resolves it.
+ */
+function resolveHoverVersion(
+  document: vscode.TextDocument,
+  line: number,
+  org: string,
+  artifact: string,
+  version: string | undefined,
+  isCross: boolean
+): HoverResolution | undefined {
+  if (version !== "*" && !version?.startsWith("{{")) return undefined;
+
+  const lookup = getResolutions(document);
+  if (!lookup) return undefined;
+
+  const lines: string[] = [];
+  for (let i = 0; i < document.lineCount; i++) lines.push(document.lineAt(i).text);
+
+  const group = groupAtLine(lines, line);
+  if (!group) return undefined;
+
+  if (version === "*") {
+    const w = lookup.resolveWildcard(group, org, artifact, isCross);
+    return w && {
+      version: w.version,
+      stale: lookup.stale,
+      source: { kind: "bom", organization: w.bom.organization, name: w.bom.name, bomVersion: w.bom.version },
+    };
+  }
+
+  const v = lookup.resolveVariable(group, org, artifact, isCross);
+  return v && { version: v.version, stale: lookup.stale, source: { kind: "variable", variable: v.variable } };
 }
 
 /** Cache of Maven Central availability checks. */
@@ -160,9 +264,11 @@ class DependencyHoverProvider implements vscode.HoverProvider {
     const isSbtPlugin = dep.config === "sbt-plugin";
     const available = await checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
 
+    const resolution = resolveHoverVersion(document, position.line, dep.org, dep.artifact, dep.version, isScala);
+
     const md = new vscode.MarkdownString();
     md.isTrusted = true;
-    md.appendMarkdown(buildHoverMarkdown(dep, available));
+    md.appendMarkdown(buildHoverMarkdown(dep, available, resolution));
 
     const matchRange = new vscode.Range(
       position.line, dep.matchStart,
@@ -601,6 +707,24 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
         arguments: [dep.org, dep.artifact],
       };
       actions.push(action);
+
+      // Materialize a `*` into the resolved concrete version (the forward `version -> *` suggestion is a CodeLens).
+      if (dep.version === "*") {
+        const confLines: string[] = [];
+        for (let i = 0; i < document.lineCount; i++) confLines.push(document.lineAt(i).text);
+        const group = groupAtLine(confLines, range.start.line);
+        const lookup = group ? getResolutions(document) : undefined;
+        const resolved = lookup && !lookup.stale ? lookup.resolveWildcard(group!, dep.org, dep.artifact, dep.separator === "::") : undefined;
+
+        if (resolved) {
+          const versionStart = dep.matchStart + dep.org.length + dep.separator.length + dep.artifact.length + 1;
+          const rewrite = new vscode.CodeAction(`Replace * with resolved version ${resolved.version}`, vscode.CodeActionKind.RefactorRewrite);
+          const edit = new vscode.WorkspaceEdit();
+          edit.replace(document.uri, new vscode.Range(range.start.line, versionStart, range.start.line, versionStart + 1), resolved.version);
+          rewrite.edit = edit;
+          actions.push(rewrite);
+        }
+      }
     }
 
     // Check if cursor is on a group header line
@@ -864,6 +988,23 @@ async function addDependencyNote(line: number): Promise<void> {
 }
 
 /**
+ * Command handler for the BOM-managed CodeLens: replaces the hardcoded version on `line` with `*`, so the version is
+ * taken from the BOM.
+ */
+async function useBomManagedVersion(line: number): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+
+  const dep = parseDependency(editor.document.lineAt(line).text);
+  if (!dep?.version || dep.version === "*") return;
+
+  const versionStart = dep.matchStart + dep.org.length + dep.separator.length + dep.artifact.length + 1;
+  const range = new vscode.Range(line, versionStart, line, versionStart + dep.version.length);
+
+  await editor.edit((editBuilder) => editBuilder.replace(range, "*"));
+}
+
+/**
  * Provides CodeLens annotations on pinned dependencies (`=`, `^`, `~`) that
  * lack an explanatory note, prompting the user to add one.
  */
@@ -878,11 +1019,45 @@ class PinnedDepCodeLensProvider implements vscode.CodeLensProvider {
       const range = new vscode.Range(data.line, 0, data.line, 0);
       const title =
         data.reason === "intransitive"
-          ? '$(info) Intransitive without note — consider adding note = "..."'
-          : '$(info) Pinned without note — consider adding { dependency = "...", note = "..." }';
+          ? '$(info) Intransitive without note — consider adding note = "..."'
+          : '$(info) Pinned without note — consider adding { dependency = "...", note = "..." }';
       return new vscode.CodeLens(range, {
         title,
         command: "sbt-dependencies.addDependencyNote",
+        arguments: [data.line],
+      });
+    });
+  }
+}
+
+/**
+ * Provides a CodeLens on hardcoded dependency versions that a visible BOM manages, suggesting they be replaced with
+ * `*`. Refreshes when the resolutions dump changes (via {@link BomManagedCodeLensProvider.refresh}); shows nothing
+ * while the dump is stale, to avoid suggesting rewrites from out-of-date data.
+ */
+class BomManagedCodeLensProvider implements vscode.CodeLensProvider {
+  private readonly emitter = new vscode.EventEmitter<void>();
+  readonly onDidChangeCodeLenses = this.emitter.event;
+
+  /** Signals VS Code to re-query the lenses (called when the dump changes). */
+  refresh(): void {
+    this.emitter.fire();
+  }
+
+  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    const lookup = getResolutions(document);
+    if (!lookup || lookup.stale) return [];
+
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    return parseBomManagedVersions(lines, lookup).map((data) => {
+      const range = new vscode.Range(data.line, 0, data.line, 0);
+      return new vscode.CodeLens(range, {
+        title: `$(sparkle) Managed by ${data.bomName} — replace ${data.version} with *`,
+        command: "sbt-dependencies.useBomManagedVersion",
         arguments: [data.line],
       });
     });
@@ -947,9 +1122,48 @@ function applyNoteDecorations(editor: vscode.TextEditor): void {
   editor.setDecorations(noteDecorationType, noteRanges);
 }
 
+/** Decoration type used as a container for per-line `after` resolved-version text. */
+const resolvedDecorationType = vscode.window.createTextEditorDecorationType({});
+
+/**
+ * Applies resolved-version decorations to a text editor, rendering the concrete version of `*` and `{{variable}}`
+ * dependencies (from the plugin's resolutions dump) as ghost text after the dependency string.
+ *
+ * A no-op that clears any existing decorations when no dump is available for the document.
+ */
+function applyResolvedDecorations(editor: vscode.TextEditor): void {
+  if (editor.document.languageId !== "sbt-dependencies") return;
+
+  const lookup = getResolutions(editor.document);
+  if (!lookup) {
+    editor.setDecorations(resolvedDecorationType, []);
+    return;
+  }
+
+  const lines: string[] = [];
+  for (let i = 0; i < editor.document.lineCount; i++) {
+    lines.push(editor.document.lineAt(i).text);
+  }
+
+  const decorations: vscode.DecorationOptions[] = parseResolvedDecorations(lines, lookup).map((d) => ({
+    range: new vscode.Range(d.line, d.afterCol, d.line, d.afterCol),
+    renderOptions: {
+      after: {
+        contentText: d.text,
+        color: new vscode.ThemeColor("editorLineNumber.foreground"),
+        fontStyle: "italic",
+      },
+    },
+  }));
+
+  editor.setDecorations(resolvedDecorationType, decorations);
+}
+
 /** Registers providers, commands, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: "sbt-dependencies", scheme: "file" };
+
+  const bomManagedCodeLensProvider = new BomManagedCodeLensProvider();
 
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
@@ -1041,9 +1255,17 @@ export function activate(context: vscode.ExtensionContext): void {
       selector,
       new PinnedDepCodeLensProvider()
     ),
+    vscode.languages.registerCodeLensProvider(
+      selector,
+      bomManagedCodeLensProvider
+    ),
     vscode.commands.registerCommand(
       "sbt-dependencies.addDependencyNote",
       addDependencyNote
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.useBomManagedVersion",
+      useBomManagedVersion
     ),
   );
 
@@ -1063,6 +1285,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const editor = vscode.window.activeTextEditor;
       if (editor && editor.document === e.document) {
         applyNoteDecorations(editor);
+        applyResolvedDecorations(editor);
       }
     }),
     vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri)),
@@ -1070,20 +1293,64 @@ export function activate(context: vscode.ExtensionContext): void {
       applyNoteDecorations(e.textEditor);
     }),
     vscode.window.onDidChangeActiveTextEditor(editor => {
-      if (editor) applyNoteDecorations(editor);
+      if (editor) {
+        applyNoteDecorations(editor);
+        applyResolvedDecorations(editor);
+      }
     })
   );
 
-  context.subscriptions.push(hideDecorationType, noteDecorationType);
+  // Refresh resolved-version decorations when the plugin rewrites its dump on sbt (re)load.
+  const refreshResolutions = () => {
+    resolutionsCache.clear();
+    for (const editor of vscode.window.visibleTextEditors) {
+      applyResolvedDecorations(editor);
+    }
+    bomManagedCodeLensProvider.refresh();
+  };
+
+  const resolutionsWatcher = vscode.workspace.createFileSystemWatcher("**/target/sbt-dependencies/.sbt-resolutions");
+  resolutionsWatcher.onDidCreate(refreshResolutions);
+  resolutionsWatcher.onDidChange(refreshResolutions);
+  resolutionsWatcher.onDidDelete(refreshResolutions);
+
+  // VS Code's watcher is often suppressed for `target/` (e.g. Metals users keep `**/target` in
+  // `files.watcherExclude`), so also poll the dump paths with node's `fs.watchFile`, which ignores that setting.
+  const watchedDumps = new Set<string>();
+  const watchDumps = (document: vscode.TextDocument) => {
+    if (document.languageId !== "sbt-dependencies") return;
+    const { main, meta } = dumpPathsFor(document.uri.fsPath);
+    for (const dump of [main, meta]) {
+      if (watchedDumps.has(dump)) continue;
+      watchedDumps.add(dump);
+      fs.watchFile(dump, { interval: 1000 }, () => refreshResolutions());
+    }
+  };
+
+  context.subscriptions.push(hideDecorationType, noteDecorationType, resolvedDecorationType, resolutionsWatcher, {
+    dispose: () => {
+      watchedDumps.forEach(dump => fs.unwatchFile(dump));
+      watchedDumps.clear();
+    },
+  });
+
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(watchDumps),
+    vscode.window.onDidChangeActiveTextEditor(editor => {
+      if (editor) watchDumps(editor.document);
+    })
+  );
 
   vscode.workspace.textDocuments.forEach(doc => {
     updateDiagnostics(doc, diagnostics);
     warmAvailabilityCache(doc);
     warmRepoUrlCache(doc);
+    watchDumps(doc);
   });
 
   if (vscode.window.activeTextEditor) {
     applyNoteDecorations(vscode.window.activeTextEditor);
+    applyResolvedDecorations(vscode.window.activeTextEditor);
   }
 }
 

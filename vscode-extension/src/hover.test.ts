@@ -52,6 +52,21 @@ describe("parseDependency", () => {
     expect(result!.config).toBe("test");
   });
 
+  it("parses BOM-managed * version", () => {
+    const result = parseDependency('"org.typelevel::cats-core:*"');
+    expect(result).toBeDefined();
+    expect(result!.artifact).toBe("cats-core");
+    expect(result!.version).toBe("*");
+    expect(result!.config).toBeUndefined();
+  });
+
+  it("parses BOM-managed * version with configuration", () => {
+    const result = parseDependency('"org.junit.jupiter:junit-jupiter-api:*:test"');
+    expect(result).toBeDefined();
+    expect(result!.version).toBe("*");
+    expect(result!.config).toBe("test");
+  });
+
   it("parses dep with sbt-plugin configuration", () => {
     const result = parseDependency('"ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"');
     expect(result).toBeDefined();
@@ -138,6 +153,38 @@ describe("buildHoverMarkdown", () => {
   it("shows 'resolved from variable' for variable version", () => {
     const md = buildHoverMarkdown({ ...baseDep, version: "{{smithy4sVersion}}" }, false);
     expect(md).toContain("Version: `{{smithy4sVersion}}` *(resolved from variable)*");
+  });
+
+  it("shows 'managed by BOM' for * version", () => {
+    const md = buildHoverMarkdown({ ...baseDep, version: "*" }, false);
+    expect(md).toContain("Version: `*` *(managed by BOM)*");
+  });
+
+  it("shows BOM provenance for a resolved * version", () => {
+    const md = buildHoverMarkdown({ ...baseDep, version: "*" }, false, {
+      version: "2.17.0",
+      stale: false,
+      source: { kind: "bom", organization: "com.fasterxml.jackson", name: "jackson-bom", bomVersion: "2.17.0" },
+    });
+    expect(md).toContain("Resolved: `2.17.0` — pinned by `com.fasterxml.jackson:jackson-bom:2.17.0`");
+  });
+
+  it("shows variable provenance for a resolved {{variable}} version", () => {
+    const md = buildHoverMarkdown({ ...baseDep, version: "{{catsVersion}}" }, false, {
+      version: "2.13.0",
+      stale: false,
+      source: { kind: "variable", variable: "catsVersion" },
+    });
+    expect(md).toContain("Resolved: `2.13.0` — from variable `catsVersion`");
+  });
+
+  it("marks a resolved version as stale when the dump is out of date", () => {
+    const md = buildHoverMarkdown({ ...baseDep, version: "*" }, false, {
+      version: "2.17.0",
+      stale: true,
+      source: { kind: "bom", organization: "com.fasterxml.jackson", name: "jackson-bom", bomVersion: "2.17.0" },
+    });
+    expect(md).toContain("*(stale — reload sbt)*");
   });
 
   it("shows 'resolved to latest' when no version", () => {

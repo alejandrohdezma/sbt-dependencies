@@ -30,6 +30,7 @@ import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdateIgnore
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdatePin
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
+import com.alejandrohdezma.sbt.dependencies.io.ResolutionsDump
 
 /** SBT plugin for managing dependencies through a `project/dependencies` file.
   *
@@ -55,7 +56,8 @@ object DependenciesPlugin extends AutoPlugin {
   /** Global settings: reads dependencies file and registers commands. */
   override def globalSettings = Seq(
     concurrentRestrictions += Tags.limit(Exclusive, 1),
-    commands              ++= Commands.all
+    commands              ++= Commands.all,
+    onLoad                 := onLoad.value.andThen(ResolutionsDump.write)
   )
 
   override def buildSettings = Seq(
@@ -95,6 +97,7 @@ object DependenciesPlugin extends AutoPlugin {
     dependenciesFromFile       := Settings.dependenciesFromFile.value,
     moduleIdsFromFile          := Settings.moduleIdsFromFile.value,
     dependenciesFromBom        := Settings.dependenciesFromBom.value,
+    dependencyResolutions      := Settings.dependencyResolutions.value,
     dependencyOverridesFromBom := Settings.dependencyOverridesFromBom.value,
     dependencyOverrides       ++= dependencyOverridesFromBom.value,
     libraryDependencies       ++= moduleIdsFromFile.value,

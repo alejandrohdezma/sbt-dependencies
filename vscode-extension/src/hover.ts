@@ -14,11 +14,11 @@ export interface DependencyMatch {
  * - Group 1: organization (e.g. `org.typelevel`)
  * - Group 2: separator (`:` for Java, `::` for Scala)
  * - Group 3: artifact name (e.g. `cats-core`)
- * - Group 4: version (e.g. `^2.10.0`), if present
+ * - Group 4: version (e.g. `^2.10.0`, `{{catsVersion}}` or `*`), if present
  * - Group 5: configuration (e.g. `sbt-plugin`), if present
  */
 export const dependencyPattern =
-  /([^\s:"]+)(::?)([^\s:"]+)(?::(\{\{\w+\}\}|[=^~]?\d[^\s:"]*)(?::([^\s:"]+))?)?/g;
+  /([^\s:"]+)(::?)([^\s:"]+)(?::(\{\{\w+\}\}|\*|[=^~]?\d[^\s:"]*)(?::([^\s:"]+))?)?/g;
 
 /**
  * Runs the dependency regex against a line and returns parsed fields,
@@ -50,18 +50,30 @@ export function buildMvnRepositoryUrl(dep: DependencyMatch): string {
   return `https://mvnrepository.com/artifact/${dep.org}/${artifactForUrl}`;
 }
 
+/** A resolved version shown on hover, together with where it came from. */
+export interface HoverResolution {
+  version: string;
+  stale: boolean;
+  source:
+    | { kind: "bom"; organization: string; name: string; bomVersion: string }
+    | { kind: "variable"; variable: string };
+}
+
 /**
  * Builds the full markdown hover string for a dependency.
  *
  * Includes organization, artifact, version marker explanation,
- * configuration, and optionally a link to mvnrepository.com.
+ * configuration, the resolved version and its provenance (for `*`/`{{variable}}` deps),
+ * and optionally a link to mvnrepository.com.
  */
-export function buildHoverMarkdown(dep: DependencyMatch, available: boolean): string {
+export function buildHoverMarkdown(dep: DependencyMatch, available: boolean, resolution?: HoverResolution): string {
   let md = `**${dep.org}** \`${dep.separator}\` **${dep.artifact}**\n\n`;
 
   if (dep.version) {
     let explanation: string;
-    if (dep.version.startsWith("{{")) {
+    if (dep.version === "*") {
+      explanation = "managed by BOM";
+    } else if (dep.version.startsWith("{{")) {
       explanation = "resolved from variable";
     } else if (dep.version.startsWith("=")) {
       explanation = "pinned";
@@ -79,6 +91,15 @@ export function buildHoverMarkdown(dep: DependencyMatch, available: boolean): st
 
   if (dep.config) {
     md += `\\\nConfiguration: \`${dep.config}\``;
+  }
+
+  if (resolution) {
+    const provenance =
+      resolution.source.kind === "bom"
+        ? `pinned by \`${resolution.source.organization}:${resolution.source.name}:${resolution.source.bomVersion}\``
+        : `from variable \`${resolution.source.variable}\``;
+    const staleness = resolution.stale ? " *(stale — reload sbt)*" : "";
+    md += `\n\nResolved: \`${resolution.version}\` — ${provenance}${staleness}`;
   }
 
   if (available) {

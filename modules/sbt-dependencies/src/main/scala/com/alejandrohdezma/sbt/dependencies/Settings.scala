@@ -25,6 +25,7 @@ import com.alejandrohdezma.sbt.dependencies.bom.BomReader
 import com.alejandrohdezma.sbt.dependencies.bom.ModuleFetcher
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
+import com.alejandrohdezma.sbt.dependencies.io.ResolutionsDump
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
@@ -185,7 +186,20 @@ class Settings {
     *
     * It reads poms at load, so it Nil-fasts when neither the project nor its `dependsOn` graph declares `:bom` entries.
     */
-  val dependenciesFromBom: Def.Initialize[Seq[ModuleID]] = Def.settingDyn {
+  val dependenciesFromBom: Def.Initialize[Seq[ModuleID]] = Def.setting {
+    val scalaV = (update / scalaBinaryVersion).value
+
+    implicit val logger: Logger         = sLog.value
+    implicit val fetcher: ModuleFetcher = bomFetcher.value
+
+    visibleBoms.value.flatMap(BomReader.read(_, scalaV)).distinct
+  }
+
+  /** The `:bom` coordinates visible to this project, in precedence order: its own group, then (for non-meta projects)
+    * `common-settings`, then the groups of every project it depends on (transitively, via `dependsOn`), all flattened
+    * with this project's sbt/Scala versions.
+    */
+  private def visibleBoms: Def.Initialize[Seq[ModuleID]] = Def.settingDyn {
     val dependencyRefs = buildDependencies.value.classpathTransitive.getOrElse(thisProjectRef.value, Nil)
 
     val inheritedGroups = dependencyRefs.map(ref => Def.setting(Group((ref / name).value))).join
@@ -195,17 +209,8 @@ class Settings {
       val scalaV = (update / scalaBinaryVersion).value
 
       val variableResolvers = Keys.dependencyVersionVariables.value
-      val repositories      = (update / resolvers).value ++ (update / appResolvers).value.getOrElse(Seq.empty)
-      val options           = (update / updateOptions).value
-      val paths             = (update / ivyPaths).value
 
       implicit val logger: Logger = sLog.value
-
-      BomReader.loadCredentials
-
-      implicit val fetcher: ModuleFetcher = ModuleFetcher.fromIvyDependencyResolution {
-        PluginCompat.ivyDependencyResolution(repositories, options, paths, logger)
-      }
 
       def bomsOf(group: Group): Seq[ModuleID] =
         dependenciesFile.value
@@ -217,8 +222,92 @@ class Settings {
         .++(if (isSbtBuild.value) Nil else bomsOf(`common-settings`))
         .++(inheritedGroups.value.flatMap(bomsOf))
         .distinct
-        .flatMap(BomReader.read(_, scalaV))
-        .distinct
+    }
+  }
+
+  /** A pom fetcher over the project's `update` resolvers, with sbt's conventional credential files loaded first so BOMs
+    * on authenticated repositories resolve.
+    */
+  private def bomFetcher: Def.Initialize[ModuleFetcher] = Def.setting {
+    val repositories = (update / resolvers).value ++ (update / appResolvers).value.getOrElse(Seq.empty)
+    val options      = (update / updateOptions).value
+    val paths        = (update / ivyPaths).value
+
+    implicit val logger: Logger = sLog.value
+
+    BomReader.loadCredentials
+
+    ModuleFetcher.fromIvyDependencyResolution(
+      PluginCompat.ivyDependencyResolution(repositories, options, paths, logger)
+    )
+  }
+
+  /** The structured data behind `target/sbt-dependencies/.sbt-resolutions`: this project's visible BOMs (in precedence
+    * order, each flattened to its pins) and resolved `{{variable}}` dependencies, plus the same for `common-settings`
+    * (whose entry is best-effort: its `*` and variable versions are computed against `common-settings`' own BOMs and
+    * this project's resolvers).
+    *
+    * BOM keys are `organization:name:version@scalaBinaryVersion` — opaque to consumers, unique per flattening. Pin
+    * flattening reuses `BomReader`'s JVM-wide pom cache, already primed by [[dependenciesFromBom]] at load.
+    */
+  val dependencyResolutions: Def.Initialize[Seq[ResolutionsDump.ProjectResolutions]] = Def.setting {
+    val sbtV   = (pluginCrossBuild / sbtBinaryVersion).value
+    val scalaV = (update / scalaBinaryVersion).value
+
+    implicit val logger: Logger         = sLog.value
+    implicit val fetcher: ModuleFetcher = bomFetcher.value
+
+    val variableResolvers = Keys.dependencyVersionVariables.value
+
+    val binaryVersions = {
+      val cross = crossScalaVersions.value.map(CrossVersion.binaryScalaVersion)
+      (scalaV +: cross.filterNot(_ === scalaV)).distinct
+    }
+
+    def flatten(bom: ModuleID): (String, ResolutionsDump.Bom) = {
+      val entries =
+        BomReader.read(bom, scalaV).map(pin => ResolutionsDump.Pin(pin.organization, pin.name, pin.revision))
+
+      val key = s"${bom.organization}:${bom.name}:${bom.revision}@$scalaV"
+
+      key -> ResolutionsDump.Bom(bom.organization, bom.name, bom.revision, entries)
+    }
+
+    def variablesOf(group: Group): Seq[ResolutionsDump.VariableResolution] =
+      dependenciesFile.value.read(group, variableResolvers).flatMap { dependency =>
+        dependency.version match {
+          case Dependency.Version.Variable(variable, Some(resolved)) =>
+            List {
+              ResolutionsDump.VariableResolution(
+                dependency.organization, dependency.name, dependency.isCross, variable, resolved.toVersionString
+              )
+            }
+          case _ => Nil
+        }
+      }
+
+    val own = ResolutionsDump.ProjectResolutions(
+      currentGroup.value.name,
+      binaryVersions,
+      visibleBoms.value.map(flatten),
+      variablesOf(currentGroup.value)
+    )
+
+    if (isSbtBuild.value) List(own)
+    else {
+      val commonBoms = dependenciesFile.value
+        .read(`common-settings`, variableResolvers)
+        .filter(_.configuration === "bom")
+        .map(_.toModuleID(sbtV, scalaV))
+
+      val common = ResolutionsDump.ProjectResolutions(
+        `common-settings`.name,
+        binaryVersions,
+        commonBoms.map(flatten),
+        variablesOf(`common-settings`)
+      )
+
+      List(own, common)
     }
   }
 

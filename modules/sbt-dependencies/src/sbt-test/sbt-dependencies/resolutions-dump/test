@@ -1,0 +1,6 @@
+# On load the plugin dumps each project's BOM pins and variable resolutions to
+# target/sbt-dependencies/.sbt-resolutions for the VSCode extension to read. `reload` re-runs the onLoad hook so
+# the dump reflects the current build; the dump carries BOMs (own group, common-settings and dependsOn-inherited),
+# their flattened pins and resolved `{{variable}}` versions.
+> reload
+> assertDump

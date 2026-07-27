@@ -12,6 +12,9 @@ describe("validateDependencyString", () => {
       ['com.disneystreaming.smithy4s::smithy4s-core:{{smithy4sVersion}}', "variable version"],
       ["org.scalameta::munit:1.0.0:test", "with configuration"],
       ["ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin", "sbt plugin"],
+      ["com.fasterxml.jackson.core:jackson-databind:*", "BOM-managed * (Java)"],
+      ["org.typelevel::cats-core:*", "BOM-managed * (Scala)"],
+      ["org.junit.jupiter:junit-jupiter-api:*:test", "BOM-managed * with configuration"],
     ])("%s (%s)", (input) => {
       expect(validateDependencyString(input, 0, 0)).toBeUndefined();
     });
@@ -64,6 +67,18 @@ describe("validateDependencyString", () => {
       const result = validateDependencyString("", 0, 0);
       expect(result!.severity).toBe("error");
       expect(result!.source).toBe("sbt-dependencies");
+    });
+
+    it("rejects * combined with the bom configuration", () => {
+      const result = validateDependencyString("com.example:my-bom:*:bom", 0, 0);
+      expect(result).toBeDefined();
+      expect(result!.message).toBe('Version "*" cannot be combined with the "bom" configuration — a BOM coordinate cannot take its version from a BOM');
+    });
+
+    it("rejects * combined with the sbt-plugin configuration", () => {
+      const result = validateDependencyString("ch.epfl.scala:sbt-scalafix:*:sbt-plugin", 0, 0);
+      expect(result).toBeDefined();
+      expect(result!.message).toBe('Version "*" cannot be combined with the "sbt-plugin" configuration — BOMs cannot pin sbt plugin coordinates');
     });
   });
 });
@@ -473,6 +488,42 @@ describe("parseDiagnostics", () => {
       const result = parseDiagnostics(lines);
       expect(result).toHaveLength(1);
       expect(result[0].message).toBe('Invalid cross-version value: must be one of "full", "binary", "patch", "disabled"');
+    });
+
+    it("rejects * combined with cross-version full in a single-line object", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "org::art:*", cross-version = "full" }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe('Version "*" cannot be combined with cross-version = "full" — only "binary" and "disabled" are supported');
+    });
+
+    it("rejects * combined with cross-version patch in a multi-line object", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "org::art:*"',
+        '    cross-version = "patch"',
+        '  }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe('Version "*" cannot be combined with cross-version = "patch" — only "binary" and "disabled" are supported');
+    });
+
+    it("accepts * combined with cross-version binary or disabled", () => {
+      for (const value of ["binary", "disabled"]) {
+        const lines = [
+          'my-group = [',
+          `  { dependency = "org::art:*", cross-version = "${value}" }`,
+          ']',
+        ];
+        expect(parseDiagnostics(lines)).toEqual([]);
+      }
     });
   });
 

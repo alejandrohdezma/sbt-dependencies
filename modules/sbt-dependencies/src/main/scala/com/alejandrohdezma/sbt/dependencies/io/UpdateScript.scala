@@ -82,16 +82,13 @@ object UpdateScript {
     if (scripts.isEmpty) "[]"
     else {
       val entries = scripts.map { script =>
-        val escapedScript  = escapeJson(script.script)
-        val escapedMessage = escapeJson(script.message)
+        val escapedScript  = ResolutionsDump.escapeJson(script.script)
+        val escapedMessage = ResolutionsDump.escapeJson(script.message)
 
         s"""  {"script": "$escapedScript", "message": "$escapedMessage"}"""
       }
 
       entries.mkString("[\n", ",\n", "\n]")
     }
-
-  private def escapeJson(s: String): String =
-    s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
 
 }
