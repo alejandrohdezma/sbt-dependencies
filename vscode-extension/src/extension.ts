@@ -5,10 +5,10 @@ import { parseCodeLenses } from "./codelens";
 import { parseResolvedDecorations } from "./resolved-decorations";
 import { dumpPathsFor, parseResolutionsDump, ResolutionsIndex, ResolutionLookup } from "./resolutions";
 import { parsePinnedWithoutNote } from "./dep-codelens";
-import { parseDiagnostics } from "./diagnostics";
+import { parseDiagnostics, parseResolutionDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
 import { COMMON_SETTINGS, SBT_BUILD } from "./groups";
-import { parseDependency, buildHoverMarkdown } from "./hover";
+import { parseDependency, buildHoverMarkdown, HoverResolution } from "./hover";
 import { parseGroupHeader, buildGroupHoverMarkdown } from "./group-hover";
 import { parseDocumentLinks } from "./links";
 import { parseNoteDecorations } from "./note-decorations";
@@ -36,10 +36,16 @@ function updateDiagnostics(
     lines.push(document.lineAt(i).text);
   }
 
-  const results = parseDiagnostics(lines);
+  const lookup = getResolutions(document);
+  const results = [...parseDiagnostics(lines), ...(lookup ? parseResolutionDiagnostics(lines, lookup) : [])];
   const diagnostics = results.map((r) => {
     const range = new vscode.Range(r.range.startLine, r.range.startCol, r.range.endLine, r.range.endCol);
-    const severity = r.severity === "warning" ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
+    const severity =
+      r.severity === "warning"
+        ? vscode.DiagnosticSeverity.Warning
+        : r.severity === "hint"
+          ? vscode.DiagnosticSeverity.Hint
+          : vscode.DiagnosticSeverity.Error;
     const d = new vscode.Diagnostic(range, r.message, severity);
     d.source = r.source;
     return d;
@@ -104,6 +110,49 @@ function getResolutions(document: vscode.TextDocument): ResolutionLookup | undef
   const stale = entry.index.sourceHash !== undefined && entry.index.sourceHash !== bufferHash;
 
   return entry.index.asLookup(stale);
+}
+
+/** The name of the group whose range contains `line`, or `undefined` when outside any group. */
+function groupAtLine(lines: string[], line: number): string | undefined {
+  return parseDocumentSymbols(lines).find(
+    (s) => s.kind === "group" && line >= s.range.startLine && line <= s.range.endLine
+  )?.name;
+}
+
+/**
+ * Resolves the hover provenance for a `*` or `{{variable}}` dependency at `line`, or `undefined` for any other version
+ * or when no dump resolves it.
+ */
+function resolveHoverVersion(
+  document: vscode.TextDocument,
+  line: number,
+  org: string,
+  artifact: string,
+  version: string | undefined,
+  isCross: boolean
+): HoverResolution | undefined {
+  if (version !== "*" && !version?.startsWith("{{")) return undefined;
+
+  const lookup = getResolutions(document);
+  if (!lookup) return undefined;
+
+  const lines: string[] = [];
+  for (let i = 0; i < document.lineCount; i++) lines.push(document.lineAt(i).text);
+
+  const group = groupAtLine(lines, line);
+  if (!group) return undefined;
+
+  if (version === "*") {
+    const w = lookup.resolveWildcard(group, org, artifact, isCross);
+    return w && {
+      version: w.version,
+      stale: lookup.stale,
+      source: { kind: "bom", organization: w.bom.organization, name: w.bom.name, bomVersion: w.bom.version },
+    };
+  }
+
+  const v = lookup.resolveVariable(group, org, artifact, isCross);
+  return v && { version: v.version, stale: lookup.stale, source: { kind: "variable", variable: v.variable } };
 }
 
 /** Cache of Maven Central availability checks. */
@@ -221,9 +270,11 @@ class DependencyHoverProvider implements vscode.HoverProvider {
     const isSbtPlugin = dep.config === "sbt-plugin";
     const available = await checkAvailability(dep.org, dep.artifact, isScala, isSbtPlugin);
 
+    const resolution = resolveHoverVersion(document, position.line, dep.org, dep.artifact, dep.version, isScala);
+
     const md = new vscode.MarkdownString();
     md.isTrusted = true;
-    md.appendMarkdown(buildHoverMarkdown(dep, available));
+    md.appendMarkdown(buildHoverMarkdown(dep, available, resolution));
 
     const matchRange = new vscode.Range(
       position.line, dep.matchStart,
@@ -662,6 +713,27 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
         arguments: [dep.org, dep.artifact],
       };
       actions.push(action);
+
+      // Reverse of the pinned-by-BOM quick-fix: materialize a `*` into the resolved concrete version.
+      if (dep.version === "*") {
+        const confLines: string[] = [];
+        for (let i = 0; i < document.lineCount; i++) confLines.push(document.lineAt(i).text);
+        const group = groupAtLine(confLines, range.start.line);
+        const lookup = getResolutions(document);
+        const resolved = group && lookup ? lookup.resolveWildcard(group, dep.org, dep.artifact, dep.separator === "::") : undefined;
+
+        if (resolved && lookup && !lookup.stale) {
+          const versionStart = dep.matchStart + dep.org.length + dep.separator.length + dep.artifact.length + 1;
+          const rewrite = new vscode.CodeAction(
+            `Replace * with resolved version ${resolved.version}`,
+            vscode.CodeActionKind.RefactorRewrite
+          );
+          const edit = new vscode.WorkspaceEdit();
+          edit.replace(document.uri, new vscode.Range(range.start.line, versionStart, range.start.line, versionStart + 1), resolved.version);
+          rewrite.edit = edit;
+          actions.push(rewrite);
+        }
+      }
     }
 
     // Check if cursor is on a group header line
@@ -697,10 +769,14 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
       const fixes = getQuickFixes(diagnostic.message, diagnostic.range.start.line);
       for (const fix of fixes) {
         const action = new vscode.CodeAction(fix.title, vscode.CodeActionKind.QuickFix);
-        action.isPreferred = true;
         action.diagnostics = [diagnostic];
         const edit = new vscode.WorkspaceEdit();
-        edit.delete(document.uri, document.lineAt(fix.deleteLineIndex).rangeIncludingLineBreak);
+        if (fix.kind === "delete-line") {
+          action.isPreferred = true;
+          edit.delete(document.uri, document.lineAt(fix.deleteLineIndex).rangeIncludingLineBreak);
+        } else {
+          edit.replace(document.uri, diagnostic.range, fix.newText);
+        }
         action.edit = edit;
         actions.push(action);
       }

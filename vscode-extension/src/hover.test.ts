@@ -160,6 +160,33 @@ describe("buildHoverMarkdown", () => {
     expect(md).toContain("Version: `*` *(managed by BOM)*");
   });
 
+  it("shows BOM provenance for a resolved * version", () => {
+    const md = buildHoverMarkdown({ ...baseDep, version: "*" }, false, {
+      version: "2.17.0",
+      stale: false,
+      source: { kind: "bom", organization: "com.fasterxml.jackson", name: "jackson-bom", bomVersion: "2.17.0" },
+    });
+    expect(md).toContain("Resolved: `2.17.0` — pinned by `com.fasterxml.jackson:jackson-bom:2.17.0`");
+  });
+
+  it("shows variable provenance for a resolved {{variable}} version", () => {
+    const md = buildHoverMarkdown({ ...baseDep, version: "{{catsVersion}}" }, false, {
+      version: "2.13.0",
+      stale: false,
+      source: { kind: "variable", variable: "catsVersion" },
+    });
+    expect(md).toContain("Resolved: `2.13.0` — from variable `catsVersion`");
+  });
+
+  it("marks a resolved version as stale when the dump is out of date", () => {
+    const md = buildHoverMarkdown({ ...baseDep, version: "*" }, false, {
+      version: "2.17.0",
+      stale: true,
+      source: { kind: "bom", organization: "com.fasterxml.jackson", name: "jackson-bom", bomVersion: "2.17.0" },
+    });
+    expect(md).toContain("*(stale — reload sbt)*");
+  });
+
   it("shows 'resolved to latest' when no version", () => {
     const md = buildHoverMarkdown({ ...baseDep, version: undefined }, false);
     expect(md).toContain("Version: *resolved to latest*");

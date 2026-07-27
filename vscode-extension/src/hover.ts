@@ -50,13 +50,23 @@ export function buildMvnRepositoryUrl(dep: DependencyMatch): string {
   return `https://mvnrepository.com/artifact/${dep.org}/${artifactForUrl}`;
 }
 
+/** A resolved version shown on hover, together with where it came from. */
+export interface HoverResolution {
+  version: string;
+  stale: boolean;
+  source:
+    | { kind: "bom"; organization: string; name: string; bomVersion: string }
+    | { kind: "variable"; variable: string };
+}
+
 /**
  * Builds the full markdown hover string for a dependency.
  *
  * Includes organization, artifact, version marker explanation,
- * configuration, and optionally a link to mvnrepository.com.
+ * configuration, the resolved version and its provenance (for `*`/`{{variable}}` deps),
+ * and optionally a link to mvnrepository.com.
  */
-export function buildHoverMarkdown(dep: DependencyMatch, available: boolean): string {
+export function buildHoverMarkdown(dep: DependencyMatch, available: boolean, resolution?: HoverResolution): string {
   let md = `**${dep.org}** \`${dep.separator}\` **${dep.artifact}**\n\n`;
 
   if (dep.version) {
@@ -81,6 +91,15 @@ export function buildHoverMarkdown(dep: DependencyMatch, available: boolean): st
 
   if (dep.config) {
     md += `\\\nConfiguration: \`${dep.config}\``;
+  }
+
+  if (resolution) {
+    const provenance =
+      resolution.source.kind === "bom"
+        ? `pinned by \`${resolution.source.organization}:${resolution.source.name}:${resolution.source.bomVersion}\``
+        : `from variable \`${resolution.source.variable}\``;
+    const staleness = resolution.stale ? " *(stale — reload sbt)*" : "";
+    md += `\n\nResolved: \`${resolution.version}\` — ${provenance}${staleness}`;
   }
 
   if (available) {
