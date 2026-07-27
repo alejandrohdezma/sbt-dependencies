@@ -319,6 +319,16 @@ final case class DependenciesFile(file: File) {
   def hasGroup(group: Group): Boolean =
     readGroups().contains(group)
 
+  /** Reads the Scala versions declared by every group in the file, as authored (markers preserved, groups with none
+    * mapping to an empty list). Unlike [[readScalaVersions(group:* the single-group overload]] it does not default a
+    * missing marker, so callers see exactly what the file declares.
+    *
+    * @return
+    *   A map of every group to its declared Scala versions.
+    */
+  def readScalaVersions(): Map[Group, List[Numeric]] =
+    readGroups().map { case (group, config) => group -> config.scalaVersions }
+
   /** Reads the HOCON file as a map of groups to group configurations.
     *
     * Supports two formats:
