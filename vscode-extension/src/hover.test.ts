@@ -52,6 +52,21 @@ describe("parseDependency", () => {
     expect(result!.config).toBe("test");
   });
 
+  it("parses BOM-managed * version", () => {
+    const result = parseDependency('"org.typelevel::cats-core:*"');
+    expect(result).toBeDefined();
+    expect(result!.artifact).toBe("cats-core");
+    expect(result!.version).toBe("*");
+    expect(result!.config).toBeUndefined();
+  });
+
+  it("parses BOM-managed * version with configuration", () => {
+    const result = parseDependency('"org.junit.jupiter:junit-jupiter-api:*:test"');
+    expect(result).toBeDefined();
+    expect(result!.version).toBe("*");
+    expect(result!.config).toBe("test");
+  });
+
   it("parses dep with sbt-plugin configuration", () => {
     const result = parseDependency('"ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin"');
     expect(result).toBeDefined();
@@ -138,6 +153,11 @@ describe("buildHoverMarkdown", () => {
   it("shows 'resolved from variable' for variable version", () => {
     const md = buildHoverMarkdown({ ...baseDep, version: "{{smithy4sVersion}}" }, false);
     expect(md).toContain("Version: `{{smithy4sVersion}}` *(resolved from variable)*");
+  });
+
+  it("shows 'managed by BOM' for * version", () => {
+    const md = buildHoverMarkdown({ ...baseDep, version: "*" }, false);
+    expect(md).toContain("Version: `*` *(managed by BOM)*");
   });
 
   it("shows 'resolved to latest' when no version", () => {

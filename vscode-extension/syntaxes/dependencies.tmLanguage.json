@@ -132,16 +132,17 @@
       ]
     },
     "dependency-content": {
-      "match": "([^\\s:\"]+)(::?)([^\\s:\"]+)(?:(:)(?:(\\{\\{\\w+\\}\\})|([=^~]?)(\\d[^\\s:\"]*))(?:(:[^\\s:\"]+))?)?",
+      "match": "([^\\s:\"]+)(::?)([^\\s:\"]+)(?:(:)(?:(\\{\\{\\w+\\}\\})|(\\*)|([=^~]?)(\\d[^\\s:\"]*))(?:(:[^\\s:\"]+))?)?",
       "captures": {
         "1": { "name": "entity.name.namespace.organization.sbt-dependencies" },
         "2": { "name": "punctuation.separator.sbt-dependencies" },
         "3": { "name": "entity.name.function.artifact.sbt-dependencies" },
         "4": { "name": "punctuation.separator.sbt-dependencies" },
         "5": { "name": "variable.other.readwrite.sbt-dependencies" },
-        "6": { "name": "keyword.control.version-marker.sbt-dependencies" },
-        "7": { "name": "constant.numeric.version.sbt-dependencies" },
-        "8": { "name": "support.constant.configuration.sbt-dependencies" }
+        "6": { "name": "constant.language.bom-version.sbt-dependencies" },
+        "7": { "name": "keyword.control.version-marker.sbt-dependencies" },
+        "8": { "name": "constant.numeric.version.sbt-dependencies" },
+        "9": { "name": "support.constant.configuration.sbt-dependencies" }
       }
     },
     "variable-reference": {

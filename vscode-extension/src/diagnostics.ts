@@ -3,6 +3,18 @@ import { walkDocument, objectDepFieldPattern, objectNoteFieldPattern, objectIntr
 const legalCrossVersionValues = ["full", "binary", "patch", "disabled"] as const;
 const missingAnnotationMessage = "Object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field";
 const invalidCrossVersionMessage = `Invalid cross-version value: must be one of ${legalCrossVersionValues.map(v => `"${v}"`).join(", ")}`;
+const wildcardBomConfigMessage = 'Version "*" cannot be combined with the "bom" configuration — a BOM coordinate cannot take its version from a BOM';
+const wildcardSbtPluginConfigMessage = 'Version "*" cannot be combined with the "sbt-plugin" configuration — BOMs cannot pin sbt plugin coordinates';
+
+/** Cross-versions a `*` version supports; `full`/`patch` are rejected because BOM entries are looked up by binary suffix. */
+const wildcardCrossVersionMessage = (value: string) =>
+  `Version "*" cannot be combined with cross-version = "${value}" — only "binary" and "disabled" are supported`;
+
+/** Whether a dependency string declares the BOM-managed `*` version. */
+function isWildcardDependency(content: string): boolean {
+  const m = dependencyValidationPattern.exec(content);
+  return m?.[4] === "*";
+}
 
 export interface DiagnosticResult {
   message: string;
@@ -54,6 +66,16 @@ export function validateDependencyString(
   const version = m[4];
   if (!version) {
     return { message: 'Missing version: expected format "org:artifact:version"', severity: "error", source: "sbt-dependencies", range };
+  }
+  if (version === "*") {
+    const config = m[5];
+    if (config === "bom") {
+      return { message: wildcardBomConfigMessage, severity: "error", source: "sbt-dependencies", range };
+    }
+    if (config === "sbt-plugin") {
+      return { message: wildcardSbtPluginConfigMessage, severity: "error", source: "sbt-dependencies", range };
+    }
+    return undefined;
   }
   if (!/^\{\{.*\}\}$/.test(version)) {
     const first = version[0];
@@ -109,6 +131,14 @@ function validateObjectEntry(
     const valueStartCol = objectStartCol + cvMatch.index + cvMatch[0].indexOf('"') + 1;
     diagnostics.push({
       message: invalidCrossVersionMessage,
+      severity: "error",
+      source: "sbt-dependencies",
+      range: { startLine: lineIndex, startCol: valueStartCol, endLine: lineIndex, endCol: valueStartCol + cvMatch[1].length },
+    });
+  } else if (cvMatch && (cvMatch[1] === "full" || cvMatch[1] === "patch") && isWildcardDependency(depMatch[1])) {
+    const valueStartCol = objectStartCol + cvMatch.index + cvMatch[0].indexOf('"') + 1;
+    diagnostics.push({
+      message: wildcardCrossVersionMessage(cvMatch[1]),
       severity: "error",
       source: "sbt-dependencies",
       range: { startLine: lineIndex, startCol: valueStartCol, endLine: lineIndex, endCol: valueStartCol + cvMatch[1].length },
@@ -237,6 +267,17 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
         } else if (!event.hasNote && !event.hasIntransitive && !event.hasScalaFilter && !event.hasCrossVersion) {
           diagnostics.push({
             message: missingAnnotationMessage,
+            severity: "error",
+            source: "sbt-dependencies",
+            range: { startLine: event.objectStartLine, startCol: 0, endLine: event.lineIndex, endCol: event.rawLine.length },
+          });
+        } else if (
+          (event.crossVersionValue === "full" || event.crossVersionValue === "patch") &&
+          event.dependencyValue !== undefined &&
+          isWildcardDependency(event.dependencyValue)
+        ) {
+          diagnostics.push({
+            message: wildcardCrossVersionMessage(event.crossVersionValue),
             severity: "error",
             source: "sbt-dependencies",
             range: { startLine: event.objectStartLine, startCol: 0, endLine: event.lineIndex, endCol: event.rawLine.length },

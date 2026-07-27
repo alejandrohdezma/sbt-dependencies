@@ -14,11 +14,11 @@ export interface DependencyMatch {
  * - Group 1: organization (e.g. `org.typelevel`)
  * - Group 2: separator (`:` for Java, `::` for Scala)
  * - Group 3: artifact name (e.g. `cats-core`)
- * - Group 4: version (e.g. `^2.10.0`), if present
+ * - Group 4: version (e.g. `^2.10.0`, `{{catsVersion}}` or `*`), if present
  * - Group 5: configuration (e.g. `sbt-plugin`), if present
  */
 export const dependencyPattern =
-  /([^\s:"]+)(::?)([^\s:"]+)(?::(\{\{\w+\}\}|[=^~]?\d[^\s:"]*)(?::([^\s:"]+))?)?/g;
+  /([^\s:"]+)(::?)([^\s:"]+)(?::(\{\{\w+\}\}|\*|[=^~]?\d[^\s:"]*)(?::([^\s:"]+))?)?/g;
 
 /**
  * Runs the dependency regex against a line and returns parsed fields,
@@ -61,7 +61,9 @@ export function buildHoverMarkdown(dep: DependencyMatch, available: boolean): st
 
   if (dep.version) {
     let explanation: string;
-    if (dep.version.startsWith("{{")) {
+    if (dep.version === "*") {
+      explanation = "managed by BOM";
+    } else if (dep.version.startsWith("{{")) {
       explanation = "resolved from variable";
     } else if (dep.version.startsWith("=")) {
       explanation = "pinned";
