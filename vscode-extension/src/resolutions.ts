@@ -109,6 +109,11 @@ export class ResolutionsIndex {
     return this.main !== undefined || this.meta !== undefined;
   }
 
+  /** The SHA-1 of `dependencies.conf` recorded when the dump was written, for staleness checks. */
+  get sourceHash(): string | undefined {
+    return this.main?.sourceHash ?? this.meta?.sourceHash;
+  }
+
   private dumpFor(group: string): ResolutionsDump | undefined {
     return group === SBT_BUILD_GROUP ? this.meta : this.main;
   }

@@ -140,4 +140,10 @@ describe("ResolutionsIndex", () => {
     expect(lookup.stale).toBe(true);
     expect(lookup.pinFor("myproject", "com.fasterxml.jackson.core", "jackson-databind", false)?.version).toBe("2.17.0");
   });
+
+  it("exposes the source hash, preferring the main dump", () => {
+    expect(new ResolutionsIndex({ ...dump, sourceHash: "abc" }, undefined).sourceHash).toBe("abc");
+    expect(new ResolutionsIndex(undefined, { ...metaDump, sourceHash: "meta" }).sourceHash).toBe("meta");
+    expect(new ResolutionsIndex(dump, undefined).sourceHash).toBeUndefined();
+  });
 });

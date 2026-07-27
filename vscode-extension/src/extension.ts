@@ -1,6 +1,9 @@
 import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { parseCodeLenses } from "./codelens";
+import { parseResolvedDecorations } from "./resolved-decorations";
+import { dumpPathsFor, parseResolutionsDump, ResolutionsIndex, ResolutionLookup } from "./resolutions";
 import { parsePinnedWithoutNote } from "./dep-codelens";
 import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
@@ -43,6 +46,64 @@ function updateDiagnostics(
   });
 
   collection.set(document.uri, diagnostics);
+}
+
+/** Cache of parsed resolutions dumps, keyed by conf path and invalidated when either dump's mtime changes. */
+const resolutionsCache = new Map<string, { index: ResolutionsIndex; mainMtime: number; metaMtime: number }>();
+
+/** The file's modification time in millis, or `0` when it doesn't exist. */
+function mtimeOf(filePath: string): number {
+  try {
+    return fs.statSync(filePath).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+/** Reads and parses a dump file, returning `undefined` when absent or malformed. */
+function readDump(filePath: string) {
+  try {
+    return parseResolutionsDump(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Returns a resolution lookup for a `dependencies.conf` document, or `undefined` when no dump exists (feature off).
+ *
+ * The parsed dumps are cached and only re-read when a dump's mtime changes. Staleness is an exact SHA-1 mismatch
+ * between the current buffer and the hash the plugin recorded when it wrote the dump.
+ */
+function getResolutions(document: vscode.TextDocument): ResolutionLookup | undefined {
+  if (document.languageId !== "sbt-dependencies") return undefined;
+
+  const conf = document.uri.fsPath;
+  const { main, meta } = dumpPathsFor(conf);
+  const mainMtime = mtimeOf(main);
+  const metaMtime = mtimeOf(meta);
+
+  if (mainMtime === 0 && metaMtime === 0) {
+    resolutionsCache.delete(conf);
+    return undefined;
+  }
+
+  let entry = resolutionsCache.get(conf);
+  if (!entry || entry.mainMtime !== mainMtime || entry.metaMtime !== metaMtime) {
+    entry = {
+      index: new ResolutionsIndex(mainMtime ? readDump(main) : undefined, metaMtime ? readDump(meta) : undefined),
+      mainMtime,
+      metaMtime,
+    };
+    resolutionsCache.set(conf, entry);
+  }
+
+  if (!entry.index.hasData) return undefined;
+
+  const bufferHash = crypto.createHash("sha1").update(document.getText(), "utf8").digest("hex");
+  const stale = entry.index.sourceHash !== undefined && entry.index.sourceHash !== bufferHash;
+
+  return entry.index.asLookup(stale);
 }
 
 /** Cache of Maven Central availability checks. */
@@ -947,6 +1008,43 @@ function applyNoteDecorations(editor: vscode.TextEditor): void {
   editor.setDecorations(noteDecorationType, noteRanges);
 }
 
+/** Decoration type used as a container for per-line `after` resolved-version text. */
+const resolvedDecorationType = vscode.window.createTextEditorDecorationType({});
+
+/**
+ * Applies resolved-version decorations to a text editor, rendering the concrete version of `*` and `{{variable}}`
+ * dependencies (from the plugin's resolutions dump) as ghost text after the dependency string.
+ *
+ * A no-op that clears any existing decorations when no dump is available for the document.
+ */
+function applyResolvedDecorations(editor: vscode.TextEditor): void {
+  if (editor.document.languageId !== "sbt-dependencies") return;
+
+  const lookup = getResolutions(editor.document);
+  if (!lookup) {
+    editor.setDecorations(resolvedDecorationType, []);
+    return;
+  }
+
+  const lines: string[] = [];
+  for (let i = 0; i < editor.document.lineCount; i++) {
+    lines.push(editor.document.lineAt(i).text);
+  }
+
+  const decorations: vscode.DecorationOptions[] = parseResolvedDecorations(lines, lookup).map((d) => ({
+    range: new vscode.Range(d.line, d.afterCol, d.line, d.afterCol),
+    renderOptions: {
+      after: {
+        contentText: d.text,
+        color: new vscode.ThemeColor("editorLineNumber.foreground"),
+        fontStyle: "italic",
+      },
+    },
+  }));
+
+  editor.setDecorations(resolvedDecorationType, decorations);
+}
+
 /** Registers providers, commands, and diagnostics. */
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: "sbt-dependencies", scheme: "file" };
@@ -1063,6 +1161,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const editor = vscode.window.activeTextEditor;
       if (editor && editor.document === e.document) {
         applyNoteDecorations(editor);
+        applyResolvedDecorations(editor);
       }
     }),
     vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri)),
@@ -1070,11 +1169,26 @@ export function activate(context: vscode.ExtensionContext): void {
       applyNoteDecorations(e.textEditor);
     }),
     vscode.window.onDidChangeActiveTextEditor(editor => {
-      if (editor) applyNoteDecorations(editor);
+      if (editor) {
+        applyNoteDecorations(editor);
+        applyResolvedDecorations(editor);
+      }
     })
   );
 
-  context.subscriptions.push(hideDecorationType, noteDecorationType);
+  // Refresh resolved-version decorations when the plugin rewrites its dump on sbt (re)load.
+  const resolutionsWatcher = vscode.workspace.createFileSystemWatcher("**/target/sbt-dependencies/.sbt-resolutions");
+  const refreshResolutions = () => {
+    resolutionsCache.clear();
+    for (const editor of vscode.window.visibleTextEditors) {
+      applyResolvedDecorations(editor);
+    }
+  };
+  resolutionsWatcher.onDidCreate(refreshResolutions);
+  resolutionsWatcher.onDidChange(refreshResolutions);
+  resolutionsWatcher.onDidDelete(refreshResolutions);
+
+  context.subscriptions.push(hideDecorationType, noteDecorationType, resolvedDecorationType, resolutionsWatcher);
 
   vscode.workspace.textDocuments.forEach(doc => {
     updateDiagnostics(doc, diagnostics);
@@ -1084,6 +1198,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   if (vscode.window.activeTextEditor) {
     applyNoteDecorations(vscode.window.activeTextEditor);
+    applyResolvedDecorations(vscode.window.activeTextEditor);
   }
 }
 
