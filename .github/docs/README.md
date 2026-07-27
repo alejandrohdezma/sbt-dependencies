@@ -97,6 +97,8 @@ The plugin automatically populates `libraryDependencies` for each project based 
 
 An extension for VS Code and Cursor is available that provides syntax highlighting for `dependencies.conf` files. It highlights organizations, artifacts, versions, version markers, configurations, variable references, and comments.
 
+To power the extension's inline resolved versions and BOM provenance for `*` and `{{variable}}` dependencies, the plugin writes a `target/sbt-dependencies/.sbt-resolutions` file on every load — a JSON snapshot of each project's visible BOM pins and resolved variable versions. It never fails the build and is a no-op for builds without `dependencies.conf`.
+
 See the [extension's README](vscode-extension/README.md) for installation and usage instructions.
 
 ## How to...
