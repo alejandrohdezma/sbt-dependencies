@@ -16,6 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies.bom
 
+import java.util.concurrent.ConcurrentHashMap
+
 import scala.annotation.tailrec
 
 import sbt._
@@ -37,29 +39,38 @@ import com.alejandrohdezma.sbt.dependencies.model.Eq._
   */
 object BomReader {
 
+  private val cache = new ConcurrentHashMap[(Coords, String), Seq[ModuleID]]()
+
   /** Resolves `bom`'s parent chains and `<scope>import</scope>` tree into a flat, de-duplicated list of managed
     * dependencies, sorted by organization then name. A cross-versioned `bom` gets its artifact name suffixed with
     * `scalaBinaryVersion` before resolving. For BOMs on authenticated repositories, call [[loadCredentials]] first.
+    *
+    * Results are served from a JVM-wide cache keyed by the BOM coordinate and Scala binary version: released poms are
+    * immutable (the same assumption [[Pom.fetch]] makes), so a BOM flattened once is reused across projects — and its
+    * eviction messages are logged only on the first (cache-missing) read rather than once per consumer.
     */
   private[dependencies] def read(bom: ModuleID, scalaBinaryVersion: String)(implicit
       log: Logger,
       fetcher: ModuleFetcher
-  ): Seq[ModuleID] = {
-    val initialCoords = Coords(bom, scalaBinaryVersion)
+  ): Seq[ModuleID] =
+    cache.computeIfAbsent(
+      (Coords(bom, scalaBinaryVersion), scalaBinaryVersion),
+      { case (coords, scalaVersion) =>
+        extract(List((coords, 0)), Map("scala.compat.version" -> scalaVersion))
+          .groupBy(_._1.module)
+          .toList
+          .map { case (_, versions) =>
+            val best    = versions.minBy(_._2)._1
+            val evicted = versions.map(_._1.version).distinct.filterNot(_ === best.version)
 
-    extract(List((initialCoords, 0)), Map("scala.compat.version" -> scalaBinaryVersion))
-      .groupBy(_._1.module)
-      .toList
-      .map { case (_, versions) =>
-        val best    = versions.minBy(_._2)._1
-        val evicted = versions.map(_._1.version).distinct.filterNot(_ === best.version)
+            if (evicted.nonEmpty)
+              log.info(s"BOM $coords pins ${best.module} to ${best.version}, ignoring ${evicted.mkString(", ")}")
 
-        if (evicted.nonEmpty) log.info(s"$best. Evicting versions ${evicted.mkString(", ")}")
-
-        best.toModuleID
+            best.toModuleID
+          }
+          .sortBy(m => (m.organization, m.name))
       }
-      .sortBy(m => (m.organization, m.name))
-  }
+    )
 
   /** Breadth-first walk over the import tree: plain entries are collected with the priority of the pom that declared
     * them, imported BOMs are enqueued one level further away.

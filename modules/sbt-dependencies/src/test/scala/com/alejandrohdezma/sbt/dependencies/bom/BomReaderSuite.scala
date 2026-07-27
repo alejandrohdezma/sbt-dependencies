@@ -21,6 +21,7 @@ import java.nio.file.Files
 import scala.annotation.nowarn
 
 import sbt._
+import sbt.util.Level
 import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
@@ -81,6 +82,37 @@ class BomReaderSuite extends munit.FunSuite {
     val flattened = BomReader.read(ModuleID("com.example.eviction", "root-bom", "1.0.0"), "2.13")
 
     assertEquals(flattened.toList, List(ModuleID("org.example", "protobuf", "3.0.0")))
+  }
+
+  test("BomReader.read caches results, so evictions are logged once across repeated reads") {
+    implicit val logger: TestLogger = TestLogger()
+
+    implicit val fetcher: ModuleFetcher = module =>
+      pomArtifact(module) {
+        module.name match {
+          case "root-bom" =>
+            """<dependencyManagement><dependencies>
+              |  <dependency><groupId>org.example</groupId><artifactId>protobuf</artifactId><version>3.0.0</version></dependency>
+              |  <dependency><groupId>com.example.cachelog</groupId><artifactId>imported-bom</artifactId><version>1.0.0</version><type>pom</type><scope>import</scope></dependency>
+              |</dependencies></dependencyManagement>""".stripMargin
+          case _ =>
+            """<dependencyManagement><dependencies>
+              |  <dependency><groupId>org.example</groupId><artifactId>protobuf</artifactId><version>4.0.0</version></dependency>
+              |</dependencies></dependencyManagement>""".stripMargin
+        }
+      }
+
+    val bom = ModuleID("com.example.cachelog", "root-bom", "1.0.0")
+
+    val first  = BomReader.read(bom, "2.13")
+    val second = BomReader.read(bom, "2.13")
+
+    assertEquals(first.toList, second.toList)
+
+    assertEquals(
+      logger.getLogs(Level.Info).filter(_.contains("ignoring")),
+      List("BOM com.example.cachelog:root-bom:1.0.0 pins org.example:protobuf to 3.0.0, ignoring 4.0.0")
+    )
   }
 
   test("BomReader.read suffixes cross-versioned BOMs and seeds scala.compat.version") {
