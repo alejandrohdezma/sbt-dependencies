@@ -1019,8 +1019,8 @@ class PinnedDepCodeLensProvider implements vscode.CodeLensProvider {
       const range = new vscode.Range(data.line, 0, data.line, 0);
       const title =
         data.reason === "intransitive"
-          ? '$(info) Intransitive without note — consider adding note = "..."'
-          : '$(info) Pinned without note — consider adding { dependency = "...", note = "..." }';
+          ? '$(info) Intransitive without note — consider adding note = "..."'
+          : '$(info) Pinned without note — consider adding { dependency = "...", note = "..." }';
       return new vscode.CodeLens(range, {
         title,
         command: "sbt-dependencies.addDependencyNote",
@@ -1056,7 +1056,7 @@ class BomManagedCodeLensProvider implements vscode.CodeLensProvider {
     return parseBomManagedVersions(lines, lookup).map((data) => {
       const range = new vscode.Range(data.line, 0, data.line, 0);
       return new vscode.CodeLens(range, {
-        title: `$(sparkle) Managed by ${data.bomName} — replace ${data.version} with *`,
+        title: `$(sparkle) Managed by ${data.bomName} — replace ${data.version} with *`,
         command: "sbt-dependencies.useBomManagedVersion",
         arguments: [data.line],
       });
