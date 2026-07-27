@@ -1,19 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateDependencyString, parseDiagnostics, parseResolutionDiagnostics } from "./diagnostics";
-import { ResolutionLookup } from "./resolutions";
-
-/** A fake lookup that pins jackson-databind (Java) via a jackson BOM for the `my-group` group. */
-function fakePinLookup(stale = false): ResolutionLookup {
-  return {
-    resolveWildcard: () => undefined,
-    resolveVariable: () => undefined,
-    pinFor: (group, org, name) =>
-      group === "my-group" && org === "com.fasterxml.jackson.core" && name === "jackson-databind"
-        ? { version: "2.17.0", bom: { organization: "com.fasterxml.jackson", name: "jackson-bom", version: "2.17.0" } }
-        : undefined,
-    stale,
-  };
-}
+import { validateDependencyString, parseDiagnostics } from "./diagnostics";
 
 describe("validateDependencyString", () => {
   describe("valid inputs", () => {
@@ -592,42 +578,5 @@ describe("parseDiagnostics", () => {
       expect(result).toHaveLength(1);
       expect(result[0].range.startLine).toBe(4);
     });
-  });
-});
-
-describe("parseResolutionDiagnostics", () => {
-  it("emits a hint on the version token for a dependency a visible BOM pins", () => {
-    const lines = [
-      "my-group = [",
-      '  "com.fasterxml.jackson.core:jackson-databind:2.16.0"',
-      "]",
-    ];
-    const result = parseResolutionDiagnostics(lines, fakePinLookup());
-    expect(result).toHaveLength(1);
-    expect(result[0].severity).toBe("hint");
-    expect(result[0].message).toBe("jackson-databind is pinned by com.fasterxml.jackson:jackson-bom at 2.17.0");
-    // the range covers exactly the version token
-    const { startCol, endCol } = result[0].range;
-    expect(lines[1].slice(startCol, endCol)).toBe("2.16.0");
-  });
-
-  it("is suppressed entirely when the dump is stale", () => {
-    const lines = [
-      "my-group = [",
-      '  "com.fasterxml.jackson.core:jackson-databind:2.16.0"',
-      "]",
-    ];
-    expect(parseResolutionDiagnostics(lines, fakePinLookup(true))).toEqual([]);
-  });
-
-  it("does not hint * or variable versions, nor artifacts no BOM pins", () => {
-    const lines = [
-      "my-group = [",
-      '  "com.fasterxml.jackson.core:jackson-databind:*"',
-      '  "com.fasterxml.jackson.core:jackson-databind:{{v}}"',
-      '  "com.unknown:thing:1.0.0"',
-      "]",
-    ];
-    expect(parseResolutionDiagnostics(lines, fakePinLookup())).toEqual([]);
   });
 });

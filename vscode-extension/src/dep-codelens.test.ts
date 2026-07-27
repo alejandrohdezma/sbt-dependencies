@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { parsePinnedWithoutNote } from "./dep-codelens";
+import { parsePinnedWithoutNote, parseBomManagedVersions } from "./dep-codelens";
+import { ResolutionLookup } from "./resolutions";
+
+/** A fake lookup that pins jackson-databind (Java) for the `my-group` group. */
+function fakePinLookup(stale = false): ResolutionLookup {
+  return {
+    resolveWildcard: () => undefined,
+    resolveVariable: () => undefined,
+    pinFor: (group, org, name) =>
+      group === "my-group" && org === "com.fasterxml.jackson.core" && name === "jackson-databind"
+        ? { version: "2.18.2", bom: { organization: "com.fasterxml.jackson", name: "jackson-bom", version: "2.18.2" } }
+        : undefined,
+    stale,
+  };
+}
 
 describe("parsePinnedWithoutNote", () => {
   it("returns pinned dep with = marker in simple group", () => {
@@ -223,5 +237,38 @@ describe("parsePinnedWithoutNote", () => {
     ];
     const results = parsePinnedWithoutNote(lines);
     expect(results).toHaveLength(0);
+  });
+});
+
+describe("parseBomManagedVersions", () => {
+  it("flags a hardcoded version a visible BOM manages", () => {
+    const lines = [
+      "my-group = [",
+      '  "com.fasterxml.jackson.core:jackson-databind:2.16.0"',
+      "]",
+    ];
+    const results = parseBomManagedVersions(lines, fakePinLookup());
+    expect(results).toEqual([{ line: 1, version: "2.16.0", bomName: "jackson-bom" }]);
+  });
+
+  it("ignores *, variable, bom and sbt-plugin entries, and artifacts no BOM pins", () => {
+    const lines = [
+      "my-group = [",
+      '  "com.fasterxml.jackson.core:jackson-databind:*"',
+      '  "com.fasterxml.jackson.core:jackson-databind:{{v}}"',
+      '  "com.fasterxml.jackson:jackson-bom:2.18.2:bom"',
+      '  "com.unknown:thing:1.0.0"',
+      "]",
+    ];
+    expect(parseBomManagedVersions(lines, fakePinLookup())).toEqual([]);
+  });
+
+  it("isolates the lookup to the dependency's own group", () => {
+    const lines = [
+      "other-group = [",
+      '  "com.fasterxml.jackson.core:jackson-databind:2.16.0"',
+      "]",
+    ];
+    expect(parseBomManagedVersions(lines, fakePinLookup())).toEqual([]);
   });
 });

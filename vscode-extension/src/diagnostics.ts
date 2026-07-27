@@ -1,6 +1,4 @@
 import { walkDocument, objectDepFieldPattern, objectNoteFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern, objectCrossVersionFieldPattern } from "./parser";
-import { parseDependency } from "./hover";
-import { ResolutionLookup } from "./resolutions";
 
 const legalCrossVersionValues = ["full", "binary", "patch", "disabled"] as const;
 const missingAnnotationMessage = "Object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field";
@@ -20,7 +18,7 @@ function isWildcardDependency(content: string): boolean {
 
 export interface DiagnosticResult {
   message: string;
-  severity: "error" | "warning" | "hint";
+  severity: "error" | "warning";
   source: "sbt-dependencies";
   range: { startLine: number; startCol: number; endLine: number; endCol: number };
 }
@@ -288,57 +286,6 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
         break;
       }
     }
-  }
-
-  return diagnostics;
-}
-
-/**
- * Scans plain dependency strings for numeric-versioned deps that a visible BOM pins, emitting a `hint` on the version
- * token suggesting it could be replaced with `*`. Suppressed entirely when the dump is stale (to avoid rewrites from
- * out-of-date data).
- *
- * ponytail: plain-string-only and whitespace-free — object-form deps and internal spacing aren't hinted; the version
- * token position is computed from the string tail, which holds for real (unspaced) dependency strings.
- */
-export function parseResolutionDiagnostics(lines: string[], lookup: ResolutionLookup): DiagnosticResult[] {
-  if (lookup.stale) return [];
-
-  const diagnostics: DiagnosticResult[] = [];
-  let group: string | undefined;
-
-  for (const event of walkDocument(lines)) {
-    if (event.type === "group-start") {
-      group = event.name;
-      continue;
-    }
-    if (event.type === "group-end") {
-      group = undefined;
-      continue;
-    }
-    if (event.type !== "dependency-string" || group === undefined) continue;
-
-    const dep = parseDependency(event.content);
-    if (!dep?.version || dep.version === "*" || dep.version.startsWith("{{")) continue;
-    if (dep.config === "bom" || dep.config === "sbt-plugin") continue;
-
-    const pin = lookup.pinFor(group, dep.org, dep.artifact, dep.separator === "::");
-    if (!pin) continue;
-
-    const versionEnd = dep.config ? event.content.length - dep.config.length - 1 : event.content.length;
-    const versionStart = versionEnd - dep.version.length;
-
-    diagnostics.push({
-      message: `${dep.artifact} is pinned by ${pin.bom.organization}:${pin.bom.name} at ${pin.version}`,
-      severity: "hint",
-      source: "sbt-dependencies",
-      range: {
-        startLine: event.lineIndex,
-        startCol: event.startCol + versionStart,
-        endLine: event.lineIndex,
-        endCol: event.startCol + versionEnd,
-      },
-    });
   }
 
   return diagnostics;

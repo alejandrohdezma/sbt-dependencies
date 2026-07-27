@@ -4,8 +4,8 @@ import * as vscode from "vscode";
 import { parseCodeLenses } from "./codelens";
 import { parseResolvedDecorations } from "./resolved-decorations";
 import { dumpPathsFor, parseResolutionsDump, ResolutionsIndex, ResolutionLookup } from "./resolutions";
-import { parsePinnedWithoutNote } from "./dep-codelens";
-import { parseDiagnostics, parseResolutionDiagnostics } from "./diagnostics";
+import { parsePinnedWithoutNote, parseBomManagedVersions } from "./dep-codelens";
+import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
 import { COMMON_SETTINGS, SBT_BUILD } from "./groups";
 import { parseDependency, buildHoverMarkdown, HoverResolution } from "./hover";
@@ -36,16 +36,10 @@ function updateDiagnostics(
     lines.push(document.lineAt(i).text);
   }
 
-  const lookup = getResolutions(document);
-  const results = [...parseDiagnostics(lines), ...(lookup ? parseResolutionDiagnostics(lines, lookup) : [])];
+  const results = parseDiagnostics(lines);
   const diagnostics = results.map((r) => {
     const range = new vscode.Range(r.range.startLine, r.range.startCol, r.range.endLine, r.range.endCol);
-    const severity =
-      r.severity === "warning"
-        ? vscode.DiagnosticSeverity.Warning
-        : r.severity === "hint"
-          ? vscode.DiagnosticSeverity.Hint
-          : vscode.DiagnosticSeverity.Error;
+    const severity = r.severity === "warning" ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
     const d = new vscode.Diagnostic(range, r.message, severity);
     d.source = r.source;
     return d;
@@ -714,20 +708,17 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
       };
       actions.push(action);
 
-      // Reverse of the pinned-by-BOM quick-fix: materialize a `*` into the resolved concrete version.
+      // Materialize a `*` into the resolved concrete version (the forward `version -> *` suggestion is a CodeLens).
       if (dep.version === "*") {
         const confLines: string[] = [];
         for (let i = 0; i < document.lineCount; i++) confLines.push(document.lineAt(i).text);
         const group = groupAtLine(confLines, range.start.line);
-        const lookup = getResolutions(document);
-        const resolved = group && lookup ? lookup.resolveWildcard(group, dep.org, dep.artifact, dep.separator === "::") : undefined;
+        const lookup = group ? getResolutions(document) : undefined;
+        const resolved = lookup && !lookup.stale ? lookup.resolveWildcard(group!, dep.org, dep.artifact, dep.separator === "::") : undefined;
 
-        if (resolved && lookup && !lookup.stale) {
+        if (resolved) {
           const versionStart = dep.matchStart + dep.org.length + dep.separator.length + dep.artifact.length + 1;
-          const rewrite = new vscode.CodeAction(
-            `Replace * with resolved version ${resolved.version}`,
-            vscode.CodeActionKind.RefactorRewrite
-          );
+          const rewrite = new vscode.CodeAction(`Replace * with resolved version ${resolved.version}`, vscode.CodeActionKind.RefactorRewrite);
           const edit = new vscode.WorkspaceEdit();
           edit.replace(document.uri, new vscode.Range(range.start.line, versionStart, range.start.line, versionStart + 1), resolved.version);
           rewrite.edit = edit;
@@ -769,14 +760,10 @@ class DependencyCodeActionProvider implements vscode.CodeActionProvider {
       const fixes = getQuickFixes(diagnostic.message, diagnostic.range.start.line);
       for (const fix of fixes) {
         const action = new vscode.CodeAction(fix.title, vscode.CodeActionKind.QuickFix);
+        action.isPreferred = true;
         action.diagnostics = [diagnostic];
         const edit = new vscode.WorkspaceEdit();
-        if (fix.kind === "delete-line") {
-          action.isPreferred = true;
-          edit.delete(document.uri, document.lineAt(fix.deleteLineIndex).rangeIncludingLineBreak);
-        } else {
-          edit.replace(document.uri, diagnostic.range, fix.newText);
-        }
+        edit.delete(document.uri, document.lineAt(fix.deleteLineIndex).rangeIncludingLineBreak);
         action.edit = edit;
         actions.push(action);
       }
@@ -1001,6 +988,23 @@ async function addDependencyNote(line: number): Promise<void> {
 }
 
 /**
+ * Command handler for the BOM-managed CodeLens: replaces the hardcoded version on `line` with `*`, so the version is
+ * taken from the BOM.
+ */
+async function useBomManagedVersion(line: number): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+
+  const dep = parseDependency(editor.document.lineAt(line).text);
+  if (!dep?.version || dep.version === "*") return;
+
+  const versionStart = dep.matchStart + dep.org.length + dep.separator.length + dep.artifact.length + 1;
+  const range = new vscode.Range(line, versionStart, line, versionStart + dep.version.length);
+
+  await editor.edit((editBuilder) => editBuilder.replace(range, "*"));
+}
+
+/**
  * Provides CodeLens annotations on pinned dependencies (`=`, `^`, `~`) that
  * lack an explanatory note, prompting the user to add one.
  */
@@ -1020,6 +1024,40 @@ class PinnedDepCodeLensProvider implements vscode.CodeLensProvider {
       return new vscode.CodeLens(range, {
         title,
         command: "sbt-dependencies.addDependencyNote",
+        arguments: [data.line],
+      });
+    });
+  }
+}
+
+/**
+ * Provides a CodeLens on hardcoded dependency versions that a visible BOM manages, suggesting they be replaced with
+ * `*`. Refreshes when the resolutions dump changes (via {@link BomManagedCodeLensProvider.refresh}); shows nothing
+ * while the dump is stale, to avoid suggesting rewrites from out-of-date data.
+ */
+class BomManagedCodeLensProvider implements vscode.CodeLensProvider {
+  private readonly emitter = new vscode.EventEmitter<void>();
+  readonly onDidChangeCodeLenses = this.emitter.event;
+
+  /** Signals VS Code to re-query the lenses (called when the dump changes). */
+  refresh(): void {
+    this.emitter.fire();
+  }
+
+  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    const lookup = getResolutions(document);
+    if (!lookup || lookup.stale) return [];
+
+    const lines: string[] = [];
+    for (let i = 0; i < document.lineCount; i++) {
+      lines.push(document.lineAt(i).text);
+    }
+
+    return parseBomManagedVersions(lines, lookup).map((data) => {
+      const range = new vscode.Range(data.line, 0, data.line, 0);
+      return new vscode.CodeLens(range, {
+        title: `$(sparkle) Managed by ${data.bomName} — replace ${data.version} with *`,
+        command: "sbt-dependencies.useBomManagedVersion",
         arguments: [data.line],
       });
     });
@@ -1125,6 +1163,8 @@ function applyResolvedDecorations(editor: vscode.TextEditor): void {
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: "sbt-dependencies", scheme: "file" };
 
+  const bomManagedCodeLensProvider = new BomManagedCodeLensProvider();
+
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
       selector,
@@ -1215,9 +1255,17 @@ export function activate(context: vscode.ExtensionContext): void {
       selector,
       new PinnedDepCodeLensProvider()
     ),
+    vscode.languages.registerCodeLensProvider(
+      selector,
+      bomManagedCodeLensProvider
+    ),
     vscode.commands.registerCommand(
       "sbt-dependencies.addDependencyNote",
       addDependencyNote
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.useBomManagedVersion",
+      useBomManagedVersion
     ),
   );
 
@@ -1253,23 +1301,51 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // Refresh resolved-version decorations when the plugin rewrites its dump on sbt (re)load.
-  const resolutionsWatcher = vscode.workspace.createFileSystemWatcher("**/target/sbt-dependencies/.sbt-resolutions");
   const refreshResolutions = () => {
     resolutionsCache.clear();
     for (const editor of vscode.window.visibleTextEditors) {
       applyResolvedDecorations(editor);
     }
+    bomManagedCodeLensProvider.refresh();
   };
+
+  const resolutionsWatcher = vscode.workspace.createFileSystemWatcher("**/target/sbt-dependencies/.sbt-resolutions");
   resolutionsWatcher.onDidCreate(refreshResolutions);
   resolutionsWatcher.onDidChange(refreshResolutions);
   resolutionsWatcher.onDidDelete(refreshResolutions);
 
-  context.subscriptions.push(hideDecorationType, noteDecorationType, resolvedDecorationType, resolutionsWatcher);
+  // VS Code's watcher is often suppressed for `target/` (e.g. Metals users keep `**/target` in
+  // `files.watcherExclude`), so also poll the dump paths with node's `fs.watchFile`, which ignores that setting.
+  const watchedDumps = new Set<string>();
+  const watchDumps = (document: vscode.TextDocument) => {
+    if (document.languageId !== "sbt-dependencies") return;
+    const { main, meta } = dumpPathsFor(document.uri.fsPath);
+    for (const dump of [main, meta]) {
+      if (watchedDumps.has(dump)) continue;
+      watchedDumps.add(dump);
+      fs.watchFile(dump, { interval: 1000 }, () => refreshResolutions());
+    }
+  };
+
+  context.subscriptions.push(hideDecorationType, noteDecorationType, resolvedDecorationType, resolutionsWatcher, {
+    dispose: () => {
+      watchedDumps.forEach(dump => fs.unwatchFile(dump));
+      watchedDumps.clear();
+    },
+  });
+
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(watchDumps),
+    vscode.window.onDidChangeActiveTextEditor(editor => {
+      if (editor) watchDumps(editor.document);
+    })
+  );
 
   vscode.workspace.textDocuments.forEach(doc => {
     updateDiagnostics(doc, diagnostics);
     warmAvailabilityCache(doc);
     warmRepoUrlCache(doc);
+    watchDumps(doc);
   });
 
   if (vscode.window.activeTextEditor) {
