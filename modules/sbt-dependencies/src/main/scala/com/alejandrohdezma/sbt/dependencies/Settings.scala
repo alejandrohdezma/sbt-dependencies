@@ -21,6 +21,7 @@ import sbt.Keys._
 import sbt.util.Logger
 import sbt.{Keys => _, _}
 
+import com.alejandrohdezma.sbt.dependencies.bom.Bom
 import com.alejandrohdezma.sbt.dependencies.bom.BomReader
 import com.alejandrohdezma.sbt.dependencies.bom.ModuleFetcher
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
@@ -228,7 +229,7 @@ class Settings {
   /** A pom fetcher over the project's `update` resolvers, with sbt's conventional credential files loaded first so BOMs
     * on authenticated repositories resolve.
     */
-  private def bomFetcher: Def.Initialize[ModuleFetcher] = Def.setting {
+  private[dependencies] def bomFetcher: Def.Initialize[ModuleFetcher] = Def.setting {
     val repositories = (update / resolvers).value ++ (update / appResolvers).value.getOrElse(Seq.empty)
     val options      = (update / updateOptions).value
     val paths        = (update / ivyPaths).value
@@ -317,9 +318,7 @@ class Settings {
     * contract `*` versions follow.
     */
   val dependencyOverridesFromBom: Def.Initialize[Seq[ModuleID]] = Def.setting {
-    Keys.dependenciesFromBom.value.foldLeft(Vector.empty[ModuleID]) { (acc, module) =>
-      if (acc.exists(m => m.organization === module.organization && m.name === module.name)) acc else acc :+ module
-    }
+    Bom.dedupeByModule(Keys.dependenciesFromBom.value)
   }
 
   /** Resolves a BOM-managed version (`*`) against the group's flattened BOM pins, failing the build when no BOM pins

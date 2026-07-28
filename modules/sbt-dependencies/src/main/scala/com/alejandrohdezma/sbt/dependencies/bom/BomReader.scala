@@ -46,7 +46,7 @@ object BomReader {
     * `scalaBinaryVersion` before resolving. For BOMs on authenticated repositories, call [[loadCredentials]] first.
     *
     * Results are served from a JVM-wide cache keyed by the BOM coordinate and Scala binary version: released poms are
-    * immutable (the same assumption [[Pom.fetch]] makes), so a BOM flattened once is reused across projects — and its
+    * immutable (the same assumption `Pom.fetch` makes), so a BOM flattened once is reused across projects — and its
     * eviction messages are logged only on the first (cache-missing) read rather than once per consumer.
     */
   private[dependencies] def read(bom: ModuleID, scalaBinaryVersion: String)(implicit
