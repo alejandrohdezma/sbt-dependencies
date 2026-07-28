@@ -231,8 +231,12 @@ object Dependency {
       crossVersion = CrossVersion.disabled
     )
 
-  def fromModuleID(moduleID: ModuleID): Option[Dependency] =
-    Version.Numeric.from(moduleID.revision, Version.Numeric.Marker.NoMarker).map { version =>
+  def fromModuleID(moduleID: ModuleID): Option[Dependency] = {
+    val version: Option[Version] =
+      if (moduleID.revision === "*") Some(Version.Bom(None))
+      else Version.Numeric.from(moduleID.revision, Version.Numeric.Marker.NoMarker)
+
+    version.map { version =>
       // Detect sbt plugins by checking for sbtVersion in extraAttributes
       val isSbtPlugin = moduleID.extraAttributes.contains("e:sbtVersion")
       // Detect compiler plugins by their configuration string (as set by `addCompilerPlugin`)
@@ -248,6 +252,7 @@ object Dependency {
       // write and re-read as `binary`/`disabled` based on the line separator — same loss as before the merge.
       Dependency(moduleID.organization, moduleID.name, version, configuration, crossVersion = moduleID.crossVersion)
     }
+  }
 
   /** Maps an SBT `CrossVersion` to the keyword used by the `cross-version` annotation. Returns `None` for unsupported
     * variants (e.g. `Constant`). The inverse of the parser in `AnnotatedDependency.Resolved.from`.
