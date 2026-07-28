@@ -279,6 +279,27 @@ class DependencySuite extends munit.FunSuite {
     assertEquals(result.get.toLine, "org.typelevel::kind-projector:0.13.3:compiler-plugin")
   }
 
+  test("fromModuleID builds a BOM-managed version from a `*` revision") {
+    val moduleID = ModuleID("com.fasterxml.jackson.core", "jackson-databind", "*")
+
+    val result = Dependency.fromModuleID(moduleID)
+
+    assert(result.isDefined)
+    assertEquals(result.get.version, Version.Bom(None): Version)
+    assertEquals(result.get.toLine, "com.fasterxml.jackson.core:jackson-databind:*")
+  }
+
+  test("fromModuleID builds a BOM-managed version for a cross-compiled `*` dependency") {
+    val moduleID = ModuleID("com.fasterxml.jackson.module", "jackson-module-scala", "*")
+      .withCrossVersion(sbt.librarymanagement.CrossVersion.binary)
+
+    val result = Dependency.fromModuleID(moduleID)
+
+    assert(result.isDefined)
+    assertEquals(result.get.version, Version.Bom(None): Version)
+    assertEquals(result.get.toLine, "com.fasterxml.jackson.module::jackson-module-scala:*")
+  }
+
   // --- toLine tests ---
 
   test("toLine formats cross-compiled dependency") {
