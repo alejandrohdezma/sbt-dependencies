@@ -86,21 +86,11 @@ private[bom] object Pom {
 
   private val cache = new ConcurrentHashMap[Coords, Pom]()
 
-  /** Retrieves `coords`' pom file through the fetcher and parses it. */
-  private def load(coords: Coords)(implicit fetcher: ModuleFetcher, log: Logger): Pom =
-    fetcher
-      .fetch(coords.toModuleID)
-      .collectFirst {
-        case (artifact, file) if artifact.`type` === "pom" || file.getName.endsWith(".pom") =>
-          parse(coords, file)
-      }
-      .getOrElse(sys.error(s"Resolution of $coords returned no pom file"))
-
   /** The pom for `coords`, loaded on first use and served from a JVM-wide cache afterwards: released poms are
     * immutable, so a parsed coordinate can be reused across BOMs, projects and `BomReader.read` calls.
     */
   def fetch(coords: Coords)(implicit fetcher: ModuleFetcher, log: Logger): Pom =
-    cache.computeIfAbsent(coords, load)
+    cache.computeIfAbsent(coords, coords => parse(coords, fetcher.fetch(coords.toModuleID)))
 
   /** Parses a pom file into the `Pom` slice we need — coordinate, optional parent, properties, and managed
     * dependencies. The version falls back to the parent's when the pom declares none.

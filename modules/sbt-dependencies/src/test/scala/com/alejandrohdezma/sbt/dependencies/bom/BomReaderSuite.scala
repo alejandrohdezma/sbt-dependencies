@@ -33,7 +33,7 @@ class BomReaderSuite extends munit.FunSuite {
 
   test("BomReader.read flattens parents and imported BOMs into sorted managed dependencies") {
     implicit val fetcher: ModuleFetcher = module =>
-      pomArtifact(module) {
+      pomFile(module) {
         module.name match {
           case "root-bom" =>
             """<parent><groupId>com.example.flatten</groupId><artifactId>parent-pom</artifactId><version>1.0.0</version></parent>
@@ -65,7 +65,7 @@ class BomReaderSuite extends munit.FunSuite {
 
   test("BomReader.read keeps the nearest declaration when a module is declared twice") {
     implicit val fetcher: ModuleFetcher = module =>
-      pomArtifact(module) {
+      pomFile(module) {
         module.name match {
           case "root-bom" =>
             """<dependencyManagement><dependencies>
@@ -88,7 +88,7 @@ class BomReaderSuite extends munit.FunSuite {
     implicit val logger: TestLogger = TestLogger()
 
     implicit val fetcher: ModuleFetcher = module =>
-      pomArtifact(module) {
+      pomFile(module) {
         module.name match {
           case "root-bom" =>
             """<dependencyManagement><dependencies>
@@ -119,7 +119,7 @@ class BomReaderSuite extends munit.FunSuite {
     implicit val fetcher: ModuleFetcher = module => {
       assertEquals(module.name, "scala-bom_2.13")
 
-      pomArtifact(module) {
+      pomFile(module) {
         """<dependencyManagement><dependencies>
           |  <dependency><groupId>org.example</groupId><artifactId>library_${scala.compat.version}</artifactId><version>1.0.0</version></dependency>
           |</dependencies></dependencyManagement>""".stripMargin
@@ -135,7 +135,7 @@ class BomReaderSuite extends munit.FunSuite {
 
   test("BomReader.read visits each imported BOM once even on import cycles") {
     implicit val fetcher: ModuleFetcher = module =>
-      pomArtifact(module) {
+      pomFile(module) {
         val other = module.name match {
           case "bom-a" => "bom-b"
           case _       => "bom-a"
@@ -157,7 +157,7 @@ class BomReaderSuite extends munit.FunSuite {
     assertEquals(flattened.toList, expected)
   }
 
-  def pomArtifact(module: ModuleID)(body: String): Vector[(Artifact, File)] = {
+  def pomFile(module: ModuleID)(body: String): File = {
     val file = Files.createTempFile(module.name, ".pom").toFile
 
     IO.write(
@@ -171,7 +171,7 @@ class BomReaderSuite extends munit.FunSuite {
          |</project>""".stripMargin
     )
 
-    Vector((Artifact(module.name, "pom", "pom"), file))
+    file
   }
 
 }

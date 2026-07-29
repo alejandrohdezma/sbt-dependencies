@@ -17,10 +17,9 @@
 package com.alejandrohdezma.sbt.dependencies
 
 import sbt.Keys.update
+import sbt.internal.librarymanagement.IvySbt
 import sbt.internal.librarymanagement.ivy.InlineIvyConfiguration
 import sbt.internal.librarymanagement.ivy.IvyCredentials
-import sbt.internal.librarymanagement.ivy.IvyDependencyResolution
-import sbt.librarymanagement.DependencyResolution
 import sbt.util.Logger
 import sbt.{Keys as _, *}
 
@@ -31,16 +30,17 @@ private[dependencies] object PluginCompat {
 
   type UpdateOptions = sbt.internal.librarymanagement.ivy.UpdateOptions
 
-  /** An ivy-backed `DependencyResolution` over the given resolvers. Ivy (not coursier) because coursier does not report
-    * pom-type artifacts, which `BomReader` needs. On sbt 2 the ivy resolver moved to `sbt.internal`.
+  /** An `IvySbt` over the given resolvers, from which pom files can be downloaded directly. Ivy (not coursier) because
+    * coursier does not report pom-type artifacts, which `BomReader` needs. On sbt 2 the ivy configuration moved to
+    * `sbt.internal`.
     */
-  def ivyDependencyResolution(
+  def ivySbt(
       resolvers: Seq[Resolver],
       updateOptions: UpdateOptions,
       ivyPaths: IvyPaths,
       log: Logger
-  ): DependencyResolution =
-    IvyDependencyResolution(
+  ): IvySbt =
+    new IvySbt(
       InlineIvyConfiguration()
         .withResolvers(resolvers.toVector)
         .withUpdateOptions(updateOptions)

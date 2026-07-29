@@ -196,7 +196,7 @@ class PomSuite extends munit.FunSuite {
     implicit val fetcher: ModuleFetcher = module => {
       loads.incrementAndGet()
 
-      pomArtifact(module, parent = None)
+      pomFile(module, parent = None)
     }
 
     val coords = Coords("com.example.cache", "library", UUID.randomUUID().toString)
@@ -208,28 +208,10 @@ class PomSuite extends munit.FunSuite {
     assertEquals(loads.get(), 1)
   }
 
-  test("Pom.fetch picks the pom artifact among the module's artifacts") {
-    implicit val fetcher: ModuleFetcher = module => {
-      val jar = Files.createTempFile(module.name, ".jar").toFile
-
-      (Artifact(module.name, "jar", "jar"), jar) +: pomArtifact(module, parent = None)
-    }
-
-    val pom = Pom.fetch(Coords("com.example.artifacts", "library", "1.0.0"))
-
-    assertEquals(pom.coords, Coords("com.example.artifacts", "library", "1.0.0"))
-  }
-
-  test("Pom.fetch fails when the module has no pom artifact") {
-    implicit val fetcher: ModuleFetcher = _ => Vector.empty
-
-    intercept[RuntimeException](Pom.fetch(Coords("com.example.nopom", "library", "1.0.0")))
-  }
-
   test("Pom.ancestry returns the pom and its parents root-first") {
     val parents = Map("child" -> "middle", "middle" -> "root")
 
-    implicit val fetcher: ModuleFetcher = module => pomArtifact(module, parents.get(module.name))
+    implicit val fetcher: ModuleFetcher = module => pomFile(module, parents.get(module.name))
 
     val pom = Pom.fetch(Coords("com.example.ancestry", "child", "1.0.0"))
 
@@ -239,7 +221,7 @@ class PomSuite extends munit.FunSuite {
   test("Pom.ancestry fails when the parent chain forms a cycle") {
     val parents = Map("ouroboros-a" -> "ouroboros-b", "ouroboros-b" -> "ouroboros-a")
 
-    implicit val fetcher: ModuleFetcher = module => pomArtifact(module, parents.get(module.name))
+    implicit val fetcher: ModuleFetcher = module => pomFile(module, parents.get(module.name))
 
     val pom = Pom.fetch(Coords("com.example.cycle", "ouroboros-a", "1.0.0"))
 
@@ -272,7 +254,7 @@ class PomSuite extends munit.FunSuite {
            |</project>""".stripMargin
       )
 
-      Vector((Artifact(module.name, "pom", "pom"), file))
+      file
     }
 
     val resolved = Pom.fetch(Coords("com.example.resolve", "kid", "1.0.0")).resolve(3, Map("seed" -> "s"))
@@ -307,7 +289,7 @@ class PomSuite extends munit.FunSuite {
     assertEquals(resolved.map(r => (r.pom.coords.artifact, r.priority, r.properties)), expected)
   }
 
-  def pomArtifact(module: ModuleID, parent: Option[String]): Vector[(Artifact, File)] = {
+  def pomFile(module: ModuleID, parent: Option[String]): File = {
     val parentXml = parent.fold("") { name =>
       s"<parent><groupId>${module.organization}</groupId><artifactId>$name</artifactId><version>1.0.0</version></parent>"
     }
@@ -325,7 +307,7 @@ class PomSuite extends munit.FunSuite {
 
     IO.write(file, xml)
 
-    Vector((Artifact(module.name, "pom", "pom"), file))
+    file
   }
 
   def withPomFile(content: String): FunFixture[File] = FunFixture[File](

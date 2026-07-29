@@ -82,8 +82,9 @@ object BomReader {
       visited: Set[Coords] = Set.empty,
       acc: Vector[(Coords, Priority)] = Vector.empty
   )(implicit fetcher: ModuleFetcher, log: Logger): Vector[(Coords, Priority)] = pending match {
-    case Nil                        => acc
-    case (coords, priority) :: rest =>
+    case Nil                                             => acc
+    case (coords, _) :: rest if visited.contains(coords) => extract(rest, properties, visited, acc)
+    case (coords, priority) :: rest                      =>
       val resolved = Pom.fetch(coords).resolve(priority, properties)
 
       val (artifacts, imports) =
