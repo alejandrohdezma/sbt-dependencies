@@ -238,9 +238,7 @@ class Settings {
 
     BomReader.loadCredentials
 
-    ModuleFetcher.fromIvyDependencyResolution(
-      PluginCompat.ivyDependencyResolution(repositories, options, paths, logger)
-    )
+    ModuleFetcher.fromIvy(PluginCompat.ivySbt(repositories, options, paths, logger))
   }
 
   /** The structured data behind `target/sbt-dependencies/.sbt-resolutions`: this project's visible BOMs (in precedence
