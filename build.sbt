@@ -22,7 +22,10 @@ addCommandAlias("ci-publish", "versionCheck; github; ci-release")
 lazy val documentation = project
   .enablePlugins(MdocPlugin)
 
+lazy val `sbt-dependencies-core` = module
+
 lazy val `sbt-dependencies` = module
+  .dependsOn(`sbt-dependencies-core`)
   .enablePlugins(SbtPlugin)
   .settings(scriptedLaunchOpts += s"-Dplugin.version=${version.value}")
   .settings(scriptedBufferLog := true)
