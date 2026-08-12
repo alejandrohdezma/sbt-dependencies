@@ -139,7 +139,7 @@ class Keys {
     */
   val dependencyMigrations = settingKey[List[java.net.URI]] {
     "URLs pointing to artifact migration files (Scala Steward HOCON format). Default: Scala Steward's public migrations"
-  }
+  }.withRank(KeyRanks.Invisible)
 
   /** Timeout in seconds for Coursier version resolution requests.
     *
@@ -156,7 +156,7 @@ class Keys {
     */
   val dependencyResolverTimeout = settingKey[Int] {
     "Timeout in seconds for Coursier version resolution requests. Default: 60"
-  }
+  }.withRank(KeyRanks.Invisible)
 
   /** URLs pointing to retracted-version files in Scala Steward's HOCON format.
     *
@@ -180,7 +180,7 @@ class Keys {
     */
   val dependencyUpdateRetractions = settingKey[List[java.net.URI]] {
     "URLs pointing to retracted-version files (Scala Steward HOCON format). Default: Scala Steward's public config"
-  }
+  }.withRank(KeyRanks.Invisible)
 
   /** URLs pointing to update-ignore files in Scala Steward's HOCON format.
     *
@@ -203,7 +203,7 @@ class Keys {
     */
   val dependencyUpdateIgnores = settingKey[List[java.net.URI]] {
     "URLs pointing to update-ignore files (Scala Steward HOCON format). Default: Scala Steward's public config"
-  }
+  }.withRank(KeyRanks.Invisible)
 
   /** URLs pointing to update-pin files in Scala Steward's HOCON format.
     *
@@ -227,7 +227,7 @@ class Keys {
     */
   val dependencyUpdatePins = settingKey[List[java.net.URI]] {
     "URLs pointing to update-pin files (Scala Steward HOCON format). Default: Scala Steward's public config"
-  }
+  }.withRank(KeyRanks.Invisible)
 
   /** URLs pointing to cooldown configuration files in Scala Steward's HOCON format.
     *
@@ -249,7 +249,7 @@ class Keys {
     */
   val dependencyCooldowns = settingKey[List[java.net.URI]] {
     "URLs pointing to cooldown configuration files (Scala Steward HOCON format). Default: empty (no cooldown)"
-  }
+  }.withRank(KeyRanks.Invisible)
 
   /** URLs pointing to post-update hook files in Scala Steward's HOCON format.
     *
@@ -272,7 +272,7 @@ class Keys {
     */
   val dependencyPostUpdateHooks = settingKey[List[java.net.URI]] {
     "URLs pointing to post-update hook files (Scala Steward HOCON format). Default: Scala Steward's public config"
-  }
+  }.withRank(KeyRanks.Invisible)
 
   /** URLs pointing to scalafix migration files in Scala Steward's HOCON format.
     *
@@ -296,7 +296,7 @@ class Keys {
     */
   val dependencyScalafixMigrations = settingKey[List[java.net.URI]] {
     "URLs pointing to scalafix migration files (Scala Steward HOCON format). Default: Scala Steward's public migrations"
-  }
+  }.withRank(KeyRanks.Invisible)
 
   /** Maximum number of dependencies resolved concurrently.
     *
