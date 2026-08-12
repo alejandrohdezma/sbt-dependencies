@@ -27,14 +27,27 @@ export interface DiagnosticResult {
 const dependencyValidationPattern =
   /^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$/;
 
+/** Configurations sharing a classpath: a duplicate across any two of them is a real duplicate. */
+const classpathConfigurations = new Set(["compile", "runtime", "test", "it", "provided", "optional", "default"]);
+
 /**
- * Extracts a dependency key (`org + separator + artifact`) from a dependency
- * string, or `undefined` if the string doesn't match the pattern.
+ * Groups a configuration into a family of related scopes. Classpath scopes all
+ * collapse into one family; anything else (`protobuf`, `bom`, `sbt-plugin`,
+ * `compiler-plugin`, custom configurations) is only related to itself.
+ */
+function scopeFamily(config: string | undefined): string {
+  const normalized = (config ?? "compile").toLowerCase();
+  return classpathConfigurations.has(normalized) ? "classpath" : normalized;
+}
+
+/**
+ * Extracts a dependency key (`org + separator + artifact + scope family`) from a
+ * dependency string, or `undefined` if the string doesn't match the pattern.
  */
 function extractDepKey(content: string): string | undefined {
   const m = dependencyValidationPattern.exec(content);
   if (!m) return undefined;
-  return m[1] + m[2] + m[3];
+  return m[1] + m[2] + m[3] + "\0" + scopeFamily(m[5]);
 }
 
 /**

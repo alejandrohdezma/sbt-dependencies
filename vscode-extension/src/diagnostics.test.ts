@@ -253,6 +253,63 @@ describe("parseDiagnostics", () => {
       expect(result[1].severity).toBe("warning");
       expect(result[1].range.startLine).toBe(3);
     });
+
+    it("does not warn for same artifact in unrelated configurations", () => {
+      const lines = [
+        'my-group = [',
+        '  "com.google.protobuf:protobuf-java:3.25.1"',
+        '  "com.google.protobuf:protobuf-java:3.25.1:protobuf"',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("does not warn for same artifact in compile and bom configurations", () => {
+      const lines = [
+        'my-group = [',
+        '  "com.google.protobuf:protobuf-java:3.25.1"',
+        '  "com.google.protobuf:protobuf-java:3.25.1:bom"',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("warns for same artifact across related classpath configurations", () => {
+      const lines = [
+        'my-group = [',
+        '  "org.scalameta::munit:1.0.0"',
+        '  "org.scalameta::munit:1.0.0:test"',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe("Duplicate dependency in group");
+      expect(result[0].range.startLine).toBe(2);
+    });
+
+    it("treats an explicit compile configuration as an absent one", () => {
+      const lines = [
+        'my-group = [',
+        '  "org.typelevel::cats-core:2.10.0:compile"',
+        '  "org.typelevel::cats-core:2.10.0"',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].range.startLine).toBe(2);
+    });
+
+    it("warns for same artifact repeated in the same unrelated configuration", () => {
+      const lines = [
+        'my-group = [',
+        '  "com.google.protobuf:protobuf-java:3.25.1:protobuf"',
+        '  "com.google.protobuf:protobuf-java:3.25.2:protobuf"',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].range.startLine).toBe(2);
+    });
   });
 
   describe("object format entries", () => {
