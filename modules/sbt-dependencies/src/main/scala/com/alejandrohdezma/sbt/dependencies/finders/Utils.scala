@@ -31,6 +31,7 @@ import sbt.util.Logger
 import com.alejandrohdezma.sbt.dependencies.finders.AgeChecker.TooRecent
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version._
+import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 
 /** Utility functions for dependency resolution. */
 object Utils {
@@ -253,7 +254,12 @@ object Utils {
       finders: Finders,
       logger: Logger
   ): Option[Dependency.Version.Numeric] =
-    findLatestVersion(dependency.organization, dependency.name, dependency.configuration, dependency.crossVersion)(f)
+    findLatestVersion(
+      dependency.organization,
+      dependency.name,
+      dependency.configuration,
+      dependency.crossVersion.toSbt
+    )(f)
 
   /** Finds the latest version of a dependency that passes the validation function.
     *

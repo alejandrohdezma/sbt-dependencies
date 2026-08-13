@@ -25,6 +25,7 @@ import sbt.util.Logger
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.ConfigFactory
@@ -93,20 +94,17 @@ final case class DependenciesFile(file: File) {
       annotated: AnnotatedDependency,
       variableResolvers: Map[String, OrganizationArtifactName => ModuleID]
   )(implicit logger: Logger): Dependency = {
-    val parsed = Dependency.parse(annotated.line)
+    val parsed = Dependency.parseOrFail(annotated.line)
 
     val crossVersion = annotated.crossVersion match {
-      case Some("full")     => CrossVersion.full
-      case Some("binary")   => CrossVersion.binary
-      case Some("patch")    => CrossVersion.patch
-      case Some("disabled") => CrossVersion.disabled
-      case Some(other)      => Utils.fail(s"Invalid cross-version: $other")
-      case None             => parsed.crossVersion
+      case Some(keyword) =>
+        Dependency.Cross.fromKeyword(keyword).getOrElse(Utils.fail(s"Invalid cross-version: $keyword"))
+      case None => parsed.crossVersion
     }
 
     val dep = parsed.withAnnotations(annotated.note, annotated.intransitive, annotated.scalaFilter, crossVersion)
 
-    val supportedInVariable = List(CrossVersion.binary, CrossVersion.disabled)
+    val supportedInVariable = List[Dependency.Cross](Dependency.Cross.Binary, Dependency.Cross.Disabled)
 
     if (dep.version.isVariable && !supportedInVariable.contains(dep.crossVersion)) {
       Utils.fail {
@@ -116,7 +114,7 @@ final case class DependenciesFile(file: File) {
       }
     }
 
-    Dependency.validateBomRestrictions(dep)
+    Dependency.validateBomRestrictionsOrFail(dep)
 
     dep.resolveVariable(variableResolvers)
   }
@@ -224,13 +222,7 @@ final case class DependenciesFile(file: File) {
       existing.get((dep.organization, dep.name, dep.configuration)) match {
         case None      => dep
         case Some(ann) =>
-          val crossVersion = ann.crossVersion match {
-            case Some("full")     => CrossVersion.full
-            case Some("binary")   => CrossVersion.binary
-            case Some("patch")    => CrossVersion.patch
-            case Some("disabled") => CrossVersion.disabled
-            case _                => dep.crossVersion
-          }
+          val crossVersion = ann.crossVersion.flatMap(Dependency.Cross.fromKeyword).getOrElse(dep.crossVersion)
           dep.withAnnotations(
             note = ann.note.orElse(dep.note),
             intransitive = ann.intransitive || dep.intransitive,

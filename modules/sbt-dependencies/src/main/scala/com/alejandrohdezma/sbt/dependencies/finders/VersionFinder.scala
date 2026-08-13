@@ -29,6 +29,7 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.PluginCompat
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import lmcoursier.internal.shaded.coursier.cache.FileCache
 import lmcoursier.internal.shaded.coursier.{Dependency => _, _}
 
@@ -158,7 +159,7 @@ object VersionFinder {
       * dep.crossVersion)`.
       */
     def findVersions(dep: Dependency): List[Dependency.Version.Numeric] =
-      underlying.findVersions(dep.organization, dep.name, dep.configuration, dep.crossVersion)
+      underlying.findVersions(dep.organization, dep.name, dep.configuration, dep.crossVersion.toSbt)
 
     /** Wraps this `VersionFinder` with a `ConcurrentHashMap`-backed cache so each unique coordinate tuple is resolved
       * at most once.

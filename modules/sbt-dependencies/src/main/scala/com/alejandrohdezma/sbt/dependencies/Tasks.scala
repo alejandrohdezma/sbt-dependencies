@@ -27,6 +27,7 @@ import com.alejandrohdezma.sbt.dependencies.constraints.UpdateFilter
 import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.string.box._
 
@@ -81,7 +82,7 @@ class Tasks {
     val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
     val dependency   = Dependency.parseIncludingMissingVersion(installParser.parsed)
 
-    Dependency.validateBomRestrictions(dependency)
+    Dependency.validateBomRestrictionsOrFail(dependency)
 
     val _ = Settings.resolveBomVersion(dependency, Keys.dependenciesFromBom.value, (update / scalaBinaryVersion).value)
 
