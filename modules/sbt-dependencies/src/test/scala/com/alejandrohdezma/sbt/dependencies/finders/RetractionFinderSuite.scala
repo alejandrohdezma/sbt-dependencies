@@ -19,7 +19,6 @@ package com.alejandrohdezma.sbt.dependencies.finders
 import java.nio.file.Files
 
 import sbt.IO
-import sbt.librarymanagement.CrossVersion
 import sbt.util.Level
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
@@ -125,7 +124,7 @@ class RetractionFinderSuite extends munit.FunSuite {
       organization = "org.scala-lang",
       name = "scala3-compiler",
       version = Dependency.Version.Numeric(List(3, 8, 2), None, Dependency.Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.binary
+      crossVersion = Dependency.Cross.Binary
     )
 
     finder.warnIfRetracted(dependency)
@@ -152,7 +151,7 @@ class RetractionFinderSuite extends munit.FunSuite {
       organization = "org.scala-lang",
       name = "scala3-compiler",
       version = Dependency.Version.Numeric(List(3, 8, 1), None, Dependency.Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.binary
+      crossVersion = Dependency.Cross.Binary
     )
 
     finder.warnIfRetracted(dependency)
