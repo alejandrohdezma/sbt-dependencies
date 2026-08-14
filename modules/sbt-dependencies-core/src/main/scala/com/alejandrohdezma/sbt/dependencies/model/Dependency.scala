@@ -230,7 +230,7 @@ object Dependency {
     */
   def parse(line: String): Either[String, Dependency] =
     line match {
-      case dependencyRegex(_, _, _, null, _) => // scalafix:ok
+      case dependencyRegex(_, _, _, null, _) =>
         Left(s"$line is missing a version")
 
       case dependencyRegex(org, sep, name, "*", config) =>

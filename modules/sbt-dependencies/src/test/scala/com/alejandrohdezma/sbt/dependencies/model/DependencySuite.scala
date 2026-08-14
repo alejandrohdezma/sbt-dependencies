@@ -132,7 +132,7 @@ class DependencySuite extends munit.FunSuite {
     assertEquals(module.name, "sbt-scalafix")
     assertEquals(module.revision, "0.14.5")
     // sbt plugins get extra attributes via sbtPluginExtra
-    assert(module.extraAttributes.nonEmpty || module.crossVersion != CrossVersion.disabled) // scalafix:ok
+    assert(module.extraAttributes.nonEmpty || module.crossVersion != CrossVersion.disabled)
   }
 
   test("toModuleID creates compiler-plugin module with `plugin->default(compile)` configuration") {

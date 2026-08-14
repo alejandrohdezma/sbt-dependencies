@@ -256,10 +256,10 @@ object DependencyOps {
         logger: Logger
     ): Dependency =
       line match {
-        case Dependency.dependencyRegex(org, sep, name, null, _) => // scalafix:ok
+        case Dependency.dependencyRegex(org, sep, name, null, _) =>
           Dependency.withLatestStableVersion(org, name, isCross = sep === "::")
 
-        case Dependency.dependencyRegex(org, sep, name, possibleConfig, null) // scalafix:ok
+        case Dependency.dependencyRegex(org, sep, name, possibleConfig, null)
             if !Dependency.looksLikeVersion(possibleConfig) =>
           Dependency.withLatestStableVersion(org, name, isCross = sep === "::", configuration = possibleConfig)
 
