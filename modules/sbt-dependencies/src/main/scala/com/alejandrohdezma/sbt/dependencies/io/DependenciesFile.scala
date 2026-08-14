@@ -16,8 +16,6 @@
 
 package com.alejandrohdezma.sbt.dependencies.io
 
-import scala.jdk.CollectionConverters._
-
 import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.util.Logger
@@ -28,7 +26,6 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
-import com.typesafe.config.ConfigFactory
 
 /** Handles reading and writing dependencies to/from the dependencies.conf file.
   *
@@ -190,7 +187,7 @@ final case class DependenciesFile(file: File) {
 
       val updated = existingConfigs + (group -> newConfig)
 
-      IO.write(file, render(updated) + "\n")
+      IO.write(file, GroupConfig.render(updated) + "\n")
     }
 
   /** Returns each input dep with annotations from the existing file applied on top, keyed by
@@ -270,7 +267,7 @@ final case class DependenciesFile(file: File) {
 
     val updated = existingConfigs + (group -> newConfig)
 
-    IO.write(file, render(updated) + "\n")
+    IO.write(file, GroupConfig.render(updated) + "\n")
   }
 
   /** Reads the `java-version` for a specific group from the given HOCON file.
@@ -290,16 +287,7 @@ final case class DependenciesFile(file: File) {
     * preserved. Fully-empty groups (no dependencies, no Scala/Java settings) are dropped.
     */
   def format(): Unit =
-    IO.write(file, render(readGroups().map { case (group, config) => group -> config.sorted }) + "\n")
-
-  private def render(configs: Iterable[(Group, GroupConfig)]): String =
-    configs.toList.filterNot { case (_, config) => isEmpty(config) }
-      .sortBy(_._1)
-      .map { case (group, config) => config.format(group) }
-      .mkString("\n\n")
-
-  private def isEmpty(config: GroupConfig): Boolean =
-    config.dependencies.isEmpty && config.scalaVersions.isEmpty && config.javaVersion.isEmpty
+    IO.write(file, GroupConfig.render(readGroups().map { case (group, config) => group -> config.sorted }) + "\n")
 
   /** Checks if a group exists in the given HOCON file.
     *
@@ -332,26 +320,7 @@ final case class DependenciesFile(file: File) {
     */
   def readGroups(): Map[Group, GroupConfig] =
     if (!file.exists()) Map.empty
-    else {
-      val content = IO.read(file)
-      if (content.trim.isEmpty) Map.empty
-      else {
-        val config = ConfigFactory.parseString(content)
-
-        config
-          .root()
-          .keySet()
-          .asScala
-          .map { name =>
-            val group = Group(name)
-            GroupConfig.parse(config, group) match {
-              case Right(groupConfig) => group -> groupConfig
-              case Left(error)        => sys.error(s"Failed to parse group `$name`: $error")
-            }
-          }
-          .toMap
-      }
-    }
+    else GroupConfig.parseAll(IO.read(file)).fold(sys.error, identity)
 
 }
 

@@ -23,6 +23,7 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigValueType
 
 /** Represents the configuration for a group in the dependencies file. */
@@ -41,6 +42,9 @@ sealed trait GroupConfig {
     * for this group's modules.
     */
   def javaVersion: Option[String] = None
+
+  /** Whether this group renders nothing: no dependencies, no Scala versions and no Java version. */
+  def isEmpty: Boolean = dependencies.isEmpty && scalaVersions.isEmpty && javaVersion.isEmpty
 
   def sorted: GroupConfig = this match {
     case GroupConfig.Simple(deps)           => GroupConfig.Simple(deps.sorted)
@@ -78,6 +82,35 @@ sealed trait GroupConfig {
 }
 
 object GroupConfig {
+
+  /** Renders groups in canonical form: empty groups dropped, groups sorted (`sbt-build`, `common-settings`, then
+    * alphabetical) and separated by blank lines. Dependencies are rendered as-is — sort them beforehand via
+    * [[GroupConfig.sorted]].
+    */
+  def render(configs: Iterable[(Group, GroupConfig)]): String =
+    configs.toList.filterNot { case (_, config) => config.isEmpty }
+      .sortBy(_._1)
+      .map { case (group, config) => config.format(group) }
+      .mkString("\n\n")
+
+  /** Parses a whole dependencies file into its groups. Empty content yields an empty map; the first group that fails to
+    * parse yields a `Left` naming it. Invalid HOCON syntax throws `ConfigException`, like `ConfigFactory.parseString`
+    * does.
+    */
+  def parseAll(content: String): Either[String, Map[Group, GroupConfig]] =
+    if (content.trim.isEmpty) Right(Map.empty)
+    else {
+      val config = ConfigFactory.parseString(content)
+
+      config.root().keySet().asScala.toList.foldRight[Either[String, Map[Group, GroupConfig]]](Right(Map.empty)) {
+        (name, acc) =>
+          for {
+            groups <- acc
+            group   = Group(name)
+            parsed <- parse(config, group).left.map(error => s"Failed to parse group `$name`: $error")
+          } yield groups + (group -> parsed)
+      }
+    }
 
   /** Parses a group from a Config, detecting whether it's simple or advanced format. */
   def parse(config: Config, group: Group): Either[String, GroupConfig] =
