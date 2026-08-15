@@ -1,0 +1,31 @@
+<idea-plugin>
+  <id>com.alejandrohdezma.sbt-dependencies</id>
+  <name>sbt-dependencies</name>
+  <version>0.0.0</version>
+  <idea-version since-build="251"/>
+  <vendor url="https://github.com/alejandrohdezma">alejandrohdezma</vendor>
+  <description><![CDATA[
+    Language support for <code>dependencies.conf</code> files used by the
+    <a href="https://github.com/alejandrohdezma/sbt-dependencies">sbt-dependencies</a> sbt plugin:
+    syntax highlighting, structure view and formatting.
+    <br/><br/>
+    Note: reformatting mirrors the sbt plugin's own canonical output — groups and dependencies are
+    sorted and comments are removed, exactly as <code>dependenciesFormat</code> would write the file.
+  ]]></description>
+
+  <depends>com.intellij.modules.platform</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <fileType 
+      id="sbt-dependencies"
+      name="sbt-dependencies" 
+      language="sbt-dependencies" 
+      fileNames="dependencies.conf"
+      implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.lang.SbtDependenciesFileType"
+    />
+    <lang.parserDefinition
+      language="sbt-dependencies"
+      implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.lang.SbtDependenciesParserDefinition"
+    />
+  </extensions>
+</idea-plugin>
