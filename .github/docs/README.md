@@ -1,6 +1,6 @@
 @DESCRIPTION@
 
-<img src="vscode-extension/images/demo.svg" alt="sbt-dependencies" width="600" />
+<img src="ide-plugins/vscode/images/demo.svg" alt="sbt-dependencies" width="600" />
 
 - Manage all dependencies in a single [`project/dependencies.conf`](#user-content-define-dependencies) file (HOCON format).
 - Share Scala/Java versions and base dependencies across every project with the [`common-settings`](#user-content-use-the-common-settings-group) group.
@@ -91,15 +91,16 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Get all resolved dependencies](#user-content-get-all-resolved-dependencies)
   + [Validate resolved dependencies](#user-content-validate-resolved-dependencies)
   + [Disable eviction warnings](#user-content-disable-eviction-warnings)
-- [VS Code / Cursor Extension](#vs-code--cursor-extension)
+- [IDE plugins](#ide-plugins) for VS Code / Cursor and IntelliJ IDEA
 
-## VS Code / Cursor Extension
+## IDE Plugins
 
-An extension for VS Code and Cursor is available that provides syntax highlighting for `dependencies.conf` files. It highlights organizations, artifacts, versions, version markers, configurations, variable references, and comments.
+Editor support for `dependencies.conf` files is available under [`ide-plugins`](ide-plugins):
 
-To power the extension's inline resolved versions and BOM provenance for `*` and `{{variable}}` dependencies, the plugin writes a `target/sbt-dependencies/.sbt-resolutions` file on every load — a JSON snapshot of each project's visible BOM pins and resolved variable versions. It never fails the build and is a no-op for builds without `dependencies.conf`.
+- **[VS Code / Cursor extension](ide-plugins/vscode/README.md)**: syntax highlighting, diagnostics, hovers with resolved versions and BOM provenance, formatting, sbt commands and more.
+- **[IntelliJ IDEA plugin](ide-plugins/intellij/README.md)**: syntax highlighting, structure view and formatting that mirrors the `dependenciesFormat` task.
 
-See the [extension's README](vscode-extension/README.md) for installation and usage instructions.
+To power the VS Code extension's inline resolved versions and BOM provenance for `*` and `{{variable}}` dependencies, the plugin writes a `target/sbt-dependencies/.sbt-resolutions` file on every load — a JSON snapshot of each project's visible BOM pins and resolved variable versions. It never fails the build and is a no-op for builds without `dependencies.conf`.
 
 ## How to...
 
