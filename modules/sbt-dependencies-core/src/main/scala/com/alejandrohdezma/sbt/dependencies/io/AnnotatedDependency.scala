@@ -20,7 +20,8 @@ import scala.jdk.CollectionConverters._
 
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import com.typesafe.config.Config
+import com.alejandrohdezma.sbt.dependencies.model.Fields
+import com.typesafe.config.ConfigList
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType
 
@@ -88,11 +89,8 @@ object AnnotatedDependency {
   })
 
   /** Parses a dependency list that may contain both plain strings and annotated objects. */
-  def parse(config: Config, path: String): Either[String, List[AnnotatedDependency]] =
-    config
-      .getList(path)
-      .asScala
-      .toList
+  def parse(list: ConfigList): Either[String, List[AnnotatedDependency]] =
+    list.asScala.toList
       .foldLeft(Right(List.empty[AnnotatedDependency]): Either[String, List[AnnotatedDependency]]) {
         case (Left(err), _) => Left(err)
 
@@ -103,13 +101,14 @@ object AnnotatedDependency {
 
             case ConfigValueType.OBJECT =>
               val obj = value.asInstanceOf[ConfigObject].toConfig
-              if (!obj.hasPath("dependency")) Left("object entry must have a 'dependency' field")
+              if (!obj.hasPath(Fields.Dependency)) Left("object entry must have a 'dependency' field")
               else {
-                val dependency     = obj.getString("dependency")
-                val note           = if (obj.hasPath("note")) Some(obj.getString("note")) else None
-                val isIntransitive = obj.hasPath("intransitive") && obj.getBoolean("intransitive")
-                val scalaFilter    = if (obj.hasPath("scala-filter")) Some(obj.getString("scala-filter")) else None
-                val crossVersion   = if (obj.hasPath("cross-version")) Some(obj.getString("cross-version")) else None
+                val dependency     = obj.getString(Fields.Dependency)
+                val note           = if (obj.hasPath(Fields.Note)) Some(obj.getString(Fields.Note)) else None
+                val isIntransitive = obj.hasPath(Fields.Intransitive) && obj.getBoolean(Fields.Intransitive)
+                val scalaFilter    = if (obj.hasPath(Fields.ScalaFilter)) Some(obj.getString(Fields.ScalaFilter)) else None
+                val crossVersion   =
+                  if (obj.hasPath(Fields.CrossVersion)) Some(obj.getString(Fields.CrossVersion)) else None
 
                 val allowedCross = Set("full", "binary", "patch", "disabled")
 

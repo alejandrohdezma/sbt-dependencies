@@ -16,8 +16,6 @@
 
 package com.alejandrohdezma.sbt.dependencies.io
 
-import scala.jdk.CollectionConverters._
-
 import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.util.Logger
@@ -25,9 +23,9 @@ import sbt.util.Logger
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
-import com.typesafe.config.ConfigFactory
 
 /** Handles reading and writing dependencies to/from the dependencies.conf file.
   *
@@ -93,20 +91,17 @@ final case class DependenciesFile(file: File) {
       annotated: AnnotatedDependency,
       variableResolvers: Map[String, OrganizationArtifactName => ModuleID]
   )(implicit logger: Logger): Dependency = {
-    val parsed = Dependency.parse(annotated.line)
+    val parsed = Dependency.parseOrFail(annotated.line)
 
     val crossVersion = annotated.crossVersion match {
-      case Some("full")     => CrossVersion.full
-      case Some("binary")   => CrossVersion.binary
-      case Some("patch")    => CrossVersion.patch
-      case Some("disabled") => CrossVersion.disabled
-      case Some(other)      => Utils.fail(s"Invalid cross-version: $other")
-      case None             => parsed.crossVersion
+      case Some(keyword) =>
+        Dependency.Cross.fromKeyword(keyword).getOrElse(Utils.fail(s"Invalid cross-version: $keyword"))
+      case None => parsed.crossVersion
     }
 
     val dep = parsed.withAnnotations(annotated.note, annotated.intransitive, annotated.scalaFilter, crossVersion)
 
-    val supportedInVariable = List(CrossVersion.binary, CrossVersion.disabled)
+    val supportedInVariable = List[Dependency.Cross](Dependency.Cross.Binary, Dependency.Cross.Disabled)
 
     if (dep.version.isVariable && !supportedInVariable.contains(dep.crossVersion)) {
       Utils.fail {
@@ -116,7 +111,7 @@ final case class DependenciesFile(file: File) {
       }
     }
 
-    Dependency.validateBomRestrictions(dep)
+    Dependency.validateBomRestrictionsOrFail(dep)
 
     dep.resolveVariable(variableResolvers)
   }
@@ -192,7 +187,7 @@ final case class DependenciesFile(file: File) {
 
       val updated = existingConfigs + (group -> newConfig)
 
-      IO.write(file, render(updated) + "\n")
+      IO.write(file, GroupConfig.render(updated) + "\n")
     }
 
   /** Returns each input dep with annotations from the existing file applied on top, keyed by
@@ -224,13 +219,7 @@ final case class DependenciesFile(file: File) {
       existing.get((dep.organization, dep.name, dep.configuration)) match {
         case None      => dep
         case Some(ann) =>
-          val crossVersion = ann.crossVersion match {
-            case Some("full")     => CrossVersion.full
-            case Some("binary")   => CrossVersion.binary
-            case Some("patch")    => CrossVersion.patch
-            case Some("disabled") => CrossVersion.disabled
-            case _                => dep.crossVersion
-          }
+          val crossVersion = ann.crossVersion.flatMap(Dependency.Cross.fromKeyword).getOrElse(dep.crossVersion)
           dep.withAnnotations(
             note = ann.note.orElse(dep.note),
             intransitive = ann.intransitive || dep.intransitive,
@@ -278,7 +267,7 @@ final case class DependenciesFile(file: File) {
 
     val updated = existingConfigs + (group -> newConfig)
 
-    IO.write(file, render(updated) + "\n")
+    IO.write(file, GroupConfig.render(updated) + "\n")
   }
 
   /** Reads the `java-version` for a specific group from the given HOCON file.
@@ -298,16 +287,7 @@ final case class DependenciesFile(file: File) {
     * preserved. Fully-empty groups (no dependencies, no Scala/Java settings) are dropped.
     */
   def format(): Unit =
-    IO.write(file, render(readGroups().map { case (group, config) => group -> config.sorted }) + "\n")
-
-  private def render(configs: Iterable[(Group, GroupConfig)]): String =
-    configs.toList.filterNot { case (_, config) => isEmpty(config) }
-      .sortBy(_._1)
-      .map { case (group, config) => config.format(group) }
-      .mkString("\n\n")
-
-  private def isEmpty(config: GroupConfig): Boolean =
-    config.dependencies.isEmpty && config.scalaVersions.isEmpty && config.javaVersion.isEmpty
+    IO.write(file, GroupConfig.render(readGroups().map { case (group, config) => group -> config.sorted }) + "\n")
 
   /** Checks if a group exists in the given HOCON file.
     *
@@ -340,26 +320,7 @@ final case class DependenciesFile(file: File) {
     */
   def readGroups(): Map[Group, GroupConfig] =
     if (!file.exists()) Map.empty
-    else {
-      val content = IO.read(file)
-      if (content.trim.isEmpty) Map.empty
-      else {
-        val config = ConfigFactory.parseString(content)
-
-        config
-          .root()
-          .keySet()
-          .asScala
-          .map { name =>
-            val group = Group(name)
-            GroupConfig.parse(config, group) match {
-              case Right(groupConfig) => group -> groupConfig
-              case Left(error)        => sys.error(s"Failed to parse group `$name`: $error")
-            }
-          }
-          .toMap
-      }
-    }
+    else GroupConfig.parseAll(IO.read(file)).fold(sys.error, identity)
 
 }
 

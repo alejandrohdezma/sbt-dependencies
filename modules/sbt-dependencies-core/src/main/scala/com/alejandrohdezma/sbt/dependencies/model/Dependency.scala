@@ -18,17 +18,6 @@ package com.alejandrohdezma.sbt.dependencies.model
 
 import scala.util.Try
 
-import sbt.Defaults.sbtPluginExtra
-import sbt.librarymanagement.CrossVersion
-import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
-import sbt.librarymanagement.ModuleID
-import sbt.librarymanagement._
-import sbt.librarymanagement.syntax._
-import sbt.util.Logger
-
-import com.alejandrohdezma.sbt.dependencies.finders.Finders
-import com.alejandrohdezma.sbt.dependencies.finders.Utils
-import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** A dependency entry: an artifact coordinate (`organization`, `name`, `version`) plus how it should be wired into the
@@ -38,9 +27,9 @@ import com.alejandrohdezma.sbt.dependencies.model.Eq._
   * placeholder, possibly carrying a resolved `Numeric` once the build's `dependencyVersionVariables` resolver was
   * applied at the read seam).
   *
-  * `crossVersion` is the SBT `CrossVersion` shape applied to the resolved `ModuleID`. `CrossVersion.disabled` means a
-  * Java-style line (`org:name`); anything else means a cross-compiled line (`org::name`), with `binary` being the
-  * implicit default for `::` and `full`/`patch` requiring an explicit `cross-version` annotation.
+  * `crossVersion` is the cross-compilation shape from the `cross-version` annotation. `Cross.Disabled` means a
+  * Java-style line (`org:name`); anything else means a cross-compiled line (`org::name`), with `Binary` being the
+  * implicit default for `::` and `Full`/`Patch` requiring an explicit `cross-version` annotation.
   */
 final case class Dependency(
     organization: String,
@@ -50,11 +39,11 @@ final case class Dependency(
     note: Option[String] = None,
     intransitive: Boolean = false,
     scalaFilter: Option[String] = None,
-    crossVersion: CrossVersion = CrossVersion.disabled
+    crossVersion: Dependency.Cross = Dependency.Cross.Disabled
 ) {
 
-  /** Whether this dep is cross-compiled. Derived from `crossVersion`: anything other than `disabled` is cross. */
-  def isCross: Boolean = crossVersion != CrossVersion.disabled // scalafix:ok
+  /** Whether this dep is cross-compiled. Derived from `crossVersion`: anything other than `Disabled` is cross. */
+  def isCross: Boolean = crossVersion !== Dependency.Cross.Disabled
 
   /** Returns a copy of this dependency with the given organization. */
   def withOrganization(organization: String): Dependency = copy(organization = organization)
@@ -70,87 +59,13 @@ final case class Dependency(
       note: Option[String],
       intransitive: Boolean,
       scalaFilter: Option[String],
-      crossVersion: CrossVersion
+      crossVersion: Dependency.Cross
   ): Dependency = copy(
     note = note,
     intransitive = intransitive,
     scalaFilter = scalaFilter,
     crossVersion = crossVersion
   )
-
-  /** When this dependency's version is an unresolved Variable and `resolvers` contains its name, looks the name up and
-    * replaces the `Variable` with one that carries the resolved `Numeric`. Resolvers without a matching entry leave the
-    * variable unresolved (the read seam reports the error).
-    *
-    * The `OrganizationArtifactName` passed to the resolver is built from this dep's *final* `isCross` (cross vs Java) —
-    * meaningful when the `cross-version` annotation has overridden what the line's separator would imply. Resolution
-    * lives here, not inside `Dependency.parse`, because at parse time we only see the line; the annotation is applied
-    * later via `withAnnotations`. Note that sbt's `OrganizationArtifactName` constructor is `private[sbt]`, so the OAN
-    * can only carry `Binary` (cross) or `Disabled` (Java) — resolvers don't see the `Full`/`Patch` distinction.
-    */
-  def resolveVariable(
-      resolvers: Map[String, OrganizationArtifactName => ModuleID]
-  ): Dependency = version match {
-    case Dependency.Version.Variable(variable, None) =>
-      val orgArtifact = if (isCross) organization %% name else organization % name
-      val resolved    = resolvers
-        .get(variable)
-        .map(_(orgArtifact))
-        .map(_.revision)
-        .flatMap(Dependency.Version.Numeric.unapply)
-      withVersion(Dependency.Version.Variable(variable, resolved))
-    case _ => this
-  }
-
-  /** When this dependency's version is an unresolved BOM version (`*`) and `pins` contains its concrete artifact,
-    * replaces the `Bom` with one that carries the pinned `Numeric`. The concrete artifact name is the dep's name
-    * suffixed with `scalaBinaryVersion` for cross-compiled deps (BOM entries always carry concrete, already-suffixed
-    * artifact names) and the plain name for Java ones. The first matching pin wins, so `pins` must be ordered by BOM
-    * declaration (Maven's import semantics: the first-declared BOM takes precedence).
-    *
-    * Pins without a matching entry leave the version unresolved — the consuming seam reports the error, so round-trip
-    * paths can tolerate `Bom(None)`. A matching pin whose version cannot be parsed fails right away.
-    */
-  def resolveBom(pins: Seq[ModuleID], scalaBinaryVersion: String)(implicit logger: Logger): Dependency =
-    version match {
-      case Dependency.Version.Bom(None) =>
-        val artifact = if (isCross) s"${name}_$scalaBinaryVersion" else name
-
-        pins.find(pin => pin.organization === organization && pin.name === artifact) match {
-          case None      => this
-          case Some(pin) =>
-            Dependency.Version.Numeric.unapply(pin.revision) match {
-              case Some(numeric) => withVersion(Dependency.Version.Bom(Some(numeric)))
-              case None          =>
-                Utils.fail(s"BOM version '${pin.revision}' for $organization:$artifact is not a valid version")
-            }
-        }
-      case _ => this
-    }
-
-  /** Converts this dependency to an SBT ModuleID for use in libraryDependencies.
-    *
-    * The `compiler-plugin` configuration is mapped to `plugin->default(compile)` (what `addCompilerPlugin` produces).
-    * Applies the `intransitive` flag and `crossVersion` directly. `sbt-plugin` dependencies keep whatever
-    * `sbtPluginExtra` decides: on sbt 1 plugin-ness travels as Ivy extra attributes, but on sbt 2 it IS the
-    * cross-version (`name_sbt2_3`), so overriding it with the parsed `crossVersion` would break resolution there.
-    */
-  def toModuleID(sbtBinaryVersion: String, scalaBinaryVersion: String): ModuleID = {
-    val module = ModuleID(organization, name, version.toVersionString)
-
-    val withConfig = configuration match {
-      case "sbt-plugin" =>
-        sbtPluginExtra(module, sbtBinaryVersion, scalaBinaryVersion)
-
-      case "compiler-plugin" =>
-        module.withConfigurations(Some(Dependency.CompilerPluginConfiguration)).withCrossVersion(crossVersion)
-
-      case other =>
-        module.withConfigurations(Some(other).filterNot(_ === "compile")).withCrossVersion(crossVersion)
-    }
-
-    withConfig.withIsTransitive(!intransitive)
-  }
 
   /** Checks if the dependency is the same artifact as another dependency. Cross vs Java is part of the artifact
     * identity, but `binary`/`full`/`patch` (all cross-compiled) are not — they all map to the same Maven coordinate.
@@ -159,26 +74,12 @@ final case class Dependency(
     organization === other.organization && name === other.name && isCross === other.isCross &&
       configuration === other.configuration
 
-  /** Finds the latest version for this dependency.
-    *
-    * For numeric versions, finds the latest version matching the marker constraints. For variable versions, finds the
-    * latest stable version (variables always use NoMarker).
-    *
-    * @return
-    *   A `Dependency` with `version: Version.Numeric` containing the latest version found.
-    */
-  def findLatestVersion(implicit
-      finders: Finders,
-      logger: Logger
-  ): Dependency =
-    Utils.findLatestVersion(this)
-
   /** Converts the dependency to a line. The separator is `::` for cross-compiled deps and `:` only when
-    * `crossVersion == CrossVersion.disabled`.
+    * `crossVersion == Cross.Disabled`.
     */
   def toLine: String = {
     val configSuffix = if (configuration === "compile") "" else s":$configuration"
-    val sep          = if (crossVersion == CrossVersion.disabled) ":" else "::" // scalafix:ok
+    val sep          = if (isCross) "::" else ":"
     s"$organization$sep$name:${version.show}$configSuffix"
   }
 
@@ -212,7 +113,7 @@ object Dependency {
       organization = "org.scala-lang",
       name = if (current.major === 3 && current.minor < 8) "scala3-library_3" else "scala-library",
       version = current,
-      crossVersion = CrossVersion.disabled
+      crossVersion = Cross.Disabled
     )
 
   def scalafmt(current: Version.Numeric) =
@@ -220,7 +121,7 @@ object Dependency {
       organization = "org.scalameta",
       name = "scalafmt-core",
       version = current,
-      crossVersion = CrossVersion.binary
+      crossVersion = Cross.Binary
     )
 
   def sbt(current: Version.Numeric) =
@@ -228,42 +129,34 @@ object Dependency {
       organization = "org.scala-sbt",
       name = "sbt",
       version = current,
-      crossVersion = CrossVersion.disabled
+      crossVersion = Cross.Disabled
     )
 
-  def fromModuleID(moduleID: ModuleID): Option[Dependency] = {
-    val version: Option[Version] =
-      if (moduleID.revision === "*") Some(Version.Bom(None))
-      else Version.Numeric.from(moduleID.revision, Version.Numeric.Marker.NoMarker)
-
-    version.map { version =>
-      // Detect sbt plugins by checking for sbtVersion in extraAttributes
-      val isSbtPlugin = moduleID.extraAttributes.contains("e:sbtVersion")
-      // Detect compiler plugins by their configuration string (as set by `addCompilerPlugin`)
-      val isCompilerPlugin = moduleID.configurations.contains(CompilerPluginConfiguration)
-
-      val configuration =
-        if (isSbtPlugin) "sbt-plugin"
-        else if (isCompilerPlugin) "compiler-plugin"
-        else moduleID.configurations.getOrElse("compile")
-
-      // Store the ModuleID's CrossVersion verbatim. Round-trip through HOCON: if the keyword maps cleanly
-      // (`binary`/`full`/`patch`/`disabled`) we preserve it; unsupported shapes like `Constant` lose the annotation on
-      // write and re-read as `binary`/`disabled` based on the line separator — same loss as before the merge.
-      Dependency(moduleID.organization, moduleID.name, version, configuration, crossVersion = moduleID.crossVersion)
-    }
-  }
-
-  /** Maps an SBT `CrossVersion` to the keyword used by the `cross-version` annotation. Returns `None` for unsupported
-    * variants (e.g. `Constant`). The inverse of the parser in `AnnotatedDependency.Resolved.from`.
+  /** The cross-compilation shape from the `cross-version` annotation. Mirrors the SBT `CrossVersion` variants the file
+    * format supports; mapping to/from the actual SBT type happens at the plugin seam.
     */
-  def crossVersionKeyword(cv: CrossVersion): Option[String] = cv match {
-    case _: Binary   => Some("binary")
-    case _: Full     => Some("full")
-    case _: Patch    => Some("patch")
-    case _: Disabled => Some("disabled")
-    case _           => None
+  sealed abstract class Cross(val keyword: String)
+
+  object Cross {
+
+    case object Binary extends Cross("binary")
+
+    case object Full extends Cross("full")
+
+    case object Patch extends Cross("patch")
+
+    case object Disabled extends Cross("disabled")
+
+    /** Parses a `cross-version` annotation keyword. */
+    def fromKeyword(keyword: String): Option[Cross] =
+      List(Binary, Full, Patch, Disabled).find(_.keyword === keyword)
+
+    implicit val CrossEq: Eq[Cross] = (a, b) => a.keyword === b.keyword
+
   }
+
+  /** Maps a [[Cross]] to the keyword used by the `cross-version` annotation. */
+  def crossVersionKeyword(cross: Cross): Option[String] = Some(cross.keyword)
 
   /** The literal SBT configuration string used by `addCompilerPlugin` to mark a compiler plugin dependency. */
   val CompilerPluginConfiguration: String = "plugin->default(compile)"
@@ -274,58 +167,6 @@ object Dependency {
   /** Ordering for dependencies: first by configuration, then by organization, then by name. */
   implicit val DependencyOrdering: Ordering[Dependency] = Ordering.by { d =>
     (d.configuration, d.organization.toLowerCase, d.name.toLowerCase)
-  }
-
-  /** Creates a dependency with the latest stable version resolved from Coursier.
-    *
-    * For `sbt-plugin`, the lookup uses the sbt-plugin artifact shape. For `compiler-plugin` with `isCross`, the lookup
-    * queries both the full and binary cross-version shapes and picks the higher version — this finds the actual latest
-    * regardless of how the plugin is currently published (e.g. `kind-projector` switched from binary to per-patch
-    * around 0.13.0; `better-monadic-for` is binary-only). On a tie, the full shape wins. For other configurations the
-    * lookup uses the regular shape and falls back to the sbt-plugin shape if the regular shape returns nothing.
-    *
-    * The returned `Dependency` carries the `crossVersion` corresponding to whichever shape resolved successfully —
-    * `CrossVersion.full` for compiler-plugins resolved per-patch, `CrossVersion.binary` for cross-compiled deps
-    * resolved per-binary, `CrossVersion.disabled` for Java deps. Downstream HOCON I/O reads `crossVersion` directly (no
-    * separate annotation step needed).
-    */
-  def withLatestStableVersion(
-      organization: String,
-      name: String,
-      isCross: Boolean,
-      configuration: String = "compile"
-  )(implicit finders: Finders, logger: Logger): Dependency = {
-    val (resolvedCrossVersion, version) = configuration match {
-      case "sbt-plugin" =>
-        // sbt-plugin queries don't actually use crossVersion (the shape is fixed); keep `disabled` since plugins are
-        // not cross-compiled deps in the dependencies.conf sense.
-        CrossVersion.disabled ->
-          Utils.findLatestVersion(organization, name, "sbt-plugin", CrossVersion.disabled)(_.isStableVersion)
-
-      case "compiler-plugin" if isCross =>
-        val full   = Utils.findLatestVersion(organization, name, configuration, CrossVersion.full)(_.isStableVersion)
-        val binary = Utils.findLatestVersion(organization, name, configuration, CrossVersion.binary)(_.isStableVersion)
-
-        (full, binary) match {
-          case (Some(f), Some(b)) if Ordering[Numeric].gteq(f, b) => CrossVersion.full   -> full
-          case (Some(_), Some(_))                                 => CrossVersion.binary -> binary
-          case (Some(_), None)                                    => CrossVersion.full   -> full
-          case (None, _)                                          => CrossVersion.binary -> binary
-        }
-
-      case _ =>
-        val regular = if (isCross) CrossVersion.binary else CrossVersion.disabled
-        Utils.findLatestVersion(organization, name, configuration, regular)(_.isStableVersion) match {
-          case found @ Some(_) => regular -> found
-          case None            =>
-            CrossVersion.disabled ->
-              Utils.findLatestVersion(organization, name, "sbt-plugin", CrossVersion.disabled)(_.isStableVersion)
-        }
-    }
-
-    version
-      .map(v => Dependency(organization, name, v, configuration, crossVersion = resolvedCrossVersion))
-      .getOrElse(Utils.fail(s"Could not resolve $organization:$name"))
   }
 
   /** Regex for parsing dependency lines.
@@ -344,115 +185,89 @@ object Dependency {
     */
   val dependencyRegex = """^\s*([^\s:]+)\s*(::?)\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*(?::\s*([^\s:]+)\s*)?)?$""".r
 
-  /** Parses a dependency line, resolving the latest stable version when no version is specified.
-    *
-    * Delegates to [[parse]] for lines that include a version. For lines without a version (e.g. `org::name` or
-    * `org::name:sbt-plugin`), resolves the latest stable version via the implicit [[finders.VersionFinder]] and carries
-    * the configuration token through (so `install org::name:sbt-plugin` finds the right artifact shape).
-    *
-    * Disambiguating `org::name:sbt-plugin` (no version, has config) from `org::name:1.0` (has version, no config) is
-    * done by checking whether the captured token after the artifact name parses as a numeric or variable version.
-    *
-    * The returned `Dependency` carries `crossVersion` corresponding to whichever shape resolved (e.g. `kind-projector`
-    * resolves with `crossVersion = CrossVersion.full`), so HOCON write picks up the `cross-version` annotation directly
-    * without a separate annotation step.
-    *
-    * Variables in the line — if any — are produced unresolved (`Variable(name, None)`); resolution belongs to
-    * [[Dependency.resolveVariable]] and runs after the `cross-version` annotation has been applied.
-    */
-  def parseIncludingMissingVersion(line: String)(implicit
-      finders: Finders,
-      logger: Logger
-  ): Dependency =
-    line match {
-      case dependencyRegex(org, sep, name, null, _) => // scalafix:ok
-        Dependency.withLatestStableVersion(org, name, isCross = sep === "::")
-
-      case dependencyRegex(org, sep, name, possibleConfig, null) // scalafix:ok
-          if !looksLikeVersion(possibleConfig) =>
-        Dependency.withLatestStableVersion(org, name, isCross = sep === "::", configuration = possibleConfig)
-
-      case other =>
-        Dependency.parse(other)
-    }
-
   /** Returns true if the given string looks like a numeric version (`1.2.3`, `=1.0`, `~2.x.y`), a variable reference
     * (`{{name}}`) or a BOM-managed version (`*`). Used to disambiguate the `version` slot from a `config` slot when the
     * version is missing.
     */
-  private def looksLikeVersion(s: String): Boolean =
+  def looksLikeVersion(s: String): Boolean =
     Version.Numeric.unapply(s).isDefined || Version.Variable.regex.findFirstMatchIn(s).isDefined || s === "*"
 
-  /** Fails when a BOM-managed version (`*`) is combined with something it cannot work with: the `bom` configuration (a
-    * BOM coordinate cannot take its version from a BOM), the `sbt-plugin` configuration (BOMs cannot pin sbt plugin
-    * coordinates) or a `full`/`patch` cross-version (BOM entries are looked up by binary suffix). Called from the read
-    * seam and from `install`, so invalid lines are rejected before they ever reach the file.
+  /** Returns an error when a BOM-managed version (`*`) is combined with something it cannot work with: the `bom`
+    * configuration (a BOM coordinate cannot take its version from a BOM), the `sbt-plugin` configuration (BOMs cannot
+    * pin sbt plugin coordinates) or a `full`/`patch` cross-version (BOM entries are looked up by binary suffix). Called
+    * from the read seam and from `install`, so invalid lines are rejected before they ever reach the file.
     */
-  def validateBomRestrictions(dependency: Dependency)(implicit logger: Logger): Unit =
+  def validateBomRestrictions(dependency: Dependency): Either[String, Unit] =
     dependency.version match {
       case Version.Bom(_) if dependency.configuration === "bom" =>
-        Utils.fail {
+        Left {
           s"${dependency.organization}:${dependency.name} declares version '*' with the 'bom' configuration — " +
             "a BOM coordinate cannot take its version from a BOM."
         }
 
       case Version.Bom(_) if dependency.configuration === "sbt-plugin" =>
-        Utils.fail {
+        Left {
           s"${dependency.organization}:${dependency.name} declares version '*' with the 'sbt-plugin' configuration" +
             " — BOMs cannot pin sbt plugin coordinates."
         }
 
-      case Version.Bom(_) if !List(CrossVersion.binary, CrossVersion.disabled).contains(dependency.crossVersion) =>
-        Utils.fail {
+      case Version.Bom(_) if !List[Cross](Cross.Binary, Cross.Disabled).contains(dependency.crossVersion) =>
+        Left {
           s"Version '*' on ${dependency.organization}:${dependency.name} cannot be combined with " +
-            s"cross-version = '${crossVersionKeyword(dependency.crossVersion).getOrElse("?")}' — " +
+            s"cross-version = '${dependency.crossVersion.keyword}' — " +
             "only 'binary' and 'disabled' are supported when the version comes from a BOM."
         }
 
-      case _ => ()
+      case _ => Right(())
     }
 
   /** Parses a dependency line into a dependency.
     *
     * Variables (`{{name}}`) are produced unresolved (`Variable(name, None)`) — resolution happens later via
-    * [[Dependency.resolveVariable]], where the dep's final `crossVersion` (after annotation merge) is known and can be
-    * passed to the resolver function. BOM-managed versions (`*`) are likewise produced unresolved (`Bom(None)`) —
-    * resolution happens via [[Dependency.resolveBom]] once the group's flattened BOM pins are available.
+    * `resolveVariable` at the SBT seam, where the dep's final `crossVersion` (after annotation merge) is known and can
+    * be passed to the resolver function. BOM-managed versions (`*`) are likewise produced unresolved (`Bom(None)`) —
+    * resolution happens via `resolveBom` once the group's flattened BOM pins are available.
     */
-  def parse(line: String)(implicit logger: Logger): Dependency =
+  def parse(line: String): Either[String, Dependency] =
     line match {
-      case dependencyRegex(_, _, _, null, _) => // scalafix:ok
-        Utils.fail(s"$line is missing a version")
+      case dependencyRegex(_, _, _, null, _) =>
+        Left(s"$line is missing a version")
 
       case dependencyRegex(org, sep, name, "*", config) =>
-        Dependency(
-          org,
-          name,
-          Version.Bom(None),
-          configuration = Option(config).getOrElse("compile"),
-          crossVersion = if (sep === "::") CrossVersion.binary else CrossVersion.disabled
+        Right(
+          Dependency(
+            org,
+            name,
+            Version.Bom(None),
+            configuration = Option(config).getOrElse("compile"),
+            crossVersion = if (sep === "::") Cross.Binary else Cross.Disabled
+          )
         )
 
       case dependencyRegex(org, sep, name, Version.Variable.regex(variable), config) =>
-        Dependency(
-          org,
-          name,
-          Version.Variable(variable, None),
-          configuration = Option(config).getOrElse("compile"),
-          crossVersion = if (sep === "::") CrossVersion.binary else CrossVersion.disabled
+        Right(
+          Dependency(
+            org,
+            name,
+            Version.Variable(variable, None),
+            configuration = Option(config).getOrElse("compile"),
+            crossVersion = if (sep === "::") Cross.Binary else Cross.Disabled
+          )
         )
 
       case dependencyRegex(org, sep, name, Version.Numeric(version), config) =>
-        Dependency(
-          org,
-          name,
-          version,
-          configuration = Option(config).getOrElse("compile"),
-          crossVersion = if (sep === "::") CrossVersion.binary else CrossVersion.disabled
+        Right(
+          Dependency(
+            org,
+            name,
+            version,
+            configuration = Option(config).getOrElse("compile"),
+            crossVersion = if (sep === "::") Cross.Binary else Cross.Disabled
+          )
         )
 
       case _ =>
-        Utils.fail(s"$line is not a valid dependency")
+        Left(s"$line is not a valid dependency")
     }
 
   /** A version specification for a dependency.

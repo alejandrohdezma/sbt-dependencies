@@ -27,6 +27,7 @@ import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
 
@@ -138,7 +139,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -148,13 +149,13 @@ class DependenciesFileSuite extends munit.FunSuite {
         "sbt-scalafix",
         Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
         "sbt-plugin",
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       ),
       Dependency(
         "io.get-coursier",
         "coursier",
         Version.Numeric(List(2, 1, 24), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -184,28 +185,28 @@ class DependenciesFileSuite extends munit.FunSuite {
         "z-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       ),
       Dependency(
         "org",
         "a-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         "compile",
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       ),
       Dependency(
         "org",
         "m-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       ),
       Dependency(
         "org",
         "b-lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         "compile",
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       )
     )
 
@@ -225,13 +226,13 @@ class DependenciesFileSuite extends munit.FunSuite {
         "com.beachape",
         "enumeratum-cats",
         Version.Numeric(List(1, 9, 5), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       ),
       Dependency(
         "com.beachape",
         "enumeratum",
         Version.Numeric(List(1, 9, 5), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -248,11 +249,11 @@ class DependenciesFileSuite extends munit.FunSuite {
     val v = Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
 
     val dependencies = List(
-      Dependency("com.squareup.okio", "okio", v, crossVersion = CrossVersion.disabled),
-      Dependency("com.squareup.okio", "okio-jvm", v, crossVersion = CrossVersion.disabled),
-      Dependency("com.squareup.wire", "wire-runtime-jvm", v, crossVersion = CrossVersion.disabled),
-      Dependency("com.squareup", "javapoet", v, crossVersion = CrossVersion.disabled),
-      Dependency("com.squareup", "kotlinpoet", v, crossVersion = CrossVersion.disabled)
+      Dependency("com.squareup.okio", "okio", v, crossVersion = Dependency.Cross.Disabled),
+      Dependency("com.squareup.okio", "okio-jvm", v, crossVersion = Dependency.Cross.Disabled),
+      Dependency("com.squareup.wire", "wire-runtime-jvm", v, crossVersion = Dependency.Cross.Disabled),
+      Dependency("com.squareup", "javapoet", v, crossVersion = Dependency.Cross.Disabled),
+      Dependency("com.squareup", "kotlinpoet", v, crossVersion = Dependency.Cross.Disabled)
     )
 
     DependenciesFile(file).write(Group("group"), dependencies)
@@ -276,14 +277,14 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       ),
       Dependency(
         "org.scalameta",
         "munit",
         Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -292,7 +293,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "com.google.guava",
         "guava",
         Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       )
     )
 
@@ -419,19 +420,19 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       ),
       Dependency(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.Major),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       ),
       Dependency(
         "org.typelevel",
         "fs2-core",
         Version.Numeric(List(3, 9, 0), None, Version.Numeric.Marker.Minor),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -502,7 +503,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "munit",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -529,19 +530,19 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org",
         "lib",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       ),
       Dependency(
         "org",
         "lib",
         Version.Numeric(List(2, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       ), // duplicate artifact, different version
       Dependency(
         "org",
         "other",
         Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       )
     )
 
@@ -559,14 +560,14 @@ class DependenciesFileSuite extends munit.FunSuite {
         "com.google.protobuf",
         "protobuf-java",
         Version.Numeric(List(3, 25, 1), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       ),
       Dependency(
         "com.google.protobuf",
         "protobuf-java",
         Version.Numeric(List(3, 25, 1), None, Version.Numeric.Marker.NoMarker),
         "protobuf",
-        crossVersion = CrossVersion.disabled
+        crossVersion = Dependency.Cross.Disabled
       )
     )
 
@@ -644,7 +645,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -674,7 +675,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -710,7 +711,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
     val advancedDeps = List(
@@ -719,7 +720,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "scalatest",
         Version.Numeric(List(3, 2, 0), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -749,7 +750,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -793,7 +794,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -937,7 +938,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 5, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -963,7 +964,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -1199,7 +1200,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   }.test("write preserves java-version through dependency update") { file =>
     DependenciesFile(file).write(
       Group("my-project"),
-      List(Dependency.parse("org.typelevel::cats-core:2.11.0"))
+      List(Dependency.parseOrFail("org.typelevel::cats-core:2.11.0"))
     )
 
     val content = IO.read(file)
@@ -1217,7 +1218,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   }
 
   withDependenciesFile("").test("write to a new group with javaVersion produces advanced format") { file =>
-    val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0"))
+    val newDeps = List(Dependency.parseOrFail("org.typelevel::cats-core:2.10.0"))
 
     DependenciesFile(file).write(Group("my-project"), newDeps, javaVersion = Some("25"))
 
@@ -1246,7 +1247,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   }.test("write with explicit javaVersion overrides existing java-version") { file =>
     DependenciesFile(file).write(
       Group("my-project"),
-      List(Dependency.parse("org.typelevel::cats-core:2.10.0")),
+      List(Dependency.parseOrFail("org.typelevel::cats-core:2.10.0")),
       javaVersion = Some("21")
     )
 
@@ -1267,7 +1268,7 @@ class DependenciesFileSuite extends munit.FunSuite {
   withDependenciesFile("").test(
     "write to a new group with both scalaVersions and javaVersion produces advanced format"
   ) { file =>
-    val newDeps = List(Dependency.parse("org.typelevel::cats-core:2.10.0"))
+    val newDeps = List(Dependency.parseOrFail("org.typelevel::cats-core:2.10.0"))
 
     DependenciesFile(file).write(Group("my-project"), newDeps, List("2.13.12"), javaVersion = Some("17"))
 
@@ -1329,7 +1330,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
-        crossVersion = CrossVersion.binary,
+        crossVersion = Dependency.Cross.Binary,
         note = Some("v3 drops Scala 2.12")
       ),
       Dependency(
@@ -1337,7 +1338,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "munit",
         Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -1356,7 +1357,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.Major),
-        crossVersion = CrossVersion.binary,
+        crossVersion = Dependency.Cross.Binary,
         note = Some("v3 drops Scala 2.12")
       ),
       Dependency(
@@ -1364,7 +1365,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "munit",
         Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -1396,7 +1397,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "munit",
         Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -1428,7 +1429,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Exact),
-        crossVersion = CrossVersion.binary,
+        crossVersion = Dependency.Cross.Binary,
         note = Some("Exact pin for compat")
       ),
       Dependency(
@@ -1436,7 +1437,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "munit",
         Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -1469,14 +1470,14 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 11, 0), None, Version.Numeric.Marker.Major),
-        crossVersion = CrossVersion.binary,
+        crossVersion = Dependency.Cross.Binary,
         note = Some("v3 drops Scala 2.12")
       ),
       Dependency(
         "org.typelevel",
         "cats-effect",
         Version.Numeric(List(3, 6, 0), None, Version.Numeric.Marker.Exact),
-        crossVersion = CrossVersion.binary,
+        crossVersion = Dependency.Cross.Binary,
         note = Some("Binary compat issue")
       )
     )
@@ -1508,7 +1509,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.Major),
-        crossVersion = CrossVersion.binary,
+        crossVersion = Dependency.Cross.Binary,
         note = Some("v3 drops Scala 2.12")
       )
     )
@@ -1545,7 +1546,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "munit",
         Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -1602,7 +1603,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.http4s",
         "http4s-core",
         Version.Numeric(List(0, 23, 4), None, Version.Numeric.Marker.Exact),
-        crossVersion = CrossVersion.binary,
+        crossVersion = Dependency.Cross.Binary,
         intransitive = true
       ),
       Dependency(
@@ -1610,7 +1611,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "munit",
         Version.Numeric(List(1, 3, 0), None, Version.Numeric.Marker.NoMarker),
         "test",
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -1639,7 +1640,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.http4s",
         "http4s-core",
         Version.Numeric(List(0, 23, 4), None, Version.Numeric.Marker.Exact),
-        crossVersion = CrossVersion.binary,
+        crossVersion = Dependency.Cross.Binary,
         note = Some("Uses internal API"),
         intransitive = true
       )
@@ -1669,7 +1670,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     assertEquals(result.size, 1)
-    assertEquals(result.head.crossVersion, CrossVersion.full)
+    assertEquals(result.head.crossVersion, Dependency.Cross.Full)
   }
 
   withDependenciesFile {
@@ -1684,7 +1685,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "kind-projector",
         Version.Numeric(List(0, 13, 4), None, Version.Numeric.Marker.NoMarker),
         "compiler-plugin",
-        crossVersion = CrossVersion.full
+        crossVersion = Dependency.Cross.Full
       )
     )
 
@@ -1760,7 +1761,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     val result = DependenciesFile(file).read(Group("my-project"), resolvers)
 
     assertEquals(result.size, 1)
-    assertEquals(result.head.crossVersion, CrossVersion.binary)
+    assertEquals(result.head.crossVersion, Dependency.Cross.Binary)
   }
 
   withDependenciesFile {
@@ -1780,7 +1781,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "kind-projector",
         Version.Numeric(List(0, 13, 3), None, Version.Numeric.Marker.NoMarker),
         configuration = "compiler-plugin",
-        crossVersion = CrossVersion.full
+        crossVersion = Dependency.Cross.Full
       )
     )
 
@@ -2043,7 +2044,7 @@ class DependenciesFileSuite extends munit.FunSuite {
         "org.typelevel",
         "cats-core",
         Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-        crossVersion = CrossVersion.binary
+        crossVersion = Dependency.Cross.Binary
       )
     )
 
@@ -2076,7 +2077,7 @@ class DependenciesFileSuite extends munit.FunSuite {
     val result = DependenciesFile(file).read(Group("my-project"), variableResolvers)
 
     val expected = List(
-      Dependency("org.typelevel", "cats-core", Version.Bom(None), crossVersion = CrossVersion.binary),
+      Dependency("org.typelevel", "cats-core", Version.Bom(None), crossVersion = Dependency.Cross.Binary),
       Dependency(
         "com.fasterxml.jackson",
         "jackson-bom",

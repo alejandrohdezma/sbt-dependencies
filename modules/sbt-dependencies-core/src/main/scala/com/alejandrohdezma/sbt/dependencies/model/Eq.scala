@@ -31,7 +31,6 @@ trait Eq[A] {
 
 }
 
-@SuppressWarnings(Array("scalafix:DisableSyntax.=="))
 object Eq {
 
   implicit class EqOps[A: Eq](a: A) {

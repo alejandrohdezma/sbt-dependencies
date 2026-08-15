@@ -24,6 +24,7 @@ import sbt.util.Logger
 import com.alejandrohdezma.sbt.dependencies.Settings
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** A Maven BOM read for programmatic consumption from build code: its flattened managed dependencies (`pins`) and the

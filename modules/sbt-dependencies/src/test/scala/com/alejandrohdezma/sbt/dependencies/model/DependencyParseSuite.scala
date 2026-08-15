@@ -24,6 +24,7 @@ import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
+import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 
 class DependencyParseSuite extends munit.FunSuite {
 
@@ -36,13 +37,13 @@ class DependencyParseSuite extends munit.FunSuite {
   implicit val finders: Finders = Finders.noop.withVersionFinder(dummyVersionFinder)
 
   test("parse cross-version dependency with version") {
-    val result = Dependency.parse("org.typelevel::cats-core:2.10.0")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:2.10.0")
 
     val expected = Dependency(
       organization = "org.typelevel",
       name = "cats-core",
       version = Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.binary
+      crossVersion = Dependency.Cross.Binary
     )
 
     assertEquals(result, expected)
@@ -52,7 +53,7 @@ class DependencyParseSuite extends munit.FunSuite {
     interceptMessage[Exception](
       "org.typelevel::cats-core is missing a version"
     ) {
-      Dependency.parse("org.typelevel::cats-core")
+      Dependency.parseOrFail("org.typelevel::cats-core")
     }
   }
 
@@ -63,7 +64,7 @@ class DependencyParseSuite extends munit.FunSuite {
       organization = "org.typelevel",
       name = "cats-core",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.binary
+      crossVersion = Dependency.Cross.Binary
     )
 
     assertEquals(result, expected)
@@ -79,7 +80,7 @@ class DependencyParseSuite extends munit.FunSuite {
       name = "kind-projector",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
       configuration = "compiler-plugin",
-      crossVersion = sbt.librarymanagement.CrossVersion.full
+      crossVersion = Dependency.Cross.Full
     )
 
     assertEquals(result, expected)
@@ -92,7 +93,7 @@ class DependencyParseSuite extends munit.FunSuite {
       organization = "ch.epfl.scala",
       name = "sbt-scalafix",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.disabled,
+      crossVersion = Dependency.Cross.Disabled,
       configuration = "sbt-plugin"
     )
 
@@ -100,13 +101,13 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parse java dependency with version") {
-    val result = Dependency.parse("com.google.guava:guava:32.1.0-jre")
+    val result = Dependency.parseOrFail("com.google.guava:guava:32.1.0-jre")
 
     val expected = Dependency(
       organization = "com.google.guava",
       name = "guava",
       version = Version.Numeric(List(32, 1, 0), Some("-jre"), Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.disabled
+      crossVersion = Dependency.Cross.Disabled
     )
 
     assertEquals(result, expected)
@@ -116,7 +117,7 @@ class DependencyParseSuite extends munit.FunSuite {
     interceptMessage[Exception](
       "com.google.guava:guava is missing a version"
     ) {
-      Dependency.parse("com.google.guava:guava")
+      Dependency.parseOrFail("com.google.guava:guava")
     }
   }
 
@@ -127,7 +128,7 @@ class DependencyParseSuite extends munit.FunSuite {
       organization = "com.google.guava",
       name = "guava",
       version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.disabled
+      crossVersion = Dependency.Cross.Disabled
     )
 
     assertEquals(result, expected)
@@ -135,20 +136,20 @@ class DependencyParseSuite extends munit.FunSuite {
 
   test("parse invalid dependency throws exception") {
     intercept[Exception] {
-      Dependency.parse("invalid")
+      Dependency.parseOrFail("invalid")
     }
   }
 
   // --- Edge cases with configuration ---
 
   test("parse cross-version dependency with version and configuration") {
-    val result = Dependency.parse("org.scalameta::munit:1.2.1:test")
+    val result = Dependency.parseOrFail("org.scalameta::munit:1.2.1:test")
 
     val expected = Dependency(
       organization = "org.scalameta",
       name = "munit",
       version = Version.Numeric(List(1, 2, 1), None, Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.binary,
+      crossVersion = Dependency.Cross.Binary,
       configuration = "test"
     )
 
@@ -156,13 +157,13 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parse java dependency with version and configuration") {
-    val result = Dependency.parse("ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin")
+    val result = Dependency.parseOrFail("ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin")
 
     val expected = Dependency(
       organization = "ch.epfl.scala",
       name = "sbt-scalafix",
       version = Version.Numeric(List(0, 14, 5), None, Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.disabled,
+      crossVersion = Dependency.Cross.Disabled,
       configuration = "sbt-plugin"
     )
 
@@ -170,13 +171,13 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parse dependency with provided configuration") {
-    val result = Dependency.parse("javax.servlet:javax.servlet-api:4.0.1:provided")
+    val result = Dependency.parseOrFail("javax.servlet:javax.servlet-api:4.0.1:provided")
 
     val expected = Dependency(
       organization = "javax.servlet",
       name = "javax.servlet-api",
       version = Version.Numeric(List(4, 0, 1), None, Version.Numeric.Marker.NoMarker),
-      crossVersion = CrossVersion.disabled,
+      crossVersion = Dependency.Cross.Disabled,
       configuration = "provided"
     )
 
@@ -186,28 +187,28 @@ class DependencyParseSuite extends munit.FunSuite {
   // --- Edge cases with version markers ---
 
   test("parse dependency with exact version marker") {
-    val result = Dependency.parse("org.typelevel::cats-core:=2.10.0")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:=2.10.0")
 
     assertEquals(result.version.asInstanceOf[Version.Numeric].marker, Version.Numeric.Marker.Exact)
     assertEquals(result.version.toVersionString, "2.10.0")
   }
 
   test("parse dependency with major version marker") {
-    val result = Dependency.parse("org.typelevel::cats-core:^2.10.0")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:^2.10.0")
 
     assertEquals(result.version.asInstanceOf[Version.Numeric].marker, Version.Numeric.Marker.Major)
     assertEquals(result.version.toVersionString, "2.10.0")
   }
 
   test("parse dependency with minor version marker") {
-    val result = Dependency.parse("org.typelevel::cats-core:~2.10.0")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:~2.10.0")
 
     assertEquals(result.version.asInstanceOf[Version.Numeric].marker, Version.Numeric.Marker.Minor)
     assertEquals(result.version.toVersionString, "2.10.0")
   }
 
   test("parse dependency with version marker and configuration") {
-    val result = Dependency.parse("org.scalameta::munit:=1.2.1:test")
+    val result = Dependency.parseOrFail("org.scalameta::munit:=1.2.1:test")
 
     assertEquals(result.version.asInstanceOf[Version.Numeric].marker, Version.Numeric.Marker.Exact)
     assertEquals(result.version.toVersionString, "1.2.1")
@@ -217,13 +218,13 @@ class DependencyParseSuite extends munit.FunSuite {
   // --- Edge cases with whitespace ---
 
   test("parse dependency trims organization whitespace") {
-    val result = Dependency.parse("  org.typelevel  ::cats-core:2.10.0")
+    val result = Dependency.parseOrFail("  org.typelevel  ::cats-core:2.10.0")
 
     assertEquals(result.organization, "org.typelevel")
   }
 
   test("parse dependency trims name whitespace") {
-    val result = Dependency.parse("org.typelevel::  cats-core  :2.10.0")
+    val result = Dependency.parseOrFail("org.typelevel::  cats-core  :2.10.0")
 
     assertEquals(result.name, "cats-core")
   }
@@ -231,28 +232,28 @@ class DependencyParseSuite extends munit.FunSuite {
   // --- Edge cases with version suffixes ---
 
   test("parse dependency with .Final suffix") {
-    val result = Dependency.parse("org.hibernate:hibernate-core:5.6.15.Final")
+    val result = Dependency.parseOrFail("org.hibernate:hibernate-core:5.6.15.Final")
 
     assertEquals(result.version.asInstanceOf[Version.Numeric].parts, List(5, 6, 15))
     assertEquals(result.version.asInstanceOf[Version.Numeric].suffix, Some(".Final"))
   }
 
   test("parse dependency with -M suffix (milestone)") {
-    val result = Dependency.parse("org.scala-lang:scala3-library_3:3.4.0-RC1")
+    val result = Dependency.parseOrFail("org.scala-lang:scala3-library_3:3.4.0-RC1")
 
     assertEquals(result.version.asInstanceOf[Version.Numeric].parts, List(3, 4, 0))
     assertEquals(result.version.asInstanceOf[Version.Numeric].suffix, Some("-RC1"))
   }
 
   test("parse dependency with 4-part version") {
-    val result = Dependency.parse("io.netty:netty-all:4.1.100.Final")
+    val result = Dependency.parseOrFail("io.netty:netty-all:4.1.100.Final")
 
     assertEquals(result.version.asInstanceOf[Version.Numeric].parts, List(4, 1, 100))
     assertEquals(result.version.asInstanceOf[Version.Numeric].suffix, Some(".Final"))
   }
 
   test("parse dependency with 2-part version") {
-    val result = Dependency.parse("org.scala-lang:scala-library:2.13")
+    val result = Dependency.parseOrFail("org.scala-lang:scala-library:2.13")
 
     assertEquals(result.version.asInstanceOf[Version.Numeric].parts, List(2, 13))
     assertEquals(result.version.asInstanceOf[Version.Numeric].suffix, None)
@@ -261,7 +262,7 @@ class DependencyParseSuite extends munit.FunSuite {
   // --- Variable version tests ---
 
   test("parse dependency with variable version produces unresolved Variable") {
-    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:{{catsVersion}}")
 
     result.version match {
       case v: Version.Variable =>
@@ -274,7 +275,7 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parse dependency with variable version and configuration") {
-    val result = Dependency.parse("org.scalameta::munit:{{munitVersion}}:test")
+    val result = Dependency.parseOrFail("org.scalameta::munit:{{munitVersion}}:test")
 
     result.version match {
       case v: Version.Variable =>
@@ -287,7 +288,7 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parse dependency with undefined variable produces unresolved Variable") {
-    val result = Dependency.parse("org.typelevel::cats-core:{{unknownVar}}")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:{{unknownVar}}")
 
     result.version match {
       case v: Version.Variable =>
@@ -298,13 +299,13 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parse variable dependency toLine preserves variable syntax") {
-    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:{{catsVersion}}")
 
     assertEquals(result.toLine, "org.typelevel::cats-core:{{catsVersion}}")
   }
 
   test("parse java dependency with variable version produces Java-cross unresolved Variable") {
-    val result = Dependency.parse("com.fasterxml.jackson.core:jackson-core:{{jacksonVersion}}")
+    val result = Dependency.parseOrFail("com.fasterxml.jackson.core:jackson-core:{{jacksonVersion}}")
 
     result.version match {
       case v: Version.Variable =>
@@ -323,7 +324,7 @@ class DependencyParseSuite extends munit.FunSuite {
       "catsVersion" -> { _ % "2.10.0" }
     )
 
-    val result = Dependency.parse("org.typelevel::cats-core:{{catsVersion}}").resolveVariable(resolvers)
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:{{catsVersion}}").resolveVariable(resolvers)
 
     result.version match {
       case v: Version.Variable =>
@@ -340,7 +341,7 @@ class DependencyParseSuite extends munit.FunSuite {
       "otherVar" -> { _ % "1.0.0" }
     )
 
-    val result = Dependency.parse("org.typelevel::cats-core:{{unknownVar}}").resolveVariable(resolvers)
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:{{unknownVar}}").resolveVariable(resolvers)
 
     result.version match {
       case v: Version.Variable =>
@@ -355,41 +356,41 @@ class DependencyParseSuite extends munit.FunSuite {
       "v" -> { _ % "9.9.9" }
     )
 
-    val numeric = Dependency.parse("org.typelevel::cats-core:2.10.0")
+    val numeric = Dependency.parseOrFail("org.typelevel::cats-core:2.10.0")
     assertEquals(numeric.resolveVariable(resolvers), numeric)
 
-    val alreadyResolved = Dependency.parse("org.typelevel::cats-core:{{v}}").resolveVariable(resolvers)
+    val alreadyResolved = Dependency.parseOrFail("org.typelevel::cats-core:{{v}}").resolveVariable(resolvers)
     assertEquals(alreadyResolved.resolveVariable(resolvers), alreadyResolved)
   }
 
   // --- BOM-managed (`*`) version tests ---
 
   test("parse cross-version dependency with * produces unresolved Bom") {
-    val result = Dependency.parse("org.typelevel::cats-core:*")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:*")
 
     val expected = Dependency(
       organization = "org.typelevel",
       name = "cats-core",
       version = Version.Bom(None),
-      crossVersion = CrossVersion.binary
+      crossVersion = Dependency.Cross.Binary
     )
 
     assertEquals(result, expected)
   }
 
   test("parse dependency with * and configuration") {
-    val result = Dependency.parse("org.scalameta::munit:*:test")
+    val result = Dependency.parseOrFail("org.scalameta::munit:*:test")
 
     val expected = Dependency(
       organization = "org.scalameta", name = "munit", version = Version.Bom(None), configuration = "test",
-      crossVersion = CrossVersion.binary
+      crossVersion = Dependency.Cross.Binary
     )
 
     assertEquals(result, expected)
   }
 
   test("parse java dependency with *") {
-    val result = Dependency.parse("com.google.guava:guava:*")
+    val result = Dependency.parseOrFail("com.google.guava:guava:*")
 
     val expected = Dependency(
       organization = "com.google.guava",
@@ -401,7 +402,7 @@ class DependencyParseSuite extends munit.FunSuite {
   }
 
   test("parse dependency with * toLine preserves the placeholder") {
-    val result = Dependency.parse("org.typelevel::cats-core:*")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:*")
 
     assertEquals(result.toLine, "org.typelevel::cats-core:*")
   }
@@ -417,7 +418,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("resolveBom resolves a cross-compiled dependency against the suffixed pin") {
     val pins = List("org.typelevel" % "cats-core_2.13" % "2.10.0")
 
-    val result = Dependency.parse("org.typelevel::cats-core:*").resolveBom(pins, "2.13")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:*").resolveBom(pins, "2.13")
 
     val expected = Version.Bom(Some(Version.Numeric(List(2, 10, 0), None, Version.Numeric.Marker.NoMarker)))
 
@@ -427,7 +428,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("resolveBom resolves a java dependency against the plain pin") {
     val pins = List("com.google.guava" % "guava" % "33.4.0-jre")
 
-    val result = Dependency.parse("com.google.guava:guava:*").resolveBom(pins, "2.13")
+    val result = Dependency.parseOrFail("com.google.guava:guava:*").resolveBom(pins, "2.13")
 
     assertEquals(result.version.toVersionString, "33.4.0-jre")
   }
@@ -438,7 +439,7 @@ class DependencyParseSuite extends munit.FunSuite {
       "org.typelevel" % "cats-core_2.13" % "2.13.0"
     )
 
-    val result = Dependency.parse("org.typelevel::cats-core:*").resolveBom(pins, "2.13")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:*").resolveBom(pins, "2.13")
 
     assertEquals(result.version.toVersionString, "2.10.0")
   }
@@ -446,7 +447,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("resolveBom leaves the dep unchanged when no pin matches") {
     val pins = List("org.typelevel" % "cats-core_2.12" % "2.10.0")
 
-    val result = Dependency.parse("org.typelevel::cats-core:*").resolveBom(pins, "2.13")
+    val result = Dependency.parseOrFail("org.typelevel::cats-core:*").resolveBom(pins, "2.13")
 
     assertEquals(result.version, Version.Bom(None): Version)
   }
@@ -454,7 +455,7 @@ class DependencyParseSuite extends munit.FunSuite {
   test("resolveBom is a no-op for numeric and variable versions") {
     val pins = List("org.typelevel" % "cats-core_2.13" % "9.9.9")
 
-    val numeric = Dependency.parse("org.typelevel::cats-core:2.10.0")
+    val numeric = Dependency.parseOrFail("org.typelevel::cats-core:2.10.0")
 
     assertEquals(numeric.resolveBom(pins, "2.13"), numeric)
   }

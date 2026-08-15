@@ -16,8 +16,6 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
-import sbt.librarymanagement.CrossVersion
-
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 
@@ -27,7 +25,7 @@ class UpdateFilterSuite extends munit.FunSuite {
     organization = "org.typelevel",
     name = "cats-core",
     version = Version.Numeric(List(0, 1, 0), None, Version.Numeric.Marker.NoMarker),
-    crossVersion = CrossVersion.binary
+    crossVersion = Dependency.Cross.Binary
   )
 
   test("All matches everything") {

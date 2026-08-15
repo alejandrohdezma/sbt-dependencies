@@ -27,6 +27,7 @@ import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
+import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 class UtilsSuite extends munit.FunSuite {
@@ -59,7 +60,8 @@ class UtilsSuite extends munit.FunSuite {
       crossVersion: CrossVersion = CrossVersion.binary,
       configuration: String = "compile"
   ): Dependency =
-    Dependency(org, name, nv(version), configuration = configuration, crossVersion = crossVersion)
+    Dependency(org, name, nv(version), configuration = configuration,
+      crossVersion = Dependency.Cross.fromSbt(crossVersion))
 
   // Helper to create a dependency with Exact marker
   def exactDep(
@@ -72,7 +74,7 @@ class UtilsSuite extends munit.FunSuite {
       org,
       name,
       Version.Numeric.unapply(version).get.withMarker(Numeric.Marker.Exact),
-      crossVersion = crossVersion
+      crossVersion = Dependency.Cross.fromSbt(crossVersion)
     )
 
   // Helper to create a mock VersionFinder that returns specific versions for specific modules
@@ -358,7 +360,7 @@ class UtilsSuite extends munit.FunSuite {
     )
 
     val variable = Version.Variable("catsVersion", Some(nv("2.9.0")))
-    val input    = Dependency("org.typelevel", "cats-core", variable, crossVersion = CrossVersion.binary)
+    val input    = Dependency("org.typelevel", "cats-core", variable, crossVersion = Dependency.Cross.Binary)
 
     val result = resolveLatestVersions(List(input), 1)
 
