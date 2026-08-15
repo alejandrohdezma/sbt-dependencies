@@ -98,7 +98,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
 Editor support for `dependencies.conf` files is available under [`ide-plugins`](ide-plugins):
 
 - **[VS Code / Cursor extension](ide-plugins/vscode/README.md)**: syntax highlighting, diagnostics, hovers with resolved versions and BOM provenance, formatting, sbt commands and more.
-- **[IntelliJ IDEA plugin](ide-plugins/intellij/README.md)**: syntax highlighting, structure view and formatting that mirrors the `dependenciesFormat` task.
+- **[IntelliJ IDEA plugin](ide-plugins/intellij/README.md)**: syntax highlighting, diagnostics, structure view and formatting that mirrors the `dependenciesFormat` task.
 
 To power the VS Code extension's inline resolved versions and BOM provenance for `*` and `{{variable}}` dependencies, the plugin writes a `target/sbt-dependencies/.sbt-resolutions` file on every load — a JSON snapshot of each project's visible BOM pins and resolved variable versions. It never fails the build and is a no-op for builds without `dependencies.conf`.
 

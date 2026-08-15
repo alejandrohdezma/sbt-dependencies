@@ -5,6 +5,7 @@ IntelliJ IDEA support for [`sbt-dependencies`](https://github.com/alejandrohdezm
 ## Features
 
 - **Syntax highlighting**: groups, setting and object-entry keys, and each part of a dependency line (organization, artifact, version, version markers, `*` BOM versions, `{{variable}}` references, configurations). Colors are customizable under `Settings → Editor → Color Scheme → sbt-dependencies`.
+- **Diagnostics**: malformed dependencies, invalid `*` BOM usages, invalid `cross-version` values, incomplete object entries and unclosed `{{variable}}` references as errors; duplicate dependencies as warnings. Messages match the errors the sbt plugin itself would fail with.
 - **Structure view**: groups with their dependencies as navigable children (`⌘F12`).
 - **Formatting**: `Reformat Code` produces the exact output of the `dependenciesFormat` sbt task — groups and dependencies sorted, canonical indentation, comments dropped. Documents that don't parse are left untouched.
 - Comment/uncomment actions and brace matching.
