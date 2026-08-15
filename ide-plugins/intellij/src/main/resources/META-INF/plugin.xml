@@ -54,5 +54,12 @@
       language="sbt-dependencies"
       implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.structure.SbtDependenciesOutlineViewFactory"
     />
+    <formattingService
+      implementation="com.alejandrohdezma.sbt.dependencies.intellij.formatting.SbtDependenciesFormattingService"
+    />
+    <notificationGroup
+      id="sbt-dependencies"
+      displayType="BALLOON"
+    />
   </extensions>
 </idea-plugin>
