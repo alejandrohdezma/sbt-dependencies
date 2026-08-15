@@ -50,5 +50,9 @@
       language="sbt-dependencies"
       implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesBraceMatcher"
     />
+    <lang.psiStructureViewFactory
+      language="sbt-dependencies"
+      implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.structure.SbtDependenciesOutlineViewFactory"
+    />
   </extensions>
 </idea-plugin>
