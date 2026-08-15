@@ -35,3 +35,21 @@ lazy val `sbt-dependencies` = module
   .settings(buildInfoKeys := Seq[BuildInfoKey](version))
   .settings(buildInfoPackage := "com.alejandrohdezma.sbt.dependencies")
   .settings(Test / scalacOptions ++= scalaVersion.value.on(3)("-Wconf:msg=@nowarn annotation does:s"))
+
+/////////////////////
+// IntelliJ plugin //
+/////////////////////
+
+ThisBuild / intellijPluginName := "sbt-dependencies"
+ThisBuild / intellijBuild      := "251.29188.72"
+
+lazy val `intellij-plugin` = project
+  .in(file("ide-plugins/intellij"))
+  .enablePlugins(SbtIdeaPlugin)
+  .settings(Compile / unmanagedSourceDirectories += (`sbt-dependencies-core` / Compile / scalaSource).value)
+  .settings(packageMethod := PackagingMethod.Standalone())
+  .settings(packageLibraryMappings := Seq.empty)
+  .settings(patchPluginXml := pluginXmlOptions { xml =>
+    xml.version = version.value
+    xml.sinceBuild = "251"
+  })
