@@ -21,6 +21,7 @@ import scala.jdk.CollectionConverters._
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Fields
 import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigList
@@ -59,22 +60,23 @@ sealed trait GroupConfig {
       s"""${group.name} = [\n${deps.map(d => indent(d.format, 2)).mkString("\n")}\n]"""
 
     case GroupConfig.Advanced(deps, versions, javaVersion) =>
-      val javaVersionLines = javaVersion.map(v => s"""  java-version = "$v"""").toList
+      val javaVersionLines = javaVersion.map(v => s"""  ${Fields.JavaVersion} = "$v"""").toList
 
       val scalaVersionLines = versions match {
         case Nil           => Nil
-        case single :: Nil => List(s"""  scala-version = "${single.show}"""")
-        case multiple      => List(s"""  scala-versions = [${multiple.map(v => s""""${v.show}"""").mkString(", ")}]""")
+        case single :: Nil => List(s"""  ${Fields.ScalaVersion} = "${single.show}"""")
+        case multiple      =>
+          List(s"""  ${Fields.ScalaVersions} = [${multiple.map(v => s""""${v.show}"""").mkString(", ")}]""")
       }
 
       val depsLines =
         if (deps.nonEmpty)
-          List(s"""  dependencies = [\n${deps.map(d => indent(d.format, 4)).mkString("\n")}\n  ]""")
+          List(s"""  ${Fields.Dependencies} = [\n${deps.map(d => indent(d.format, 4)).mkString("\n")}\n  ]""")
         else Nil
 
       val sections = javaVersionLines ++ scalaVersionLines ++ depsLines
 
-      val body = if (sections.isEmpty) List("  dependencies = []") else sections
+      val body = if (sections.isEmpty) s"  ${Fields.Dependencies} = []" :: Nil else sections
 
       s"${group.name} {\n${body.mkString("\n")}\n}"
   }
@@ -126,7 +128,7 @@ object GroupConfig {
         val groupConfig = value.asInstanceOf[ConfigObject].toConfig
 
         val sbtBuildOnlyDependencies =
-          List("scala-version", "scala-versions", "java-version")
+          List(Fields.ScalaVersion, Fields.ScalaVersions, Fields.JavaVersion)
             .find(groupConfig.hasPath(_) && group === Group.`sbt-build`)
             .toLeft(())
             .left
@@ -136,36 +138,37 @@ object GroupConfig {
             }
 
         val dependencies =
-          if (groupConfig.hasPath("dependencies"))
-            groupConfig.getValue("dependencies") match {
+          if (groupConfig.hasPath(Fields.Dependencies))
+            groupConfig.getValue(Fields.Dependencies) match {
               case list: ConfigList => AnnotatedDependency.parse(list).flatMap(checkDuplicates)
               case other            => Left(s"'dependencies' must be a list, got ${other.valueType()}")
             }
           else Right(Nil)
 
-        val scalaVersions = (groupConfig.hasPath("scala-versions"), groupConfig.hasPath("scala-version")) match {
-          case (true, true) =>
-            Left("Only one of 'scala-versions' or 'scala-version' can be present")
-          case (true, _) =>
-            groupConfig.getValue("scala-versions").valueType() match {
-              case ConfigValueType.LIST =>
-                val list = groupConfig.getStringList("scala-versions").asScala.toList
-                if (list.isEmpty) Left("'scala-versions' cannot be empty")
-                else parseScalaVersions(list)
-              case other => Left(s"'scala-versions' must be a list, got $other")
-            }
-          case (false, true) =>
-            groupConfig.getValue("scala-version").valueType() match {
-              case ConfigValueType.STRING => parseScalaVersions(List(groupConfig.getString("scala-version")))
-              case other                  => Left(s"'scala-version' must be a string, got $other")
-            }
-          case (false, false) => Right(Nil)
-        }
+        val scalaVersions =
+          (groupConfig.hasPath(Fields.ScalaVersions), groupConfig.hasPath(Fields.ScalaVersion)) match {
+            case (true, true) =>
+              Left("Only one of 'scala-versions' or 'scala-version' can be present")
+            case (true, _) =>
+              groupConfig.getValue(Fields.ScalaVersions).valueType() match {
+                case ConfigValueType.LIST =>
+                  val list = groupConfig.getStringList(Fields.ScalaVersions).asScala.toList
+                  if (list.isEmpty) Left("'scala-versions' cannot be empty")
+                  else parseScalaVersions(list)
+                case other => Left(s"'scala-versions' must be a list, got $other")
+              }
+            case (false, true) =>
+              groupConfig.getValue(Fields.ScalaVersion).valueType() match {
+                case ConfigValueType.STRING => parseScalaVersions(List(groupConfig.getString(Fields.ScalaVersion)))
+                case other                  => Left(s"'scala-version' must be a string, got $other")
+              }
+            case (false, false) => Right(Nil)
+          }
 
         val javaVersion: Either[String, Option[String]] =
-          if (groupConfig.hasPath("java-version"))
-            groupConfig.getValue("java-version").valueType() match {
-              case ConfigValueType.STRING => Right(Some(groupConfig.getString("java-version")))
+          if (groupConfig.hasPath(Fields.JavaVersion))
+            groupConfig.getValue(Fields.JavaVersion).valueType() match {
+              case ConfigValueType.STRING => Right(Some(groupConfig.getString(Fields.JavaVersion)))
               case other                  => Left(s"'java-version' must be a string, got $other")
             }
           else Right(None)
