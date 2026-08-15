@@ -31,10 +31,8 @@ class GroupConfigSuite extends munit.FunSuite {
   /** Helper to parse a Scala version string into a Numeric, preserving its marker (matching `GroupConfig.parse`). */
   implicit def numeric(version: String): Numeric = Numeric.unapply(version).get // scalafix:ok
 
-  def parseGroup(hocon: String, group: String): Either[String, GroupConfig] = {
-    val config = ConfigFactory.parseString(hocon)
-    GroupConfig.parse(config, Group(group))
-  }
+  def parseGroup(hocon: String, group: String): Either[String, GroupConfig] =
+    GroupConfig.parse(ConfigFactory.parseString(hocon).root().get(group), Group(group))
 
   // --- parse() tests: Simple format ---
 

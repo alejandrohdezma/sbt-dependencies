@@ -20,7 +20,7 @@ import scala.jdk.CollectionConverters._
 
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import com.typesafe.config.Config
+import com.typesafe.config.ConfigList
 import com.typesafe.config.ConfigObject
 import com.typesafe.config.ConfigValueType
 
@@ -88,11 +88,8 @@ object AnnotatedDependency {
   })
 
   /** Parses a dependency list that may contain both plain strings and annotated objects. */
-  def parse(config: Config, path: String): Either[String, List[AnnotatedDependency]] =
-    config
-      .getList(path)
-      .asScala
-      .toList
+  def parse(list: ConfigList): Either[String, List[AnnotatedDependency]] =
+    list.asScala.toList
       .foldLeft(Right(List.empty[AnnotatedDependency]): Either[String, List[AnnotatedDependency]]) {
         case (Left(err), _) => Left(err)
 

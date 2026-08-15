@@ -22,8 +22,10 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
-import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
+import com.typesafe.config.ConfigList
+import com.typesafe.config.ConfigObject
+import com.typesafe.config.ConfigValue
 import com.typesafe.config.ConfigValueType
 
 /** Represents the configuration for a group in the dependencies file. */
@@ -93,33 +95,35 @@ object GroupConfig {
       .map { case (group, config) => config.format(group) }
       .mkString("\n\n")
 
+  /** Parses `content` as HOCON and returns its top-level entries as raw values, keeping their origins. The single entry
+    * point to the HOCON parser for dependencies documents, shared by [[parseAll]] and [[DependenciesOutline]]. Invalid
+    * HOCON syntax throws `ConfigException`, like `ConfigFactory.parseString` does.
+    */
+  private[io] def rootEntries(content: String): List[(String, ConfigValue)] =
+    ConfigFactory.parseString(content).root().entrySet().asScala.toList.map(entry => entry.getKey -> entry.getValue)
+
   /** Parses a whole dependencies file into its groups. Empty content yields an empty map; the first group that fails to
     * parse yields a `Left` naming it. Invalid HOCON syntax throws `ConfigException`, like `ConfigFactory.parseString`
     * does.
     */
   def parseAll(content: String): Either[String, Map[Group, GroupConfig]] =
-    if (content.trim.isEmpty) Right(Map.empty)
-    else {
-      val config = ConfigFactory.parseString(content)
-
-      config.root().keySet().asScala.toList.foldRight[Either[String, Map[Group, GroupConfig]]](Right(Map.empty)) {
-        (name, acc) =>
-          for {
-            groups <- acc
-            group   = Group(name)
-            parsed <- parse(config, group).left.map(error => s"Failed to parse group `$name`: $error")
-          } yield groups + (group -> parsed)
-      }
+    rootEntries(content).foldRight[Either[String, Map[Group, GroupConfig]]](Right(Map.empty)) {
+      case ((name, value), acc) =>
+        for {
+          groups <- acc
+          group   = Group(name)
+          parsed <- parse(value, group).left.map(error => s"Failed to parse group `$name`: $error")
+        } yield groups + (group -> parsed)
     }
 
-  /** Parses a group from a Config, detecting whether it's simple or advanced format. */
-  def parse(config: Config, group: Group): Either[String, GroupConfig] =
-    config.getValue(group.name).valueType() match {
+  /** Parses a group from its raw HOCON value, detecting whether it's simple or advanced format. */
+  def parse(value: ConfigValue, group: Group): Either[String, GroupConfig] =
+    value.valueType() match {
       case ConfigValueType.LIST =>
-        AnnotatedDependency.parse(config, group.name).flatMap(checkDuplicates).map(GroupConfig.Simple(_))
+        AnnotatedDependency.parse(value.asInstanceOf[ConfigList]).flatMap(checkDuplicates).map(GroupConfig.Simple(_))
 
       case ConfigValueType.OBJECT =>
-        val groupConfig = config.getConfig(group.name)
+        val groupConfig = value.asInstanceOf[ConfigObject].toConfig
 
         val sbtBuildOnlyDependencies =
           List("scala-version", "scala-versions", "java-version")
@@ -133,10 +137,9 @@ object GroupConfig {
 
         val dependencies =
           if (groupConfig.hasPath("dependencies"))
-            groupConfig.getValue("dependencies").valueType() match {
-              case ConfigValueType.LIST =>
-                AnnotatedDependency.parse(groupConfig, "dependencies").flatMap(checkDuplicates)
-              case other => Left(s"'dependencies' must be a list, got $other")
+            groupConfig.getValue("dependencies") match {
+              case list: ConfigList => AnnotatedDependency.parse(list).flatMap(checkDuplicates)
+              case other            => Left(s"'dependencies' must be a list, got ${other.valueType()}")
             }
           else Right(Nil)
 
