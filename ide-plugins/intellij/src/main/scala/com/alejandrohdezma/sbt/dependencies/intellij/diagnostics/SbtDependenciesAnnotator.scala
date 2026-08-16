@@ -30,32 +30,64 @@ import com.intellij.psi.PsiFile
   * thread and reports each problem as an error or warning annotation, with the exact messages the SBT plugin itself
   * would fail with.
   */
-final class SbtDependenciesAnnotator extends ExternalAnnotator[String, List[Diagnostic]] {
+final class SbtDependenciesAnnotator extends ExternalAnnotator[String, List[SbtDependenciesAnnotator.Found]] {
 
   /** The whole document text, captured on the UI thread. */
   override def collectInformation(file: PsiFile): String = file.getText
 
-  /** Checks the text on a background thread. `DependenciesDocument.parse` is lenient and never throws, so half-typed
-    * documents are checked as-is.
+  /** Checks the text on a background thread, pairing each removable diagnostic with its enclosing entry so a quick fix
+    * can delete it. `DependenciesDocument.parse` is lenient and never throws, so half-typed documents are checked
+    * as-is.
     */
-  override def doAnnotate(text: String): List[Diagnostic] = Diagnostics.check(DependenciesDocument.parse(text))
+  override def doAnnotate(text: String): List[SbtDependenciesAnnotator.Found] = {
+    val document = DependenciesDocument.parse(text)
 
-  /** Reports each diagnostic at its span, mapping core severities to platform ones. */
-  override def apply(file: PsiFile, diagnostics: List[Diagnostic], holder: AnnotationHolder): Unit =
-    diagnostics.foreach { diagnostic =>
+    Diagnostics.check(document).map { diagnostic =>
+      val entrySpan =
+        if (SbtDependenciesAnnotator.removable(diagnostic.message))
+          SbtDependenciesAnnotator.enclosingEntry(document, diagnostic.span)
+        else None
+
+      SbtDependenciesAnnotator.Found(diagnostic, entrySpan)
+    }
+  }
+
+  /** Reports each diagnostic at its span, mapping core severities to platform ones and attaching a
+    * [[RemoveEntryQuickFix]] to the removable ones.
+    */
+  override def apply(file: PsiFile, found: List[SbtDependenciesAnnotator.Found], holder: AnnotationHolder): Unit =
+    found.foreach { case SbtDependenciesAnnotator.Found(diagnostic, entrySpan) =>
       val severity = diagnostic.severity match {
         case Diagnostic.Severity.Error   => HighlightSeverity.ERROR
         case Diagnostic.Severity.Warning => HighlightSeverity.WARNING
       }
 
       SbtDependenciesAnnotator.visibleRange(diagnostic.span, file.getTextLength).foreach { range =>
-        holder.newAnnotation(severity, diagnostic.message).range(range).create()
+        val annotation = holder.newAnnotation(severity, diagnostic.message).range(range)
+
+        entrySpan.fold(annotation)(span => annotation.withFix(new RemoveEntryQuickFix(span))).create()
       }
     }
 
 }
 
 object SbtDependenciesAnnotator {
+
+  /** A diagnostic paired with the span of its enclosing entry, present only when the diagnostic can be fixed by
+    * removing the entry.
+    */
+  final case class Found(diagnostic: Diagnostic, entrySpan: Option[Span])
+
+  /** Whether removing the offending entry fixes the diagnostic. */
+  def removable(message: String): Boolean =
+    message == "Empty dependency string" || message.startsWith("duplicate dependency entry:")
+
+  /** The span of the entry containing `span`, if any. */
+  def enclosingEntry(document: DependenciesDocument, span: Span): Option[Span] =
+    document.groups
+      .flatMap(_.entries)
+      .find(entry => entry.span.start <= span.start && span.end <= entry.span.end)
+      .map(_.span)
 
   /** The text range to annotate for a diagnostic span. Zero-width spans (an empty dependency string points at the empty
     * content between its quotes) are widened one character to the right so the annotation stays visible, and spans that
