@@ -58,6 +58,13 @@
       language="sbt-dependencies"
       implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesBraceMatcher"
     />
+    <lang.foldingBuilder
+      language="sbt-dependencies"
+      implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesFoldingBuilder"
+    />
+    <editorFactoryListener
+      implementation="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesFoldingCaretListener"
+    />
     <copyPastePreProcessor
       implementation="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesPasteProcessor"
     />
