@@ -7,7 +7,7 @@
   <description><![CDATA[
     Language support for <code>dependencies.conf</code> files used by the
     <a href="https://github.com/alejandrohdezma/sbt-dependencies">sbt-dependencies</a> sbt plugin:
-    syntax highlighting, structure view and formatting.
+    syntax highlighting, diagnostics, structure view and formatting.
     <br/><br/>
     Note: reformatting mirrors the sbt plugin's own canonical output — groups and dependencies are
     sorted and comments are removed, exactly as <code>dependenciesFormat</code> would write the file.
@@ -30,6 +30,10 @@
     <lang.syntaxHighlighterFactory
       language="sbt-dependencies"
       implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.highlight.SbtDependenciesSyntaxHighlighterFactory"
+    />
+    <externalAnnotator
+      language="sbt-dependencies"
+      implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.diagnostics.SbtDependenciesAnnotator"
     />
     <additionalTextAttributes
       scheme="Default"
