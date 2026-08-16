@@ -97,6 +97,39 @@ class SbtDependenciesDocumentationProviderSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  test("hoverHtml documents reserved group names") {
+    val text =
+      """sbt-build = [
+        |  "ch.epfl.scala:sbt-scalafix:0.14.7:sbt-plugin"
+        |]
+        |
+        |common-settings {
+        |  scala-version = "3.3.7"
+        |}
+        |""".stripMargin
+
+    val sbtBuild = SbtDependenciesDocumentationProvider.hoverHtml(text, text.indexOf("sbt-build"))
+
+    val commonSettings = SbtDependenciesDocumentationProvider.hoverHtml(text, text.indexOf("common-settings"))
+
+    assertEquals(sbtBuild.exists(_.contains("meta-build dependencies")), true)
+    assertEquals(commonSettings.exists(_.contains("build-wide defaults")), true)
+  }
+
+  test("hoverHtml returns None on a regular group name") {
+    val text =
+      """example = [
+        |  "org.typelevel::cats-core:2.10.0"
+        |]
+        |""".stripMargin
+
+    val result = SbtDependenciesDocumentationProvider.hoverHtml(text, text.indexOf("example") + 2)
+
+    val expected = None
+
+    assertEquals(result, expected)
+  }
+
   test("hoverHtml returns None for a dependency that doesn't match the pattern") {
     val text =
       """example = [

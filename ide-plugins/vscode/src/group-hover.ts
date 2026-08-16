@@ -65,6 +65,9 @@ sbt-build = [
 ]
 ${fence}
 
+The plugin must be installed in \`project/project/plugins.sbt\` (the
+meta-build) for this group to work.
+
 Use \`installBuildDependencies\` / \`updateBuildDependencies\` from sbt to
 manage entries.
 

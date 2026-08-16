@@ -62,12 +62,21 @@ final class SbtDependenciesDocumentationProvider extends AbstractDocumentationPr
 
 object SbtDependenciesDocumentationProvider {
 
-  /** The hover HTML for the dependency entry containing `offset`, or `None` when the offset is outside any entry or the
-    * entry's dependency string doesn't parse.
+  /** The hover HTML for whatever sits at `offset`: the name of a reserved group (`sbt-build`, `common-settings`) or a
+    * dependency entry. `None` when the offset is on neither or the entry's dependency string doesn't parse.
     */
   def hoverHtml(text: String, offset: Int): Option[String] = {
     val document = DependenciesDocument.parse(text)
 
+    groupHoverHtml(document, offset).orElse(dependencyHoverHtml(document, offset))
+  }
+
+  private def groupHoverHtml(document: DependenciesDocument, offset: Int): Option[String] =
+    document.groups
+      .find(group => group.nameSpan.start <= offset && offset < group.nameSpan.end)
+      .flatMap(group => groupDocs.get(group.name))
+
+  private def dependencyHoverHtml(document: DependenciesDocument, offset: Int): Option[String] =
     document.groups
       .flatMap(_.entries)
       .find(entry => entry.span.start <= offset && offset < entry.span.end)
@@ -88,7 +97,6 @@ object SbtDependenciesDocumentationProvider {
 
         s"<div class='definition'><pre>$header</pre></div><div class='content'>$versionLine$configLine<p>$link</div>"
       }
-  }
 
   /** The mvnrepository.com URL for a dependency. sbt plugins are published under the `_2.12_1.0` artifact suffix. */
   def mvnRepositoryUrl(organization: String, name: String, config: Option[String]): String = {
@@ -96,6 +104,39 @@ object SbtDependenciesDocumentationProvider {
 
     s"https://mvnrepository.com/artifact/$organization/$artifact"
   }
+
+  private val groupDocs: Map[String, String] = Map(
+    "common-settings" ->
+      ("<div class='definition'><pre><b>common-settings</b> — build-wide defaults</pre></div><div class='content'>" +
+        "Declares dependencies, Scala versions, and Java target that apply to every non-meta project. A per-project " +
+        "group overrides by <code>(organization, name)</code> for deps, or wholesale for " +
+        "<code>scala-version[s]</code> and <code>java-version</code>." +
+        "<pre><code>common-settings {\n" +
+        "  scala-versions = [\"2.13.16\", \"3.3.7\"]\n" +
+        "  java-version   = \"17\"\n" +
+        "  dependencies   = [\n" +
+        "    \"org.typelevel::cats-core:2.10.0\"\n" +
+        "  ]\n" +
+        "}</code></pre>" +
+        "Use <code>installCommonDependencies</code> / <code>updateCommonDependencies</code> from sbt to manage " +
+        "entries." +
+        "<p><a href=\"https://github.com/alejandrohdezma/sbt-dependencies#readme\">Learn more</a></div>"),
+    "sbt-build" ->
+      ("<div class='definition'><pre><b>sbt-build</b> — meta-build dependencies</pre></div><div class='content'>" +
+        "Declares dependencies for the build definition itself: sbt plugins (<code>:sbt-plugin</code>) and " +
+        "libraries used in <code>build.sbt</code>. Cannot define <code>scala-version[s]</code> or " +
+        "<code>java-version</code> — those belong in <code>common-settings</code> (build-wide) or in per-project " +
+        "groups." +
+        "<pre><code>sbt-build = [\n" +
+        "  \"ch.epfl.scala:sbt-scalafix:0.14.5:sbt-plugin\"\n" +
+        "  \"org.scalameta:sbt-scalafmt:2.5.4:sbt-plugin\"\n" +
+        "]</code></pre>" +
+        "The plugin must be installed in <code>project/project/plugins.sbt</code> (the meta-build) for this group " +
+        "to work." +
+        "<p>Use <code>installBuildDependencies</code> / <code>updateBuildDependencies</code> from sbt to manage " +
+        "entries." +
+        "<p><a href=\"https://github.com/alejandrohdezma/sbt-dependencies#readme\">Learn more</a></div>")
+  )
 
   private def explanation(version: String): String =
     if (version == "*") "managed by BOM"
