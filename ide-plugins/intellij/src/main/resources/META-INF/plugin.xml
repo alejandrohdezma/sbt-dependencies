@@ -46,6 +46,10 @@
     <colorSettingsPage
       implementation="com.alejandrohdezma.sbt.dependencies.intellij.highlight.SbtDependenciesColorSettingsPage"
     />
+    <lang.documentationProvider
+      language="sbt-dependencies"
+      implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.documentation.SbtDependenciesDocumentationProvider"
+    />
     <lang.commenter
       language="sbt-dependencies"
       implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesCommenter"
