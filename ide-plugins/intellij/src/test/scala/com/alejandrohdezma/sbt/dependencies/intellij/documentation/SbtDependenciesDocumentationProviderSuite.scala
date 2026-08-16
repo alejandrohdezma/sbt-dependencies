@@ -144,6 +144,34 @@ class SbtDependenciesDocumentationProviderSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  test("mvnRepositoryUrlAt resolves the entry at an offset") {
+    val text =
+      """example = [
+        |  "org.typelevel::cats-core:2.10.0"
+        |]
+        |""".stripMargin
+
+    val result = SbtDependenciesDocumentationProvider.mvnRepositoryUrlAt(text, text.indexOf("cats-core"))
+
+    val expected = Some("https://mvnrepository.com/artifact/org.typelevel/cats-core")
+
+    assertEquals(result, expected)
+  }
+
+  test("mvnRepositoryUrlAt returns None outside any entry") {
+    val text =
+      """example = [
+        |  "org.typelevel::cats-core:2.10.0"
+        |]
+        |""".stripMargin
+
+    val result = SbtDependenciesDocumentationProvider.mvnRepositoryUrlAt(text, text.indexOf("example"))
+
+    val expected = None
+
+    assertEquals(result, expected)
+  }
+
   test("mvnRepositoryUrl appends the sbt cross suffix to sbt plugins") {
     val result = SbtDependenciesDocumentationProvider.mvnRepositoryUrl("com.example", "sbt-thing", Some("sbt-plugin"))
 

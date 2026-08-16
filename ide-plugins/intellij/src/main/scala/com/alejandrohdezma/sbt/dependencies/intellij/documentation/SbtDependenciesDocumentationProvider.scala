@@ -46,6 +46,21 @@ final class SbtDependenciesDocumentationProvider extends AbstractDocumentationPr
       case _ => null
     }
 
+  /** The mvnrepository.com URL for the dependency entry at the element's offset, opened by the View External
+    * Documentation action.
+    */
+  override def getUrlFor(element: PsiElement, originalElement: PsiElement): java.util.List[String] =
+    Option(element)
+      .filter(_.getContainingFile.isInstanceOf[SbtDependenciesFile])
+      .flatMap { element =>
+        SbtDependenciesDocumentationProvider.mvnRepositoryUrlAt(
+          element.getContainingFile.getText,
+          element.getTextRange.getStartOffset
+        )
+      }
+      .map(java.util.List.of(_))
+      .orNull
+
   /** The documentation for the dependency entry at the element's offset, or null when the element is not inside one. */
   override def generateDoc(element: PsiElement, originalElement: PsiElement): String =
     Option(element)
@@ -76,27 +91,35 @@ object SbtDependenciesDocumentationProvider {
       .find(group => group.nameSpan.start <= offset && offset < group.nameSpan.end)
       .flatMap(group => groupDocs.get(group.name))
 
-  private def dependencyHoverHtml(document: DependenciesDocument, offset: Int): Option[String] =
+  /** The mvnrepository.com URL for the dependency entry containing `offset`, if any. */
+  def mvnRepositoryUrlAt(text: String, offset: Int): Option[String] =
+    dependencyAt(DependenciesDocument.parse(text), offset).collect {
+      case Dependency.dependencyRegex(org, _, name, _, config) => mvnRepositoryUrl(org, name, Option(config))
+    }
+
+  private def dependencyAt(document: DependenciesDocument, offset: Int): Option[String] =
     document.groups
       .flatMap(_.entries)
       .find(entry => entry.span.start <= offset && offset < entry.span.end)
       .flatMap(_.dependency)
       .map(_.value)
-      .collect { case Dependency.dependencyRegex(org, separator, name, version, config) =>
-        val header = s"<b>$org</b> <code>$separator</code> <b>$name</b>"
 
-        val versionLine = Option(version) match {
-          case Some(version) => s"Version: <code>$version</code> <i>(${explanation(version)})</i>"
-          case None          => "Version: <i>resolved to latest</i>"
-        }
+  private def dependencyHoverHtml(document: DependenciesDocument, offset: Int): Option[String] =
+    dependencyAt(document, offset).collect { case Dependency.dependencyRegex(org, separator, name, version, config) =>
+      val header = s"<b>$org</b> <code>$separator</code> <b>$name</b>"
 
-        val configLine = Option(config).map(config => s"<br/>Configuration: <code>$config</code>").getOrElse("")
-
-        val link =
-          s"""<a href="${mvnRepositoryUrl(org, name, Option(config))}">Open on mvnrepository</a>"""
-
-        s"<div class='definition'><pre>$header</pre></div><div class='content'>$versionLine$configLine<p>$link</div>"
+      val versionLine = Option(version) match {
+        case Some(version) => s"Version: <code>$version</code> <i>(${explanation(version)})</i>"
+        case None          => "Version: <i>resolved to latest</i>"
       }
+
+      val configLine = Option(config).map(config => s"<br/>Configuration: <code>$config</code>").getOrElse("")
+
+      val link =
+        s"""<a href="${mvnRepositoryUrl(org, name, Option(config))}">Open on mvnrepository</a>"""
+
+      s"<div class='definition'><pre>$header</pre></div><div class='content'>$versionLine$configLine<p>$link</div>"
+    }
 
   /** The mvnrepository.com URL for a dependency. sbt plugins are published under the `_2.12_1.0` artifact suffix. */
   def mvnRepositoryUrl(organization: String, name: String, config: Option[String]): String = {
