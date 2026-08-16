@@ -58,6 +58,9 @@
       language="sbt-dependencies"
       implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesBraceMatcher"
     />
+    <copyPastePreProcessor
+      implementation="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesPasteProcessor"
+    />
     <lang.psiStructureViewFactory
       language="sbt-dependencies"
       implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.structure.SbtDependenciesOutlineViewFactory"
