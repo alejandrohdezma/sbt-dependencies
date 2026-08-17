@@ -8,6 +8,12 @@ IntelliJ IDEA support for [`sbt-dependencies`](https://github.com/alejandrohdezm
 - **Diagnostics**: malformed dependencies, invalid `*` BOM usages, invalid `cross-version` values, incomplete object entries and unclosed `{{variable}}` references as errors; duplicate dependencies as warnings. Messages match the errors the sbt plugin itself would fail with, and duplicate or empty entries offer a `Remove dependency entry` quick fix.
 - **Structure view**: groups with their dependencies as navigable children (`⌘F12`).
 - **Formatting**: `Reformat Code` produces the exact output of the `dependenciesFormat` sbt task — groups and dependencies sorted, canonical indentation, comments dropped. Documents that don't parse are left untouched.
+- **Hovers**: dependencies show organization, artifact, version with its update-policy explanation, configuration and a link to mvnrepository.com (`Shift+F1` opens it directly); the reserved `sbt-build` and `common-settings` group names document themselves.
+- **Resolved versions**: `*` and `{{variable}}` dependencies show their concrete version as ghost text (with a `(stale)` marker after edits), read from the `.sbt-resolutions` dump the sbt plugin writes on load; hovers reveal the pinning BOM or variable. `Alt+Enter` materializes a `*` into its resolved version, and hardcoded versions a BOM manages are flagged with a rewrite to `*`.
+- **Note hints**: pinned or intransitive entries without a `note` are flagged with an `Add note` intention; single-line object entries fold into `"dependency" // note`, expanding while the caret is inside them.
+- **Paste conversion**: SBT-style dependencies (`libraryDependencies +=`, `addSbtPlugin(...)`) paste as canonical strings.
+- **Navigation**: `⌘`-click jumps between a group name and its `lazy val` project definition in `build.sbt` (both directions); the caret highlights every usage of a `{{variable}}` or dependency coordinate, and variables offer a rename intention.
+- **sbt tasks**: `Tools → sbt-dependencies` runs `updateAllDependencies`, `updateDependencies` and the per-group install tasks through `sbtn`, with output in the Run tool window.
 - Comment/uncomment actions and brace matching.
 
 ## Installation
