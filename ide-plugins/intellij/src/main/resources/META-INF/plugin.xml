@@ -65,6 +65,9 @@
     <editorFactoryListener
       implementation="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesFoldingCaretListener"
     />
+    <editorFactoryListener
+      implementation="com.alejandrohdezma.sbt.dependencies.intellij.resolutions.SbtDependenciesResolvedVersionInlays"
+    />
     <copyPastePreProcessor
       implementation="com.alejandrohdezma.sbt.dependencies.intellij.editor.SbtDependenciesPasteProcessor"
     />
