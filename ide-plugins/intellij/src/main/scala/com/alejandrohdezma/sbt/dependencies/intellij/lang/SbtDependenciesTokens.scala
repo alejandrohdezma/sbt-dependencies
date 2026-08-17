@@ -24,7 +24,7 @@ import com.intellij.psi.tree.IElementType
 object SbtDependenciesTokens {
 
   /** An element type of the `dependencies.conf` language. */
-  final class Token(debugName: String) extends IElementType(debugName, SbtDependenciesLanguage)
+  final class Token(debugName: String) extends IElementType(debugName, SbtDependenciesLanguage.Instance)
 
   /** A `#`, `//` or `/* */` comment. */
   val COMMENT = new Token("COMMENT")
