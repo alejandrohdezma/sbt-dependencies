@@ -18,9 +18,11 @@ IntelliJ IDEA support for [`sbt-dependencies`](https://github.com/alejandrohdezm
 
 ## Installation
 
-The plugin is distributed manually for now:
+Install it from the [JetBrains Marketplace](https://plugins.jetbrains.com/search?search=sbt-dependencies): in IDEA, go to `Settings → Plugins → Marketplace` and search for "sbt-dependencies". New versions are published automatically on every release of this repository.
 
-1. Build the zip from the repository root: `sbt intellij-plugin/packageArtifactZip` (written to `ide-plugins/intellij/target/`).
+Alternatively, build the zip from source:
+
+1. From the repository root: `sbt intellij-plugin/packageArtifactZip` (written to `ide-plugins/intellij/target/`).
 2. In IDEA: `Settings → Plugins → ⚙ → Install Plugin from Disk...` and pick the zip.
 
 Requires IntelliJ IDEA 2025.1 or newer.
