@@ -1,4 +1,4 @@
-documentation
+Manage SBT dependencies from a single HOCON file with version markers, auto-updates, and cross-project support
 
 <img src="ide-plugins/vscode/images/demo.svg" alt="sbt-dependencies" width="600" />
 
@@ -1023,4 +1023,6 @@ sbt> enableEvictionWarnings
 
 ## Contributors to this project
 
-No contributors found
+| <a href="https://github.com/alejandrohdezma"><img alt="alejandrohdezma" src="https://avatars.githubusercontent.com/u/9027541?v=4&s=120" width="120px" /></a> |
+| :--: |
+| <a href="https://github.com/alejandrohdezma"><sub><b>alejandrohdezma</b></sub></a> |
