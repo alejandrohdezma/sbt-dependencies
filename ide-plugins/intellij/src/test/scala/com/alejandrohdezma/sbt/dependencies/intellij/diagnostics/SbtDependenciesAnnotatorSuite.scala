@@ -165,6 +165,91 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
     assertEquals(remove(text, result), expected)
   }
 
+  test("missingNotes flags pinned strings and intransitive objects without a note") {
+    val text =
+      """example = [
+        |  "com.typesafe:config:=1.4.5"
+        |  "org.typelevel::cats-core:^2.10.0"
+        |  "org.typelevel::cats-effect:3.6.1"
+        |  { dependency = "org.scalameta::munit:1.2.4", intransitive = true }
+        |  { dependency = "io.circe::circe-core:0.14.10", intransitive = true, note = "why" }
+        |  { dependency = "com.typesafe:config:=1.4.5", note = "Pinned" }
+        |]
+        |""".stripMargin
+
+    val document = DependenciesDocument.parse(text)
+
+    val result = SbtDependenciesAnnotator.missingNotes(document).map { missing =>
+      text.substring(missing.entrySpan.start, missing.entrySpan.end) -> missing.message
+    }
+
+    val expected = List(
+      "\"com.typesafe:config:=1.4.5\""                                       -> pinnedMessage,
+      "\"org.typelevel::cats-core:^2.10.0\""                                 -> pinnedMessage,
+      "{ dependency = \"org.scalameta::munit:1.2.4\", intransitive = true }" -> intransitiveMessage
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("AddNoteQuickFix.edit wraps a plain string in object form") {
+    val text =
+      """example = [
+        |  "com.typesafe:config:=1.4.5"
+        |]
+        |""".stripMargin
+
+    val result = SbtDependenciesAnnotatorSuite.applyEdit(text, text.indexOf("com.typesafe"))
+
+    val expected =
+      """example = [
+        |  { dependency = "com.typesafe:config:=1.4.5", note = "" }
+        |]
+        |""".stripMargin
+
+    assertEquals(result, Some(expected))
+  }
+
+  test("AddNoteQuickFix.edit inserts the note after the dependency field of an object entry") {
+    val text =
+      """example = [
+        |  { dependency = "org.scalameta::munit:1.2.4", intransitive = true }
+        |]
+        |""".stripMargin
+
+    val result = SbtDependenciesAnnotatorSuite.applyEdit(text, text.indexOf("org.scalameta"))
+
+    val expected =
+      """example = [
+        |  { dependency = "org.scalameta::munit:1.2.4", note = "", intransitive = true }
+        |]
+        |""".stripMargin
+
+    assertEquals(result, Some(expected))
+  }
+
+  test("AddNoteQuickFix.edit places the caret inside the note quotes") {
+    val text =
+      """example = [
+        |  "com.typesafe:config:=1.4.5"
+        |]
+        |""".stripMargin
+
+    val result = AddNoteQuickFix.edit(text, text.indexOf("com.typesafe"))
+
+    val caretPrefix = result.map { edit =>
+      val edited = text.substring(0, edit.start) + edit.replacement + text.substring(edit.end)
+
+      edited.substring(edit.caret - "note = \"".length, edit.caret)
+    }
+
+    assertEquals(caretPrefix, Some("note = \""))
+  }
+
+  private lazy val pinnedMessage = "Pinned without note — consider adding { dependency = \"...\", note = \"...\" }"
+
+  private lazy val intransitiveMessage = "Intransitive without note — consider adding note = \"...\""
+
   private def spanOf(text: String, fragment: String): Span = {
     val start = text.indexOf(fragment)
 
@@ -173,5 +258,14 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
 
   private def remove(text: String, span: Span): String =
     text.substring(0, span.start) + text.substring(span.end)
+
+}
+
+object SbtDependenciesAnnotatorSuite {
+
+  private def applyEdit(text: String, offset: Int): Option[String] =
+    AddNoteQuickFix.edit(text, offset).map { edit =>
+      text.substring(0, edit.start) + edit.replacement + text.substring(edit.end)
+    }
 
 }

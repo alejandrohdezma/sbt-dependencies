@@ -16,10 +16,17 @@
 
 package com.alejandrohdezma.sbt.dependencies.intellij.diagnostics
 
+import java.nio.file.Path
+
+import scala.util.Try
+
 import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument
+import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument.Entry
 import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument.Span
 import com.alejandrohdezma.sbt.dependencies.document.Diagnostic
 import com.alejandrohdezma.sbt.dependencies.document.Diagnostics
+import com.alejandrohdezma.sbt.dependencies.intellij.resolutions.Resolutions
+import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.ExternalAnnotator
 import com.intellij.lang.annotation.HighlightSeverity
@@ -28,21 +35,29 @@ import com.intellij.psi.PsiFile
 
 /** Surfaces `Diagnostics.check` in the editor: parses the document with the positioned lenient model on a background
   * thread and reports each problem as an error or warning annotation, with the exact messages the SBT plugin itself
-  * would fail with.
+  * would fail with. When a fresh `.sbt-resolutions` dump is available it also offers version rewrites as intentions:
+  * materializing a `*` into its resolved version and switching a hardcoded version a BOM manages to `*`.
   */
-final class SbtDependenciesAnnotator extends ExternalAnnotator[String, List[SbtDependenciesAnnotator.Found]] {
+final class SbtDependenciesAnnotator
+    extends ExternalAnnotator[SbtDependenciesAnnotator.Info, SbtDependenciesAnnotator.Result] {
 
-  /** The whole document text, captured on the UI thread. */
-  override def collectInformation(file: PsiFile): String = file.getText
+  /** The whole document text and the file's path (for locating the `.sbt-resolutions` dumps), captured on the UI
+    * thread.
+    */
+  override def collectInformation(file: PsiFile): SbtDependenciesAnnotator.Info =
+    SbtDependenciesAnnotator.Info(
+      file.getText,
+      Option(file.getVirtualFile).flatMap(file => Try(file.toNioPath).toOption)
+    )
 
   /** Checks the text on a background thread, pairing each removable diagnostic with its enclosing entry so a quick fix
-    * can delete it. `DependenciesDocument.parse` is lenient and never throws, so half-typed documents are checked
-    * as-is.
+    * can delete it, and computing the available version rewrites. `DependenciesDocument.parse` is lenient and never
+    * throws, so half-typed documents are checked as-is.
     */
-  override def doAnnotate(text: String): List[SbtDependenciesAnnotator.Found] = {
-    val document = DependenciesDocument.parse(text)
+  override def doAnnotate(info: SbtDependenciesAnnotator.Info): SbtDependenciesAnnotator.Result = {
+    val document = DependenciesDocument.parse(info.text)
 
-    Diagnostics.check(document).map { diagnostic =>
+    val found = Diagnostics.check(document).map { diagnostic =>
       val entrySpan =
         if (SbtDependenciesAnnotator.removable(diagnostic.message))
           SbtDependenciesAnnotator.enclosingEntry(document, diagnostic.span)
@@ -50,13 +65,23 @@ final class SbtDependenciesAnnotator extends ExternalAnnotator[String, List[SbtD
 
       SbtDependenciesAnnotator.Found(diagnostic, entrySpan)
     }
+
+    val lookup = info.path.flatMap(path => Resolutions.lookupFor(path, info.text))
+
+    SbtDependenciesAnnotator.Result(
+      found,
+      SbtDependenciesAnnotator.rewrites(document, lookup),
+      SbtDependenciesAnnotator.missingNotes(document),
+      SbtDependenciesAnnotator.variables(info.text)
+    )
   }
 
   /** Reports each diagnostic at its span, mapping core severities to platform ones and attaching a
-    * [[RemoveEntryQuickFix]] to the removable ones.
+    * [[RemoveEntryQuickFix]] to the removable ones. Version rewrites become invisible annotations that only surface
+    * their intention on Alt+Enter.
     */
-  override def apply(file: PsiFile, found: List[SbtDependenciesAnnotator.Found], holder: AnnotationHolder): Unit =
-    found.foreach { case SbtDependenciesAnnotator.Found(diagnostic, entrySpan) =>
+  override def apply(file: PsiFile, result: SbtDependenciesAnnotator.Result, holder: AnnotationHolder): Unit = {
+    result.found.foreach { case SbtDependenciesAnnotator.Found(diagnostic, entrySpan) =>
       val severity = diagnostic.severity match {
         case Diagnostic.Severity.Error   => HighlightSeverity.ERROR
         case Diagnostic.Severity.Warning => HighlightSeverity.WARNING
@@ -69,14 +94,136 @@ final class SbtDependenciesAnnotator extends ExternalAnnotator[String, List[SbtD
       }
     }
 
+    result.rewrites.foreach { rewrite =>
+      SbtDependenciesAnnotator.visibleRange(rewrite.span, file.getTextLength).foreach { range =>
+        rewrite.message
+          .fold(holder.newSilentAnnotation(HighlightSeverity.INFORMATION))(message =>
+            holder.newAnnotation(HighlightSeverity.WEAK_WARNING, message)
+          )
+          .range(range)
+          .withFix(new ReplaceVersionQuickFix(rewrite))
+          .create()
+      }
+    }
+
+    result.missingNotes.foreach { missing =>
+      SbtDependenciesAnnotator.visibleRange(missing.entrySpan, file.getTextLength).foreach { range =>
+        holder
+          .newAnnotation(HighlightSeverity.WEAK_WARNING, missing.message)
+          .range(range)
+          .withFix(new AddNoteQuickFix(missing.entrySpan.start))
+          .create()
+      }
+    }
+
+    result.variables.foreach { case (span, name) =>
+      SbtDependenciesAnnotator.visibleRange(span, file.getTextLength).foreach { range =>
+        holder
+          .newSilentAnnotation(HighlightSeverity.INFORMATION)
+          .range(range)
+          .withFix(new RenameVariableQuickFix(name))
+          .create()
+      }
+    }
+  }
+
 }
 
 object SbtDependenciesAnnotator {
+
+  /** What the annotator collects on the UI thread: the document text and the file's path on disk. */
+  final case class Info(text: String, path: Option[Path])
+
+  /** What the background pass produces: positioned diagnostics, available version rewrites, entries that should
+    * document themselves with a note, and every `{{variable}}` reference (offered a rename intention).
+    */
+  final case class Result(
+      found: List[Found],
+      rewrites: List[Rewrite],
+      missingNotes: List[MissingNote],
+      variables: List[(Span, String)]
+  )
+
+  /** An entry that pins or restricts a dependency without a note explaining why. */
+  final case class MissingNote(entrySpan: Span, message: String)
+
+  /** A version rewrite offered as an intention: replacing `span` with `replacement`. Rewrites with a `message` are
+    * additionally reported as weak warnings so the option is visible without pressing Alt+Enter.
+    */
+  final case class Rewrite(span: Span, replacement: String, label: String, message: Option[String] = None)
 
   /** A diagnostic paired with the span of its enclosing entry, present only when the diagnostic can be fixed by
     * removing the entry.
     */
   final case class Found(diagnostic: Diagnostic, entrySpan: Option[Span])
+
+  /** The version rewrites the dump enables on plain dependency strings: `*` materializes into its resolved version
+    * (on-demand intention), and a hardcoded version a visible BOM manages switches to `*` (reported as a weak warning
+    * so the option is visible). Spans always come from the current text, so the offers survive unrelated edits.
+    */
+  def rewrites(document: DependenciesDocument, lookup: Option[Resolutions.Lookup]): List[Rewrite] =
+    lookup.fold(List.empty[Rewrite]) { lookup =>
+      document.groups.flatMap { group =>
+        group.entries.collect { case line: Entry.DependencyLine => line }.flatMap { line =>
+          Dependency.dependencyRegex.findFirstMatchIn(line.content).filter(_.group(4) != null).flatMap { matched =>
+            val org     = matched.group(1)
+            val isCross = matched.group(2) == "::"
+            val name    = matched.group(3)
+            val version = matched.group(4)
+            val span    = Span(line.contentSpan.start + matched.start(4), line.contentSpan.start + matched.end(4))
+
+            version match {
+              case "*" =>
+                lookup
+                  .resolveWildcard(group.name, org, name, isCross)
+                  .map(pin => Rewrite(span, pin.version, s"Replace * with resolved version ${pin.version}"))
+              case version if version.startsWith("{{")                                     => None
+              case _ if Set("bom", "sbt-plugin").contains(Option(matched.group(5)).orNull) => None
+              case version                                                                 =>
+                lookup
+                  .resolveWildcard(group.name, org, name, isCross)
+                  .map(pin =>
+                    Rewrite(
+                      span,
+                      "*",
+                      s"Replace $version with * (managed by ${pin.bomName})",
+                      Some(
+                        s"$org:$name is managed by ${pin.bomOrganization}:${pin.bomName}:${pin.bomVersion} — " +
+                          "the version can be replaced with *"
+                      )
+                    )
+                  )
+            }
+          }
+        }
+      }
+    }
+
+  /** The entries that should carry a note: plain dependency strings with a pinned version marker (`=`, `^`, `~`) and
+    * object entries marked `intransitive` without one — mirroring the VSCode extension's CodeLens hints.
+    */
+  def missingNotes(document: DependenciesDocument): List[MissingNote] =
+    document.groups.flatMap(_.entries).flatMap {
+      case line: Entry.DependencyLine
+          if Dependency.dependencyRegex
+            .findFirstMatchIn(line.content)
+            .exists(matched => Option(matched.group(4)).exists(_.matches("^[=^~].*"))) =>
+        Some(
+          MissingNote(
+            line.span,
+            "Pinned without note — consider adding { dependency = \"...\", note = \"...\" }"
+          )
+        )
+      case obj: Entry.DependencyObject if obj.intransitive && obj.note.isEmpty && obj.dependency.isDefined =>
+        Some(MissingNote(obj.span, "Intransitive without note — consider adding note = \"...\""))
+      case _ => None
+    }
+
+  private val variablePattern = """\{\{(\w+)\}\}""".r
+
+  /** Every `{{variable}}` reference in the text, paired with the variable's name. */
+  def variables(text: String): List[(Span, String)] =
+    variablePattern.findAllMatchIn(text).map(matched => Span(matched.start, matched.end) -> matched.group(1)).toList
 
   /** Whether removing the offending entry fixes the diagnostic. */
   def removable(message: String): Boolean =
