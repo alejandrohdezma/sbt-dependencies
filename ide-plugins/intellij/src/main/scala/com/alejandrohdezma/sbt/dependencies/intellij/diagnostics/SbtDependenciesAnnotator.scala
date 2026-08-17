@@ -68,7 +68,11 @@ final class SbtDependenciesAnnotator
 
     val lookup = info.path.flatMap(path => Resolutions.lookupFor(path, info.text))
 
-    SbtDependenciesAnnotator.Result(found, SbtDependenciesAnnotator.rewrites(document, lookup))
+    SbtDependenciesAnnotator.Result(
+      found,
+      SbtDependenciesAnnotator.rewrites(document, lookup),
+      SbtDependenciesAnnotator.missingNotes(document)
+    )
   }
 
   /** Reports each diagnostic at its span, mapping core severities to platform ones and attaching a
@@ -100,6 +104,16 @@ final class SbtDependenciesAnnotator
           .create()
       }
     }
+
+    result.missingNotes.foreach { missing =>
+      SbtDependenciesAnnotator.visibleRange(missing.entrySpan, file.getTextLength).foreach { range =>
+        holder
+          .newAnnotation(HighlightSeverity.WEAK_WARNING, missing.message)
+          .range(range)
+          .withFix(new AddNoteQuickFix(missing.entrySpan.start))
+          .create()
+      }
+    }
   }
 
 }
@@ -109,8 +123,13 @@ object SbtDependenciesAnnotator {
   /** What the annotator collects on the UI thread: the document text and the file's path on disk. */
   final case class Info(text: String, path: Option[Path])
 
-  /** What the background pass produces: positioned diagnostics and available version rewrites. */
-  final case class Result(found: List[Found], rewrites: List[Rewrite])
+  /** What the background pass produces: positioned diagnostics, available version rewrites and entries that should
+    * document themselves with a note.
+    */
+  final case class Result(found: List[Found], rewrites: List[Rewrite], missingNotes: List[MissingNote])
+
+  /** An entry that pins or restricts a dependency without a note explaining why. */
+  final case class MissingNote(entrySpan: Span, message: String)
 
   /** A version rewrite offered as an intention: replacing `span` with `replacement`. Rewrites with a `message` are
     * additionally reported as weak warnings so the option is visible without pressing Alt+Enter.
@@ -162,6 +181,26 @@ object SbtDependenciesAnnotator {
           }
         }
       }
+    }
+
+  /** The entries that should carry a note: plain dependency strings with a pinned version marker (`=`, `^`, `~`) and
+    * object entries marked `intransitive` without one — mirroring the VSCode extension's CodeLens hints.
+    */
+  def missingNotes(document: DependenciesDocument): List[MissingNote] =
+    document.groups.flatMap(_.entries).flatMap {
+      case line: Entry.DependencyLine
+          if Dependency.dependencyRegex
+            .findFirstMatchIn(line.content)
+            .exists(matched => Option(matched.group(4)).exists(_.matches("^[=^~].*"))) =>
+        Some(
+          MissingNote(
+            line.span,
+            "Pinned without note — consider adding { dependency = \"...\", note = \"...\" }"
+          )
+        )
+      case obj: Entry.DependencyObject if obj.intransitive && obj.note.isEmpty && obj.dependency.isDefined =>
+        Some(MissingNote(obj.span, "Intransitive without note — consider adding note = \"...\""))
+      case _ => None
     }
 
   /** Whether removing the offending entry fixes the diagnostic. */
