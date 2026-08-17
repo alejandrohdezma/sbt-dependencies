@@ -23,7 +23,10 @@ ThisBuild / fileTransformers += ".gitignore" -> { (content: String) =>
 // Simplify testing the plugin in its own build
 addCommandAlias("reloadSelf", "reload; clean; publishLocal; updateSbtPlugin; reload")
 
-addCommandAlias("ci-test", "fix --check; +versionPolicyCheck; +test; +publishLocal; +scripted; mdoc")
+addCommandAlias(
+  "ci-test",
+  "fix --check; +versionPolicyCheck; +test; +publishLocal; +scripted; mdoc; intellij-plugin/verifyPlugin"
+)
 addCommandAlias("ci-docs", "github; mdoc; headerCreateAll")
 addCommandAlias("ci-publish", "versionCheck; github; ci-release; intellij-plugin/publishPlugin")
 
