@@ -20,5 +20,16 @@ import com.intellij.lang.Language
 
 /** The `dependencies.conf` language. Registered on the exact file name (see `plugin.xml`), so it never competes with
   * other plugins claiming the `.conf` extension (e.g. the HOCON plugin).
+  *
+  * A class with a singleton instead of an `object` extending [[Language]]: the compiler would emit static forwarders
+  * for every inherited platform method, which become binary incompatibilities in the plugin verifier when the platform
+  * hierarchy changes (`Language` stopped extending `AtomicReference` in 2025.3).
   */
-object SbtDependenciesLanguage extends Language("sbt-dependencies")
+final class SbtDependenciesLanguage private () extends Language("sbt-dependencies")
+
+object SbtDependenciesLanguage {
+
+  /** The singleton instance, created once so the language registers itself a single time. */
+  val Instance: SbtDependenciesLanguage = new SbtDependenciesLanguage
+
+}

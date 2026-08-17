@@ -3,7 +3,6 @@ import org.jetbrains.sbtidea.Keys._
 import org.jetbrains.sbtidea.packaging.PackagingKeys._
 import org.jetbrains.sbtidea.pluginXmlOptions
 import org.jetbrains.sbtidea.tasks.PublishPlugin
-import org.jetbrains.sbtidea.verifier.FailureLevel
 import sbt.Keys._
 import sbt._
 import sbt.complete.DefaultParsers.spaceDelimited
@@ -20,21 +19,16 @@ object IntellijIDEAPlugin extends AbstractSbtIdeaPlugin {
   )
 
   override def projectSettings = super.projectSettings ++ Seq(
-    verifyPlugin           := Def.sequential(packageArtifactZip, runPluginVerifier).value,
-    packageMethod          := PackagingMethod.Standalone(),
-    packageLibraryMappings := Seq.empty,
-    patchPluginXml         := pluginXmlOptions { xml =>
+    // Don't emit forwarders for inherited Java default methods: they surface as
+    // deprecated/experimental platform API "usages" in the plugin verifier
+    Compile / scalacOptions += "-Xmixin-force-forwarders:false",
+    verifyPlugin            := Def.sequential(packageArtifactZip, runPluginVerifier).value,
+    packageMethod           := PackagingMethod.Standalone(),
+    packageLibraryMappings  := Seq.empty,
+    patchPluginXml          := pluginXmlOptions { xml =>
       xml.version = version.value
       xml.sinceBuild = "251"
     },
-    // These levels only trip on Scala-generated forwarders for Java default methods
-    // (e.g. `Navigatable.navigationRequest`), not on APIs the plugin actually uses
-    pluginVerifierOptions := pluginVerifierOptions.value.copy(
-      failureLevels = FailureLevel.values().toSet -
-        FailureLevel.DEPRECATED_API_USAGES -
-        FailureLevel.EXPERIMENTAL_API_USAGES -
-        FailureLevel.INTERNAL_API_USAGES
-    ),
     publishPlugin := Def.inputTaskDyn {
       val channel = spaceDelimited("<channel>").parsed
       if (isSnapshot.value)

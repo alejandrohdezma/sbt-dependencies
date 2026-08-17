@@ -72,7 +72,7 @@ final class SbtDependenciesParserDefinition extends ParserDefinition {
 object SbtDependenciesParserDefinition {
 
   /** The root element type of `dependencies.conf` PSI trees. */
-  val File = new IFileElementType(SbtDependenciesLanguage)
+  val File = new IFileElementType(SbtDependenciesLanguage.Instance)
 
   /** The comment tokens of the language. */
   val Comments: TokenSet = TokenSet.create(SbtDependenciesTokens.COMMENT)
@@ -86,7 +86,7 @@ object SbtDependenciesParserDefinition {
   * which files it can format.
   */
 final class SbtDependenciesFile(viewProvider: FileViewProvider)
-    extends PsiFileBase(viewProvider, SbtDependenciesLanguage) {
+    extends PsiFileBase(viewProvider, SbtDependenciesLanguage.Instance) {
 
   /** The file type as resolved by the view provider (the `sbt-dependencies` file type). */
   override def getFileType: FileType = getViewProvider.getFileType

@@ -23,7 +23,7 @@ import javax.swing.Icon
 /** File type for `dependencies.conf`. Instantiated reflectively by the platform from the `fileType` extension point,
   * which binds it to the exact `dependencies.conf` file name.
   */
-final class SbtDependenciesFileType extends LanguageFileType(SbtDependenciesLanguage) {
+final class SbtDependenciesFileType extends LanguageFileType(SbtDependenciesLanguage.Instance) {
 
   /** The unique file type name, referenced by the `fileType` extension point in `plugin.xml`. */
   override def getName: String = "sbt-dependencies"
