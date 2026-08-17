@@ -16,6 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies.intellij.documentation
 
+import java.util
+
 import scala.util.Try
 
 import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument
@@ -52,7 +54,7 @@ final class SbtDependenciesDocumentationProvider extends AbstractDocumentationPr
   /** The mvnrepository.com URL for the dependency entry at the element's offset, opened by the View External
     * Documentation action.
     */
-  override def getUrlFor(element: PsiElement, originalElement: PsiElement): java.util.List[String] =
+  override def getUrlFor(element: PsiElement, originalElement: PsiElement): util.List[String] =
     Option(element)
       .filter(_.getContainingFile.isInstanceOf[SbtDependenciesFile])
       .flatMap { element =>
@@ -61,7 +63,7 @@ final class SbtDependenciesDocumentationProvider extends AbstractDocumentationPr
           element.getTextRange.getStartOffset
         )
       }
-      .map(java.util.List.of(_))
+      .map(util.List.of(_))
       .orNull
 
   /** The documentation for the dependency entry at the element's offset, or null when the element is not inside one.

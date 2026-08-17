@@ -16,6 +16,10 @@
 
 package com.alejandrohdezma.sbt.dependencies.intellij.resolutions
 
+import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument
+import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument.Span
+import com.alejandrohdezma.sbt.dependencies.intellij.diagnostics.SbtDependenciesAnnotator
+
 class ResolutionsSuite extends munit.FunSuite {
 
   test("parse reads a version-1 dump") {
@@ -98,6 +102,78 @@ class ResolutionsSuite extends munit.FunSuite {
     val result = SbtDependenciesResolvedVersionInlays.decorate(text, stale)
 
     assertEquals(result.map { case (_, text) => text }, List(" = 2.10.0 (stale)"))
+  }
+
+  test("rewrites offers materializing * and switching managed versions") {
+    val text =
+      """myproject = [
+        |  "com.fasterxml.jackson.core:jackson-databind:*"
+        |  "org.typelevel::cats-core:2.9.0"
+        |  "io.circe::circe-core:{{circeVersion}}"
+        |  "com.unmanaged:artifact:1.0.0"
+        |]
+        |""".stripMargin
+
+    val document = DependenciesDocument.parse(text)
+
+    val result = SbtDependenciesAnnotator.rewrites(document, Some(lookup))
+
+    val expected = List(
+      SbtDependenciesAnnotator.Rewrite(
+        spanOf(text, "jackson-databind:", "*"),
+        "2.17.0",
+        "Replace * with resolved version 2.17.0"
+      ),
+      SbtDependenciesAnnotator.Rewrite(
+        spanOf(text, "cats-core:", "2.9.0"),
+        "*",
+        "Replace 2.9.0 with * (managed by jackson-bom)",
+        Some(
+          "org.typelevel:cats-core is managed by com.fasterxml.jackson:jackson-bom:2.17.0 — " +
+            "the version can be replaced with *"
+        )
+      )
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("rewrites skips bom and sbt-plugin configurations") {
+    val text =
+      """myproject = [
+        |  "org.typelevel::cats-core:2.9.0:bom"
+        |]
+        |""".stripMargin
+
+    val document = DependenciesDocument.parse(text)
+
+    val result = SbtDependenciesAnnotator.rewrites(document, Some(lookup))
+
+    val expected = Nil
+
+    assertEquals(result, expected)
+  }
+
+  test("rewrites survive a stale dump") {
+    val stale = new Resolutions.Lookup(Resolutions.parse(mainDump), None, stale = true)
+
+    val text =
+      """myproject = [
+        |  "com.fasterxml.jackson.core:jackson-databind:*"
+        |]
+        |""".stripMargin
+
+    val document = DependenciesDocument.parse(text)
+
+    val result = SbtDependenciesAnnotator.rewrites(document, Some(stale))
+
+    assertEquals(result.map(_.replacement), List("2.17.0"))
+  }
+
+  private def spanOf(text: String, prefix: String, fragment: String) = {
+    val start = text.indexOf(prefix) + prefix.length
+
+    Span(start, start + fragment.length)
   }
 
   private lazy val mainDump =

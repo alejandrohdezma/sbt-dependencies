@@ -18,6 +18,7 @@ package com.alejandrohdezma.sbt.dependencies.intellij.resolutions
 
 import java.awt.Graphics
 import java.awt.Rectangle
+import java.util.concurrent.ConcurrentHashMap
 
 import scala.jdk.CollectionConverters._
 import scala.util.Try
@@ -44,7 +45,7 @@ import com.intellij.openapi.util.Disposer
   */
 final class SbtDependenciesResolvedVersionInlays extends EditorFactoryListener {
 
-  private val listeners = new java.util.concurrent.ConcurrentHashMap[Editor, DocumentListener]()
+  private val listeners = new ConcurrentHashMap[Editor, DocumentListener]()
 
   /** Renders the inlays when an editor opens on a `dependencies.conf` file and refreshes them on every change. */
   override def editorCreated(event: EditorFactoryEvent): Unit = {
