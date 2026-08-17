@@ -71,7 +71,8 @@ final class SbtDependenciesAnnotator
     SbtDependenciesAnnotator.Result(
       found,
       SbtDependenciesAnnotator.rewrites(document, lookup),
-      SbtDependenciesAnnotator.missingNotes(document)
+      SbtDependenciesAnnotator.missingNotes(document),
+      SbtDependenciesAnnotator.variables(info.text)
     )
   }
 
@@ -114,6 +115,16 @@ final class SbtDependenciesAnnotator
           .create()
       }
     }
+
+    result.variables.foreach { case (span, name) =>
+      SbtDependenciesAnnotator.visibleRange(span, file.getTextLength).foreach { range =>
+        holder
+          .newSilentAnnotation(HighlightSeverity.INFORMATION)
+          .range(range)
+          .withFix(new RenameVariableQuickFix(name))
+          .create()
+      }
+    }
   }
 
 }
@@ -123,10 +134,15 @@ object SbtDependenciesAnnotator {
   /** What the annotator collects on the UI thread: the document text and the file's path on disk. */
   final case class Info(text: String, path: Option[Path])
 
-  /** What the background pass produces: positioned diagnostics, available version rewrites and entries that should
-    * document themselves with a note.
+  /** What the background pass produces: positioned diagnostics, available version rewrites, entries that should
+    * document themselves with a note, and every `{{variable}}` reference (offered a rename intention).
     */
-  final case class Result(found: List[Found], rewrites: List[Rewrite], missingNotes: List[MissingNote])
+  final case class Result(
+      found: List[Found],
+      rewrites: List[Rewrite],
+      missingNotes: List[MissingNote],
+      variables: List[(Span, String)]
+  )
 
   /** An entry that pins or restricts a dependency without a note explaining why. */
   final case class MissingNote(entrySpan: Span, message: String)
@@ -202,6 +218,12 @@ object SbtDependenciesAnnotator {
         Some(MissingNote(obj.span, "Intransitive without note — consider adding note = \"...\""))
       case _ => None
     }
+
+  private val variablePattern = """\{\{(\w+)\}\}""".r
+
+  /** Every `{{variable}}` reference in the text, paired with the variable's name. */
+  def variables(text: String): List[(Span, String)] =
+    variablePattern.findAllMatchIn(text).map(matched => Span(matched.start, matched.end) -> matched.group(1)).toList
 
   /** Whether removing the offending entry fixes the diagnostic. */
   def removable(message: String): Boolean =

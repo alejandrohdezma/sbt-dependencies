@@ -75,6 +75,9 @@
       language="sbt-dependencies"
       implementationClass="com.alejandrohdezma.sbt.dependencies.intellij.structure.SbtDependenciesOutlineViewFactory"
     />
+    <highlightUsagesHandlerFactory
+      implementation="com.alejandrohdezma.sbt.dependencies.intellij.navigation.SbtDependenciesUsagesHandlerFactory"
+    />
     <gotoDeclarationHandler
       implementation="com.alejandrohdezma.sbt.dependencies.intellij.navigation.SbtDependenciesGotoDeclarationHandler"
     />
