@@ -89,4 +89,35 @@
       displayType="BALLOON"
     />
   </extensions>
+
+  <actions>
+    <group
+      id="sbt-dependencies"
+      text="sbt-dependencies"
+      popup="true"
+    >
+      <add-to-group
+        group-id="ToolsMenu"
+        anchor="last"
+      />
+      <action
+        id="sbt-dependencies.updateAllDependencies"
+        class="com.alejandrohdezma.sbt.dependencies.intellij.actions.UpdateAllDependenciesAction"
+        text="Update All Dependencies"
+        description="Runs sbtn updateAllDependencies at the build root"
+      />
+      <action
+        id="sbt-dependencies.updateDependencies"
+        class="com.alejandrohdezma.sbt.dependencies.intellij.actions.UpdateDependenciesAction"
+        text="Update Dependencies"
+        description="Runs sbtn updateDependencies at the build root"
+      />
+      <action
+        id="sbt-dependencies.installDependency"
+        class="com.alejandrohdezma.sbt.dependencies.intellij.actions.InstallDependencyAction"
+        text="Install Dependency..."
+        description="Prompts for a group and dependency, then runs the matching sbtn install task"
+      />
+    </group>
+  </actions>
 </idea-plugin>
