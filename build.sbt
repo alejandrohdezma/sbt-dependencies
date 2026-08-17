@@ -4,6 +4,14 @@ ThisBuild / organization                  := "com.alejandrohdezma"
 ThisBuild / pluginCrossBuild / sbtVersion := scalaVersion.value.on(2)("1.12.15").getOrElse("2.0.0")
 ThisBuild / versionPolicyIntention        := Compatibility.BinaryAndSourceCompatible
 
+ThisBuild / fileTransformers += ".github/workflows/release.yml" -> { (content: String) =>
+  content.replace(
+    "          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}",
+    "          IJ_PLUGIN_REPO_TOKEN: ${{ secrets.IJ_PLUGIN_REPO_TOKEN }}\n" +
+      "          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}"
+  )
+}
+
 ThisBuild / fileTransformers += ".gitignore" -> { (content: String) =>
   content + """
               |### sbt-dependencies scripted tests ###
@@ -17,7 +25,7 @@ addCommandAlias("reloadSelf", "reload; clean; publishLocal; updateSbtPlugin; rel
 
 addCommandAlias("ci-test", "fix --check; +versionPolicyCheck; +test; +publishLocal; +scripted; mdoc")
 addCommandAlias("ci-docs", "github; mdoc; headerCreateAll")
-addCommandAlias("ci-publish", "versionCheck; github; ci-release")
+addCommandAlias("ci-publish", "versionCheck; github; ci-release; intellij-plugin/publishPlugin")
 
 lazy val documentation = project
   .enablePlugins(MdocPlugin)
@@ -40,16 +48,7 @@ lazy val `sbt-dependencies` = module
 // IntelliJ plugin //
 /////////////////////
 
-ThisBuild / intellijPluginName := "sbt-dependencies"
-ThisBuild / intellijBuild      := "251.29188.72"
-
 lazy val `intellij-plugin` = project
   .in(file("ide-plugins/intellij"))
-  .enablePlugins(SbtIdeaPlugin)
+  .enablePlugins(IntellijIDEAPlugin)
   .settings(Compile / unmanagedSourceDirectories += (`sbt-dependencies-core` / Compile / scalaSource).value)
-  .settings(packageMethod := PackagingMethod.Standalone())
-  .settings(packageLibraryMappings := Seq.empty)
-  .settings(patchPluginXml := pluginXmlOptions { xml =>
-    xml.version = version.value
-    xml.sinceBuild = "251"
-  })
