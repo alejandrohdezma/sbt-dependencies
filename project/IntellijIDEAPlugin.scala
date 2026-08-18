@@ -34,7 +34,9 @@ object IntellijIDEAPlugin extends AbstractSbtIdeaPlugin {
       if (isSnapshot.value)
         Def.task(streams.value.log.info("Snapshot version, skipping JetBrains Marketplace publish"))
       else
-        PublishPlugin.createTask.toTask(channel.headOption.fold("")(" " + _))
+        // The upstream task reads the plugin id from the packaged artifact before its
+        // own packaging dependency runs, so on a fresh checkout it must be packaged first
+        Def.sequential(packageArtifactZip, PublishPlugin.createTask.toTask(channel.headOption.fold("")(" " + _)))
     }.evaluated
   )
 
