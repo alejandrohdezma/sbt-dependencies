@@ -26,6 +26,7 @@ import scala.util.Try
 import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument
 import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument.Entry
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
 import com.intellij.openapi.editor.Editor
@@ -45,7 +46,7 @@ import com.intellij.openapi.util.Disposer
   */
 final class SbtDependenciesResolvedVersionInlays extends EditorFactoryListener {
 
-  private val listeners = new ConcurrentHashMap[Editor, DocumentListener]()
+  private val listeners = new ConcurrentHashMap[Editor, Disposable]()
 
   /** Renders the inlays when an editor opens on a `dependencies.conf` file and refreshes them on every change. */
   override def editorCreated(event: EditorFactoryEvent): Unit = {
@@ -59,14 +60,16 @@ final class SbtDependenciesResolvedVersionInlays extends EditorFactoryListener {
           ApplicationManager.getApplication.invokeLater(() => SbtDependenciesResolvedVersionInlays.refresh(editor))
       }
 
-      editor.getDocument.addDocumentListener(listener)
-      listeners.put(editor, listener): Unit
+      val disposable = Disposer.newDisposable("sbt-dependencies-resolved-version-inlays")
+
+      editor.getDocument.addDocumentListener(listener, disposable)
+      listeners.put(editor, disposable): Unit
     }
   }
 
   /** Detaches the document listener when its editor closes. */
   override def editorReleased(event: EditorFactoryEvent): Unit =
-    Option(listeners.remove(event.getEditor)).foreach(event.getEditor.getDocument.removeDocumentListener)
+    Option(listeners.remove(event.getEditor)).foreach(Disposer.dispose)
 
 }
 
