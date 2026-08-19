@@ -17,6 +17,7 @@ Syntax highlighting for [`sbt-dependencies`](https://github.com/alejandrohdezma/
 - HOCON comment support (`//`, `#`, `/* */`)
 - CodeLens navigation between `build.sbt` and `dependencies.conf`: jump from a project definition to its dependency group and vice versa
 - CodeLens hint on pinned dependencies without a note, with a quick action to add one
+- Import prompts when `dependencies.conf` changes after the last sbt import: a status bar indicator plus a notification offering to run Metals' `Import build` (requires the [Metals](https://marketplace.visualstudio.com/items?itemName=scalameta.metals) extension; the notification can be disabled with the `sbt-dependencies.buildImportPrompt` setting)
 
 ## Development
 

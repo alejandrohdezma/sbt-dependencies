@@ -1,6 +1,13 @@
 import * as fs from "node:fs";
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
+import {
+  shouldPromptImport,
+  importStatusBarText,
+  importStatusBarTooltip,
+  importPromptMessage,
+  importPromptButton,
+} from "./build-import";
 import { parseCodeLenses } from "./codelens";
 import { parseResolvedDecorations } from "./resolved-decorations";
 import { dumpPathsFor, parseResolutionsDump, ResolutionsIndex, ResolutionLookup } from "./resolutions";
@@ -1160,6 +1167,24 @@ function applyResolvedDecorations(editor: vscode.TextEditor): void {
 }
 
 /** Registers providers, commands, and diagnostics. */
+/**
+ * Imports the sbt build through Metals, the same action its own "build needs to be re-imported"
+ * notification runs. The `metals.build-import` command only exists once the Metals language client
+ * has started, hence the fallback message.
+ */
+async function runImportBuild(): Promise<void> {
+  if (!vscode.extensions.getExtension("scalameta.metals")) {
+    vscode.window.showErrorMessage("The Metals extension is required to import the sbt build.");
+    return;
+  }
+
+  try {
+    await vscode.commands.executeCommand("metals.build-import");
+  } catch {
+    vscode.window.showErrorMessage("Metals is not ready yet. Try again once it has started.");
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const selector: vscode.DocumentSelector = { language: "sbt-dependencies", scheme: "file" };
 
@@ -1267,6 +1292,48 @@ export function activate(context: vscode.ExtensionContext): void {
       "sbt-dependencies.useBomManagedVersion",
       useBomManagedVersion
     ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.importBuild",
+      runImportBuild
+    ),
+  );
+
+  const importStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+  importStatusBarItem.text = importStatusBarText;
+  importStatusBarItem.tooltip = importStatusBarTooltip;
+  importStatusBarItem.command = "sbt-dependencies.importBuild";
+  context.subscriptions.push(importStatusBarItem);
+
+  const updateImportStatus = (editor: vscode.TextEditor | undefined) => {
+    const stale =
+      editor && editor.document.languageId === "sbt-dependencies"
+        ? getResolutions(editor.document)?.stale
+        : undefined;
+    if (stale) {
+      importStatusBarItem.show();
+    } else {
+      importStatusBarItem.hide();
+    }
+  };
+
+  const promptedHashes = new Map<string, string>();
+
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument(async document => {
+      if (document.languageId !== "sbt-dependencies") return;
+      if (!vscode.workspace.getConfiguration("sbt-dependencies").get("buildImportPrompt", true)) return;
+
+      const stale = getResolutions(document)?.stale;
+      const hash = crypto.createHash("sha1").update(document.getText(), "utf8").digest("hex");
+      const metalsInstalled = vscode.extensions.getExtension("scalameta.metals") !== undefined;
+
+      if (!shouldPromptImport(stale, metalsInstalled, promptedHashes.get(document.uri.fsPath), hash)) return;
+
+      promptedHashes.set(document.uri.fsPath, hash);
+
+      const choice = await vscode.window.showInformationMessage(importPromptMessage, importPromptButton);
+      if (choice === importPromptButton) await runImportBuild();
+    })
   );
 
   const diagnostics = vscode.languages.createDiagnosticCollection("sbt-dependencies");
@@ -1286,6 +1353,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (editor && editor.document === e.document) {
         applyNoteDecorations(editor);
         applyResolvedDecorations(editor);
+        updateImportStatus(editor);
       }
     }),
     vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri)),
@@ -1297,6 +1365,7 @@ export function activate(context: vscode.ExtensionContext): void {
         applyNoteDecorations(editor);
         applyResolvedDecorations(editor);
       }
+      updateImportStatus(editor);
     })
   );
 
@@ -1307,6 +1376,7 @@ export function activate(context: vscode.ExtensionContext): void {
       applyResolvedDecorations(editor);
     }
     bomManagedCodeLensProvider.refresh();
+    updateImportStatus(vscode.window.activeTextEditor);
   };
 
   const resolutionsWatcher = vscode.workspace.createFileSystemWatcher("**/target/sbt-dependencies/.sbt-resolutions");
@@ -1352,6 +1422,8 @@ export function activate(context: vscode.ExtensionContext): void {
     applyNoteDecorations(vscode.window.activeTextEditor);
     applyResolvedDecorations(vscode.window.activeTextEditor);
   }
+
+  updateImportStatus(vscode.window.activeTextEditor);
 }
 
 export function deactivate(): void {}
