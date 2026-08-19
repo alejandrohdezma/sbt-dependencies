@@ -7,10 +7,18 @@
   <description><![CDATA[
     Language support for <code>dependencies.conf</code> files used by the
     <a href="https://github.com/alejandrohdezma/sbt-dependencies">sbt-dependencies</a> sbt plugin:
-    syntax highlighting, diagnostics, structure view and formatting.
-    <br/><br/>
-    Note: reformatting mirrors the sbt plugin's own canonical output — groups and dependencies are
-    sorted and comments are removed, exactly as <code>dependenciesFormat</code> would write the file.
+    <ul>
+      <li><b>Syntax highlighting</b> for every part of a dependency, customizable under the color scheme settings.</li>
+      <li><b>Diagnostics</b> matching the exact errors the sbt plugin itself would fail with, with quick fixes for removable entries.</li>
+      <li><b>Hovers</b> explaining version markers, with resolved versions, BOM provenance and mvnrepository links.</li>
+      <li><b>Resolved versions</b> shown inline for <code>*</code> and <code>{{variable}}</code> dependencies, read from the sbt plugin's own resolution dump.</li>
+      <li><b>Notes</b> folded into <code>// comments</code> next to their dependency, with an "Add note" intention for pinned or intransitive entries.</li>
+      <li><b>Paste conversion</b> turning SBT-style dependencies (<code>libraryDependencies +=</code>, <code>addSbtPlugin(...)</code>) into canonical strings.</li>
+      <li><b>Navigation</b> between group names and their <code>build.sbt</code> project definitions, usage highlighting and variable rename.</li>
+      <li><b>Structure view</b> with groups and their dependencies as navigable children.</li>
+      <li><b>Formatting</b> producing the exact output of the <code>dependenciesFormat</code> sbt task — groups and dependencies sorted, canonical indentation, comments dropped.</li>
+      <li><b>sbt tasks</b> (install/update dependencies) runnable from the Tools menu.</li>
+    </ul>
   ]]></description>
 
   <depends>com.intellij.modules.platform</depends>
