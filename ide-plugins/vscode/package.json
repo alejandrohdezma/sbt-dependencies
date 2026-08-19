@@ -2,7 +2,7 @@
   "name": "sbt-dependencies",
   "displayName": "sbt-dependencies",
   "description": "Syntax highlighting for sbt-dependencies configuration files",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "publisher": "alejandrohdezma",
   "license": "Apache-2.0",
   "repository": {
@@ -66,6 +66,11 @@
         "command": "sbt-dependencies.openBuildProject",
         "title": "View Project Definition",
         "category": "SBT Dependencies"
+      },
+      {
+        "command": "sbt-dependencies.importBuild",
+        "title": "Import sbt Build via Metals",
+        "category": "SBT Dependencies"
       }
     ],
     "configurationDefaults": {
@@ -75,6 +80,16 @@
       "[sbt-dependencies]": {
         "editor.fontLigatures": false,
         "editor.formatOnPaste": true
+      }
+    },
+    "configuration": {
+      "title": "SBT Dependencies",
+      "properties": {
+        "sbt-dependencies.buildImportPrompt": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a notification offering to import the sbt build through Metals when dependencies.conf changes after the last import. The status bar indicator is always shown."
+        }
       }
     }
   },

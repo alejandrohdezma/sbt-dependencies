@@ -5,14 +5,14 @@
             "label": "npm-install",
             "type": "shell",
             "command": "npm install",
-            "options": { "cwd": "${workspaceFolder}/vscode-extension" },
+            "options": { "cwd": "${workspaceFolder}/ide-plugins/vscode" },
             "problemMatcher": []
         },
         {
             "label": "build-extension",
             "type": "shell",
             "command": "npm run build",
-            "options": { "cwd": "${workspaceFolder}/vscode-extension" },
+            "options": { "cwd": "${workspaceFolder}/ide-plugins/vscode" },
             "group": "build",
             "dependsOn": "npm-install",
             "problemMatcher": []

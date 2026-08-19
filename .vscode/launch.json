@@ -4,12 +4,12 @@
         {
             "name": "Extension Host",
             "type": "extensionHost",
-            "cwd": "${workspaceFolder}/vscode-extension",
+            "cwd": "${workspaceFolder}/ide-plugins/vscode",
             "request": "launch",
             "preLaunchTask": "build-extension",
             "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}/vscode-extension",
-                "${workspaceFolder}/vscode-extension/example"
+                "--extensionDevelopmentPath=${workspaceFolder}/ide-plugins/vscode",
+                "${workspaceFolder}/ide-plugins/vscode/example"
             ]
         }
     ]
