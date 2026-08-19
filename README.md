@@ -24,7 +24,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.34.3")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.34.4")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
