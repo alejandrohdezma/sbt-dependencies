@@ -24,7 +24,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.34.4")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.34.5")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -98,7 +98,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
 Editor support for `dependencies.conf` files is available under [`ide-plugins`](ide-plugins):
 
 - **[VS Code / Cursor extension](ide-plugins/vscode/README.md)**: syntax highlighting, diagnostics, hovers with resolved versions and BOM provenance, formatting, sbt commands, Metals build-import prompts and more.
-- **[IntelliJ IDEA plugin](ide-plugins/intellij/README.md)** (available on the [JetBrains Marketplace](https://plugins.jetbrains.com/search?search=sbt-dependencies)): syntax highlighting, diagnostics with quick fixes, hovers, resolved versions and BOM provenance, structure view, formatting that mirrors the `dependenciesFormat` task, paste conversion, `build.sbt` navigation and sbt tasks.
+- **[IntelliJ IDEA plugin](ide-plugins/intellij/README.md)** (available on the [JetBrains Marketplace](https://plugins.jetbrains.com/search?search=sbt-dependencies)): syntax highlighting, diagnostics with quick fixes, hovers, resolved versions and BOM provenance, structure view, formatting that mirrors the `dependenciesFormat` task, paste conversion, `build.sbt` navigation, sbt tasks and sbt reload prompts.
 
 To power the VS Code extension's inline resolved versions and BOM provenance for `*` and `{{variable}}` dependencies, the plugin writes a `target/sbt-dependencies/.sbt-resolutions` file on every load — a JSON snapshot of each project's visible BOM pins and resolved variable versions. It never fails the build and is a no-op for builds without `dependencies.conf`.
 
