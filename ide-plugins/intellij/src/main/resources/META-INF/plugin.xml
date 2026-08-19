@@ -18,8 +18,17 @@
       <li><b>Structure view</b> with groups and their dependencies as navigable children.</li>
       <li><b>Formatting</b> producing the exact output of the <code>dependenciesFormat</code> sbt task — groups and dependencies sorted, canonical indentation, comments dropped.</li>
       <li><b>sbt tasks</b> (install/update dependencies) runnable from the Tools menu.</li>
+      <li><b>Reload prompts</b> showing IntelliJ's floating "reload project" widget when <code>dependencies.conf</code>
+      changes, the same one the sbt integration shows for <code>build.sbt</code> (requires the Scala plugin).</li>
     </ul>
   ]]></description>
+  <change-notes><![CDATA[
+    <ul>
+      <li>Editing <code>dependencies.conf</code> now shows IntelliJ's floating "reload project" widget, the same one
+      the sbt integration shows for <code>build.sbt</code> changes, and reloading runs a full sbt reimport. Requires
+      the Scala plugin.</li>
+    </ul>
+  ]]></change-notes>
 
   <depends>com.intellij.modules.platform</depends>
 
