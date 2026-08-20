@@ -13,6 +13,7 @@ IntelliJ IDEA support for [`sbt-dependencies`](https://github.com/alejandrohdezm
 - **Note hints**: pinned or intransitive entries without a `note` are flagged with an `Add note` intention; single-line object entries fold into `"dependency" // note`, expanding while the caret is inside them.
 - **Paste conversion**: SBT-style dependencies (`libraryDependencies +=`, `addSbtPlugin(...)`) paste as canonical strings.
 - **Navigation**: `⌘`-click jumps between a group name and its `lazy val` project definition in `build.sbt` (both directions); the caret highlights every usage of a `{{variable}}` or dependency coordinate, and variables offer a rename intention.
+- **Source links**: `⌘`-click on a dependency opens its source repository (usually GitHub), read from the `<scm>` URL of its POM in the local Coursier cache; dependencies without a cached POM open mvnrepository.com instead.
 - **sbt tasks**: `Tools → sbt-dependencies` runs `updateAllDependencies`, `updateDependencies` and the per-group install tasks through `sbtn`, with output in the Run tool window.
 - **Reload prompts**: editing `dependencies.conf` shows IntelliJ's floating "reload project" widget, the same one the sbt integration shows for `build.sbt` changes; reloading runs a full sbt reimport (requires the Scala plugin).
 - Comment/uncomment actions and brace matching.
