@@ -17,6 +17,7 @@
 package com.alejandrohdezma.sbt.dependencies.intellij.lang
 
 import com.alejandrohdezma.sbt.dependencies.intellij.lang.SbtDependenciesParserDefinition._
+import com.alejandrohdezma.sbt.dependencies.intellij.navigation.SbtDependenciesWebLinks
 import com.intellij.extapi.psi.ASTWrapperPsiElement
 import com.intellij.extapi.psi.PsiFileBase
 import com.intellij.lang.ASTNode
@@ -25,10 +26,13 @@ import com.intellij.lang.PsiBuilder
 import com.intellij.lang.PsiParser
 import com.intellij.lexer.Lexer
 import com.intellij.openapi.fileTypes.FileType
+import com.intellij.openapi.paths.WebReference
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.FileViewProvider
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiReference
 import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.IFileElementType
 import com.intellij.psi.tree.TokenSet
@@ -93,5 +97,17 @@ final class SbtDependenciesFile(viewProvider: FileViewProvider)
 
   /** Debug name shown in PSI viewers and logs. */
   override def toString: String = "SbtDependenciesFile"
+
+  /** A web reference per dependency entry, opening its source repository (or mvnrepository.com) on Cmd+Click —
+    * `findReferenceAt` walks from the leaf under the caret up to the file, so file-level references cover the flat
+    * PSI's leaf tokens.
+    */
+  override def getReferences: Array[PsiReference] =
+    SbtDependenciesWebLinks
+      .links(getText)
+      .map { link =>
+        new WebReference(this, new TextRange(link.span.start, link.span.end), SbtDependenciesWebLinks.urlFor(link))
+      }
+      .toArray
 
 }

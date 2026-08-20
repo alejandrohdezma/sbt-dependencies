@@ -15,6 +15,8 @@
       <li><b>Notes</b> folded into <code>// comments</code> next to their dependency, with an "Add note" intention for pinned or intransitive entries.</li>
       <li><b>Paste conversion</b> turning SBT-style dependencies (<code>libraryDependencies +=</code>, <code>addSbtPlugin(...)</code>) into canonical strings.</li>
       <li><b>Navigation</b> between group names and their <code>build.sbt</code> project definitions, usage highlighting and variable rename.</li>
+      <li><b>Source links</b> opening a dependency's source repository on Cmd+Click, read from the POMs in the local
+      Coursier cache, with mvnrepository.com as fallback.</li>
       <li><b>Structure view</b> with groups and their dependencies as navigable children.</li>
       <li><b>Formatting</b> producing the exact output of the <code>dependenciesFormat</code> sbt task — groups and dependencies sorted, canonical indentation, comments dropped.</li>
       <li><b>sbt tasks</b> (install/update dependencies) runnable from the Tools menu.</li>
@@ -24,9 +26,8 @@
   ]]></description>
   <change-notes><![CDATA[
     <ul>
-      <li>Editing <code>dependencies.conf</code> now shows IntelliJ's floating "reload project" widget, the same one
-      the sbt integration shows for <code>build.sbt</code> changes, and reloading runs a full sbt reimport. Requires
-      the Scala plugin.</li>
+      <li>Cmd+Click on a dependency now opens its source repository (usually GitHub), read from the POMs in the local
+      Coursier cache, falling back to mvnrepository.com.</li>
     </ul>
   ]]></change-notes>
 
