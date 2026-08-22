@@ -17,10 +17,9 @@
 package com.alejandrohdezma.sbt.dependencies.finders
 
 import sbt.Keys._
-import sbt._
+import sbt.{Keys => _, _}
 
-import com.alejandrohdezma.sbt.dependencies.Keys
-import com.alejandrohdezma.sbt.dependencies.ListOps
+import com.alejandrohdezma.sbt.dependencies._
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.model.ScalaVersion
 import lmcoursier.internal.shaded.coursier.MavenRepository
