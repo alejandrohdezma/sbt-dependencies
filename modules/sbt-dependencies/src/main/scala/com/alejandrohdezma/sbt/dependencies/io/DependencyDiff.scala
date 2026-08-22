@@ -23,6 +23,7 @@ import scala.jdk.CollectionConverters._
 import sbt.IO
 import sbt.librarymanagement.ModuleID
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
@@ -37,7 +38,19 @@ object DependencyDiff {
     * (e.g. `"compile"`, `"test"`, `"test->test"`, `"sbt-plugin"`, `"compiler-plugin"`). A plain `libraryDependencies`
     * entry is reported as `"compile"`.
     */
-  final case class ResolvedDep(organization: String, name: String, revision: String, configuration: String = "compile")
+  final case class ResolvedDep(
+      organization: String,
+      name: String,
+      revision: String,
+      configuration: String = "compile"
+  ) {
+
+    val baseName =
+      Dependency.scalaVersionSuffixes
+        .find(suffix => name.endsWith(s"_$suffix"))
+        .fold(name)(suffix => name.dropRight(suffix.length + 1))
+
+  }
 
   object ResolvedDep {
 
@@ -98,6 +111,36 @@ object DependencyDiff {
 
     /** Returns true if the diff is empty, i.e. no dependencies were added, removed, or updated. */
     def isEmpty: Boolean = updated.isEmpty && added.isEmpty && removed.isEmpty
+
+    /** Folds `removed`/`added` pairs produced by an artifact migration (e.g. a groupId change) into synthetic `updated`
+      * entries keyed on the old coordinates.
+      *
+      * An artifact migration is applied during version resolution, so the diff records it as the old coordinates being
+      * removed and the new ones added — never as an update. Hooks and scalafix migrations are declared against the old
+      * coordinates (Scala Steward matches them on the update's original groupId), so without this step they would never
+      * match a migrated artifact.
+      */
+    def withMigratedUpdates(artifactMigrations: List[ArtifactMigration]): ProjectDiff = {
+      val migrated = removed.flatMap { removedDep =>
+        artifactMigrations.find { migration =>
+          migration.groupIdBefore.getOrElse(migration.groupIdAfter) === removedDep.organization &&
+          migration.artifactIdBefore.getOrElse(migration.artifactIdAfter) === removedDep.baseName
+        }.flatMap { migration =>
+          added.find { addedDep =>
+            addedDep.organization === migration.groupIdAfter &&
+            addedDep.baseName === migration.artifactIdAfter &&
+            addedDep.name.drop(addedDep.baseName.length) ===
+              removedDep.name.drop(removedDep.baseName.length) &&
+              addedDep.configuration === removedDep.configuration
+          }
+        }.map { addedDep =>
+          UpdatedDep(removedDep.organization, removedDep.name, removedDep.revision, addedDep.revision,
+            removedDep.configuration)
+        }
+      }
+
+      copy(updated = updated ++ migrated)
+    }
 
   }
 

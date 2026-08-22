@@ -16,6 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.io
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff._
@@ -425,6 +426,86 @@ class UpdateScriptSuite extends munit.FunSuite {
     val result = UpdateScript.toJson(scripts)
 
     assert(result.contains("""\""""))
+  }
+
+  // --- fromJson ---
+
+  test("fromJson parses what toJson renders, including escaped characters") {
+    val scripts = List(
+      UpdateScript("""sbt "scalafixEnable; core/scalafixAll Rule1"""", "Run migration"),
+      UpdateScript("sbt headerCreateAll", "Update headers\nafter bumping sbt-header")
+    )
+
+    val result = UpdateScript.fromJson(UpdateScript.toJson(scripts))
+
+    assertEquals(result, scripts)
+  }
+
+  test("fromJson parses an empty array") {
+    assertEquals(UpdateScript.fromJson("[]"), Nil)
+  }
+
+  // --- toMarkdown ---
+
+  test("toMarkdown renders sections for executed and failed scripts") {
+    val executed = List(UpdateScript("sbt headerCreateAll", "Update headers"))
+    val failed   = List(UpdateScript("sbt scalafixAll", "Run migration"))
+
+    val expected =
+      """|## :hammer_and_wrench: Post-update hooks executed
+         |
+         |- Update headers
+         |
+         |## :warning: Post-update hooks that failed
+         |
+         |- Run migration (`sbt scalafixAll`)
+         |""".stripMargin
+
+    assertNoDiff(UpdateScript.toMarkdown(executed, failed), expected)
+  }
+
+  test("toMarkdown omits empty sections") {
+    val result = UpdateScript.toMarkdown(List(UpdateScript("sbt compile", "Recompile")), Nil)
+
+    assert(result.contains("executed"))
+    assert(!result.contains(":warning:"))
+  }
+
+  test("toMarkdown returns an empty string when there is nothing to report") {
+    assertEquals(UpdateScript.toMarkdown(Nil, Nil), "")
+  }
+
+  // --- fromMigrations + ProjectDiff.withMigratedUpdates ---
+
+  test("fromMigrations matches migrations on the old groupId after an artifact migration") {
+    val artifactMigration = ArtifactMigration(
+      groupIdBefore = Some("org.tpolecat"),
+      groupIdAfter = "org.typelevel",
+      artifactIdBefore = None,
+      artifactIdAfter = "doobie-core"
+    )
+
+    val migration = ScalafixMigration(
+      groupId = "org.tpolecat",
+      artifactIds = List("doobie-.*"),
+      newVersion = "1.0.0-RC13",
+      rewriteRules = List("https://example.com/DoobiePackageRenameScalafix.scala")
+    )
+
+    val diff = ProjectDiff(
+      updated = Nil,
+      added = List(ResolvedDep("org.typelevel", "doobie-core_3", "1.0.0-RC13")),
+      removed = List(ResolvedDep("org.tpolecat", "doobie-core_3", "1.0.0-RC12"))
+    )
+
+    val diffs = Map(Group("core") -> diff.withMigratedUpdates(List(artifactMigration)))
+
+    val result = UpdateScript.fromMigrations(List(migration), diffs)
+
+    assertEquals(
+      result.map(_.script),
+      List("""sbt "scalafixEnable; core/scalafixAll https://example.com/DoobiePackageRenameScalafix.scala"""")
+    )
   }
 
 }
