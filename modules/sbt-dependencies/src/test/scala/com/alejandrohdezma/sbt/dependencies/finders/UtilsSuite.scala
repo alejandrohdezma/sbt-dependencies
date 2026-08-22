@@ -29,6 +29,7 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.ScalaVersion
 
 class UtilsSuite extends munit.FunSuite {
 
@@ -365,6 +366,81 @@ class UtilsSuite extends munit.FunSuite {
     val result = resolveLatestVersions(List(input), 1)
 
     assertEquals(result, List(input))
+  }
+
+  // --- resolveLatestVersions tests ---
+
+  test("resolveLatestVersions resolves filtered deps against the matching cross Scala version") {
+    val scala213Finder = mockVersionFinder(
+      Map(("org.typelevel", "kind-projector") -> List("0.13.3", "0.13.4"))
+    )
+
+    implicit val finders: Finders = Finders.noop.withVersionFinderFactory {
+      case "2.13.18" => scala213Finder
+      case _         => mockVersionFinder(Map.empty)
+    }
+      .withScalaVersion(ScalaVersion("3.3.8"))
+      .withCrossScalaVersions(List("3.3.8", "2.13.18"))
+
+    val input = dep("org.typelevel", "kind-projector", "0.13.3").copy(scalaFilter = Some("2.13"))
+
+    val result = Utils.resolveLatestVersions(List(input), 1)
+
+    assertEquals(result, List(dep("org.typelevel", "kind-projector", "0.13.4").copy(scalaFilter = Some("2.13"))))
+  }
+
+  test("resolveLatestVersions keeps deps matching the current axis on the current Scala version") {
+    implicit val finders: Finders = Finders.noop.withVersionFinderFactory {
+      case "2.13.18" => mockVersionFinder(Map(("org.typelevel", "cats-core") -> List("2.9.0", "2.10.0")))
+      case axis      => fail(s"unexpected version finder for `$axis` for a dep matching the current axis")
+    }
+      .withScalaVersion(ScalaVersion("2.13.18"))
+      .withCrossScalaVersions(List("2.13.18", "3.3.8"))
+
+    val input = dep("org.typelevel", "cats-core", "2.9.0").copy(scalaFilter = Some("2.13"))
+
+    val result = Utils.resolveLatestVersions(List(input), 1)
+
+    assertEquals(result, List(dep("org.typelevel", "cats-core", "2.10.0").copy(scalaFilter = Some("2.13"))))
+  }
+
+  test("resolveLatestVersions falls back to the current axis when no cross version matches") {
+    implicit val finders: Finders = Finders.noop.withVersionFinderFactory {
+      case "3.3.8" => mockVersionFinder(Map.empty)
+      case axis    => fail(s"unexpected version finder for `$axis` when no cross version matches the filter")
+    }
+      .withScalaVersion(ScalaVersion("3.3.8"))
+      .withCrossScalaVersions(List("3.3.8"))
+
+    val input = dep("org.typelevel", "kind-projector", "0.13.3").copy(scalaFilter = Some("2.13"))
+
+    val result = Utils.resolveLatestVersions(List(input), 1)
+
+    assertEquals(result, List(input))
+  }
+
+  test("resolveLatestVersions rebinds the scala variable to the filtered axis") {
+    val scala213Finder = mockVersionFinder(
+      Map(("org.scala-lang", "scala-reflect") -> List("2.13.17", "2.13.18"))
+    )
+
+    implicit val finders: Finders = Finders.noop.withVersionFinderFactory {
+      case "2.13.18" => scala213Finder
+      case _         => mockVersionFinder(Map.empty)
+    }
+      .withScalaVersion(ScalaVersion("3.3.8"))
+      .withCrossScalaVersions(List("3.3.8", "2.13.18"))
+
+    val input = Dependency(
+      "org.scala-lang",
+      "scala-reflect",
+      Version.Variable("scala", Some(nv("3.3.8"))),
+      scalaFilter = Some("2.13")
+    )
+
+    val result = Utils.resolveLatestVersions(List(input), 1)
+
+    assertEquals(result, List(input.withVersion(Version.Variable("scala", Some(nv("2.13.18"))))))
   }
 
   test("resolveLatestVersions preserves order of input dependencies") {

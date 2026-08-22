@@ -37,7 +37,7 @@ class Tasks {
   /** Updates dependencies to their latest versions based on the filter and version constraints. */
   val updateDependencies = Def.inputTask {
     implicit val logger: Logger   = streams.value.log
-    implicit val finders: Finders = Finders.fromState(state.value, scalaVersion.value)
+    implicit val finders: Finders = Finders.fromState(state.value, scalaVersion.value, crossScalaVersions.value)
 
     val file        = Settings.dependenciesFile.value
     val group       = Settings.currentGroup.value
