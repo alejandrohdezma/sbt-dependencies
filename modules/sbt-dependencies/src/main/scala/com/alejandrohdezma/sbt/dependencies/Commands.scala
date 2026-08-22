@@ -23,6 +23,7 @@ import scala.util.Try
 import sbt.Keys._
 import sbt.{Keys => _, _}
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
@@ -671,7 +672,11 @@ class Commands {
       if (diffFile.exists()) {
         implicit val configCache: ConfigCache = ConfigCache(outputDir / "config-cache")
 
-        val diffs = DependencyDiff.readDiff(diffFile)
+        val artifactMigrations = ArtifactMigration.loadFromUrls(project.get(ThisBuild / Keys.dependencyMigrations))
+
+        val diffs = DependencyDiff.readDiff(diffFile).map { case (group, diff) =>
+          group -> diff.withMigratedUpdates(artifactMigrations)
+        }
 
         val hooks = PostUpdateHook.loadFromUrls(project.get(ThisBuild / Keys.dependencyPostUpdateHooks))
 
