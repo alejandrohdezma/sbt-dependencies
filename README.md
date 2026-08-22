@@ -24,7 +24,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.34.6")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.35.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -867,6 +867,14 @@ The output file is a JSON array, parseable with `jq` or similar tools:
   {"script": "sbt headerCreateAll", "message": "Update file headers with sbt-header 1.2.0"}
 ]
 ```
+
+The easiest way to run the generated scripts is the `runPostUpdateHooks` command, typically appended to the CI invocation:
+
+```bash
+sbt "updateAllDependencies; runPostUpdateHooks"
+```
+
+It runs each script as a `bash -c` subprocess from the build root (so `sbt "..."` hooks pick up the updated dependencies in a fresh JVM) and is best-effort: a failing script is logged as a warning and never fails the command. It also writes a markdown report of executed and failed hooks to `target/sbt-dependencies/.sbt-post-update-hooks.md` — handy for including in a PR description — and appends it to the job summary (`$GITHUB_STEP_SUMMARY`) when running in GitHub Actions.
 
 You can customize the hook sources using the `dependencyPostUpdateHooks` setting:
 
