@@ -16,6 +16,7 @@
 
 package com.alejandrohdezma.sbt.dependencies.io
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff._
@@ -425,6 +426,39 @@ class UpdateScriptSuite extends munit.FunSuite {
     val result = UpdateScript.toJson(scripts)
 
     assert(result.contains("""\""""))
+  }
+
+  // --- fromMigrations + ProjectDiff.withMigratedUpdates ---
+
+  test("fromMigrations matches migrations on the old groupId after an artifact migration") {
+    val artifactMigration = ArtifactMigration(
+      groupIdBefore = Some("org.tpolecat"),
+      groupIdAfter = "org.typelevel",
+      artifactIdBefore = None,
+      artifactIdAfter = "doobie-core"
+    )
+
+    val migration = ScalafixMigration(
+      groupId = "org.tpolecat",
+      artifactIds = List("doobie-.*"),
+      newVersion = "1.0.0-RC13",
+      rewriteRules = List("https://example.com/DoobiePackageRenameScalafix.scala")
+    )
+
+    val diff = ProjectDiff(
+      updated = Nil,
+      added = List(ResolvedDep("org.typelevel", "doobie-core_3", "1.0.0-RC13")),
+      removed = List(ResolvedDep("org.tpolecat", "doobie-core_3", "1.0.0-RC12"))
+    )
+
+    val diffs = Map(Group("core") -> diff.withMigratedUpdates(List(artifactMigration)))
+
+    val result = UpdateScript.fromMigrations(List(migration), diffs)
+
+    assertEquals(
+      result.map(_.script),
+      List("""sbt "scalafixEnable; core/scalafixAll https://example.com/DoobiePackageRenameScalafix.scala"""")
+    )
   }
 
 }
