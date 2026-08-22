@@ -32,11 +32,20 @@ import com.alejandrohdezma.sbt.dependencies.finders.AgeChecker.TooRecent
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version._
 import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
+import com.alejandrohdezma.sbt.dependencies.model.ScalaVersion
 
 /** Utility functions for dependency resolution. */
 object Utils {
 
-  /** Resolves the latest version for each annotated dependency in parallel, logging updates.
+  /** Resolves the latest version for each annotated dependency in parallel, logging updates, honoring each dependency's
+    * `scala-filter` annotation.
+    *
+    * Dependencies whose filter matches the current axis (`finders.scalaVersion`) resolve with the in-scope `Finders`.
+    * Dependencies filtered to another axis resolve against the first `finders.crossScalaVersions` entry matching the
+    * filter, so a Scala-2-only artifact in a project whose default axis is Scala 3 still gets a real update check
+    * instead of a failed `name_3` lookup. A filter matching no cross version falls back to the current axis (yielding a
+    * "Could not resolve" warning). The built-in `{{scala}}` variable resolves to the project's default `scalaVersion`,
+    * so for deps moved to another axis its resolved value is rebound to that axis's version before the lookup.
     *
     * Returns the list of dependencies with their versions updated where applicable. Each dep's `(configuration,
     * crossVersion)` drives the Maven module shape lookup, so per-patch-published artifacts (`name_2.13.16`) and
@@ -50,8 +59,20 @@ object Utils {
 
     implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
-    val futures =
-      deps.map(dep => Future((dep, findLatestVersion(dep))))
+    val futures = deps.map { dep =>
+      val scalaVersion = dep.scalaFilter
+        .filterNot(finders.scalaVersion.value.startsWith(_))
+        .flatMap(filter => finders.crossScalaVersions.find(_.startsWith(filter)))
+        .map(ScalaVersion(_))
+
+      Future {
+        val axisFinders: Finders = scalaVersion.fold(finders)(finders.withScalaVersion)
+
+        val bound = scalaVersion.fold(dep)(rebindScalaVariable(dep, _))
+
+        (bound, findLatestVersion(bound)(using axisFinders, logger))
+      }
+    }
 
     val updated = futures.map { future =>
       Await.result(future, Duration.Inf) match {
@@ -162,6 +183,18 @@ object Utils {
     executor.shutdown()
     updated
   }
+
+  /** Rebinds the built-in `{{scala}}` variable's resolved version to the given Scala version, keeping its marker. The
+    * variable is resolved against the project's default `scalaVersion` at read time, so deps filtered to another axis
+    * carry a resolution from the wrong axis until rebound.
+    */
+  private def rebindScalaVariable(dep: Dependency, scalaVersion: ScalaVersion): Dependency =
+    (dep.version, scalaVersion) match {
+      case (Variable("scala", Some(resolved)), ScalaVersion(Numeric(version))) =>
+        dep.withVersion(Variable("scala", Some(version.withMarker(resolved.marker))))
+
+      case _ => dep
+    }
 
   /** Finds the latest version of a dependency based on the current version's marker.
     *

@@ -17,10 +17,9 @@
 package com.alejandrohdezma.sbt.dependencies.finders
 
 import sbt.Keys._
-import sbt._
+import sbt.{Keys => _, _}
 
-import com.alejandrohdezma.sbt.dependencies.Keys
-import com.alejandrohdezma.sbt.dependencies.ListOps
+import com.alejandrohdezma.sbt.dependencies._
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.model.ScalaVersion
 import lmcoursier.internal.shaded.coursier.MavenRepository
@@ -30,8 +29,8 @@ import lmcoursier.internal.shaded.coursier.Resolve
   *
   * `Finders` is constructed once per command/task — typically via [[Finders.fromState]] — and passed as a single
   * `implicit Finders` through `Utils.findLatestVersion`, `Dependency.findLatestVersion`, `Scalafmt.updateVersion`, etc.
-  * Each member is itself declared `implicit val`, so callers can write `import finders._` to bring every finder into
-  * implicit scope at once.
+  * Each member is itself declared implicit, so callers can write `import finders._` to bring every finder into implicit
+  * scope at once.
   *
   * Bundling lets us add or remove pipeline pieces (cooldown, age-based filtering, etc.) without touching every method
   * signature in the resolver chain — the `Finders` trait grows or shrinks and existing call sites keep working.
@@ -82,19 +81,36 @@ trait Finders {
 
   def withRetractionFinder(retractionFinder: RetractionFinder): Finders
 
-  /** Looks up available versions for an artifact via Coursier. In [[Finders.fromState]] this is the standard chain:
-    * `fromCoursier → cached → ignoringVersions → excludingRetracted → pinningVersions`.
+  /** Looks up available versions for an artifact via Coursier, bound to [[scalaVersion]]. Derived from the version
+    * finder factory, so [[withScalaVersion]] transparently rebinds it to the new axis. In [[Finders.fromState]] the
+    * factory produces the standard chain: `fromCoursier → cached → ignoringVersions → excludingRetracted →
+    * pinningVersions`.
     */
-  implicit val versionFinder: VersionFinder
+  implicit def versionFinder: VersionFinder
 
   def withVersionFinder(versionFinder: VersionFinder): Finders
+
+  /** Replaces the factory used to derive [[versionFinder]] from [[scalaVersion]]. Useful in tests to provide axis-aware
+    * version finders.
+    */
+  def withVersionFinderFactory(factory: String => VersionFinder): Finders
 
   /** Scala version used to derive the Maven artifact name (`name_2.13`, `name_2.12_1.0`, etc.). Threaded through so
     * `VersionFinder.mavenArtifactName` callers don't need a separate implicit.
     */
   implicit val scalaVersion: ScalaVersion
 
+  /** Rebinds this bundle to another Scala version: both [[scalaVersion]] and [[versionFinder]] (rebuilt through the
+    * version finder factory) target the new axis.
+    */
   def withScalaVersion(scalaVersion: ScalaVersion): Finders
+
+  /** Every Scala version the current scope cross-builds for. Used by `Utils.resolveLatestVersions` to route
+    * dependencies annotated with `scala-filter` to the axis their filter selects.
+    */
+  val crossScalaVersions: Seq[String]
+
+  def withCrossScalaVersions(crossScalaVersions: Seq[String]): Finders
 
 }
 
@@ -107,41 +123,51 @@ object Finders {
       override val migrationFinder: MigrationFinder,
       override val pinFinder: PinFinder,
       override val retractionFinder: RetractionFinder,
-      override val versionFinder: VersionFinder,
-      override val scalaVersion: ScalaVersion
+      val versionFinderFactory: String => VersionFinder,
+      override val scalaVersion: ScalaVersion,
+      override val crossScalaVersions: Seq[String]
   ) extends Finders {
 
+    implicit override lazy val versionFinder: VersionFinder = versionFinderFactory(scalaVersion.value)
+
     override def withCooldownFinder(_cooldownFinder: CooldownFinder): Finders =
-      new Impl(_cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
-        scalaVersion)
+      new Impl(_cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder,
+        versionFinderFactory, scalaVersion, crossScalaVersions)
 
     override def withAgeChecker(_ageChecker: AgeChecker): Finders =
-      new Impl(cooldownFinder, _ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
-        scalaVersion)
+      new Impl(cooldownFinder, _ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder,
+        versionFinderFactory, scalaVersion, crossScalaVersions)
 
     override def withIgnoreFinder(_ignoreFinder: IgnoreFinder): Finders =
-      new Impl(cooldownFinder, ageChecker, _ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
-        scalaVersion)
+      new Impl(cooldownFinder, ageChecker, _ignoreFinder, migrationFinder, pinFinder, retractionFinder,
+        versionFinderFactory, scalaVersion, crossScalaVersions)
 
     override def withMigrationFinder(_migrationFinder: MigrationFinder): Finders =
-      new Impl(cooldownFinder, ageChecker, ignoreFinder, _migrationFinder, pinFinder, retractionFinder, versionFinder,
-        scalaVersion)
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, _migrationFinder, pinFinder, retractionFinder,
+        versionFinderFactory, scalaVersion, crossScalaVersions)
 
     override def withPinFinder(_pinFinder: PinFinder): Finders =
-      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, _pinFinder, retractionFinder, versionFinder,
-        scalaVersion)
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, _pinFinder, retractionFinder,
+        versionFinderFactory, scalaVersion, crossScalaVersions)
 
     override def withRetractionFinder(_retractionFinder: RetractionFinder): Finders =
-      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, _retractionFinder, versionFinder,
-        scalaVersion)
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, _retractionFinder,
+        versionFinderFactory, scalaVersion, crossScalaVersions)
 
     override def withVersionFinder(_versionFinder: VersionFinder): Finders =
-      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, _versionFinder,
-        scalaVersion)
+      withVersionFinderFactory(_ => _versionFinder)
+
+    override def withVersionFinderFactory(factory: String => VersionFinder): Finders =
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, factory,
+        scalaVersion, crossScalaVersions)
 
     override def withScalaVersion(_scalaVersion: ScalaVersion): Finders =
-      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
-        _scalaVersion)
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder,
+        versionFinderFactory, _scalaVersion, crossScalaVersions)
+
+    override def withCrossScalaVersions(_crossScalaVersions: Seq[String]): Finders =
+      new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder,
+        versionFinderFactory, scalaVersion, _crossScalaVersions)
 
   }
 
@@ -152,8 +178,11 @@ object Finders {
     *   the Scala version the resolver pipeline is bound to. Main-build commands typically pass `scalaVersion.value`;
     *   meta-build commands (sbt-plugin / sbt / scalafmt updates) pass `PluginCompat.metaBuildScalaVersion` because they
     *   resolve against artifacts published for the running sbt's build definition.
+    * @param crossScalaVersions
+    *   every Scala version the current scope cross-builds for, so `scala-filter`ed dependencies can be resolved against
+    *   the axis their filter selects. Commands that don't handle filtered dependencies can omit it.
     */
-  def fromState(state: State, scalaV: String): Finders = {
+  def fromState(state: State, scalaV: String, crossScalaVersions: Seq[String] = Nil): Finders = {
     implicit val logger: Logger = state.log
 
     val project = Project.extract(state)
@@ -189,18 +218,16 @@ object Finders {
     val retractionFinder: RetractionFinder =
       RetractionFinder.fromUrls(project.get(ThisBuild / Keys.dependencyUpdateRetractions))
 
-    val versionFinder: VersionFinder =
+    val versionFinderFactory: String => VersionFinder = version =>
       VersionFinder
-        .fromCoursier(scalaV, project.get(ThisBuild / Keys.dependencyResolverTimeout), repositories)
+        .fromCoursier(version, project.get(ThisBuild / Keys.dependencyResolverTimeout), repositories)
         .cached
         .ignoringVersions(ignoreFinder)
         .excludingRetracted(retractionFinder)
         .pinningVersions(pinFinder)
 
-    val scalaVersion: ScalaVersion = ScalaVersion(scalaV)
-
-    new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder, versionFinder,
-      scalaVersion)
+    new Impl(cooldownFinder, ageChecker, ignoreFinder, migrationFinder, pinFinder, retractionFinder,
+      versionFinderFactory, ScalaVersion(scalaV), crossScalaVersions)
   }
 
   val noop: Finders = new Impl(
@@ -210,8 +237,9 @@ object Finders {
     migrationFinder = _ => None,
     pinFinder = (_, _, _) => true,
     retractionFinder = RetractionFinder.noop,
-    versionFinder = (_, _, _, _) => Nil,
-    scalaVersion = ScalaVersion("2.13.16")
+    versionFinderFactory = _ => (_, _, _, _) => Nil,
+    scalaVersion = ScalaVersion("2.13.16"),
+    crossScalaVersions = Nil
   )
 
 }

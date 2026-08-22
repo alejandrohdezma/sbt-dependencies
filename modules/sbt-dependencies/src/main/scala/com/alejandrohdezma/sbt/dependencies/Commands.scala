@@ -779,8 +779,9 @@ class Commands {
     * built once and passed as an implicit `Finders` for the callback's body to consume.
     *
     * The Scala version `Finders` is bound to is derived from `group`: `sbt-build` deps target the meta-build (whose
-    * Scala version is fixed by the running sbt), so we bind `PluginCompat.metaBuildScalaVersion`. Every other group
-    * holds main-build deps that target the user's project, so we bind the project's `ThisBuild / scalaVersion`.
+    * Scala version is fixed by the running sbt), so we bind `PluginCompat.metaBuildScalaVersion` and no cross versions.
+    * Every other group holds main-build deps that target the user's project, so we bind the project's
+    * `ThisBuild / scalaVersion` and `ThisBuild / crossScalaVersions` (used to route `scala-filter`ed deps).
     */
   private def withDependenciesFile(state: State, group: Group)(
       f: (Extracted, DependenciesFile) => Finders => State
@@ -792,9 +793,13 @@ class Commands {
 
     if (!file.exists() || !dependenciesFile.hasGroup(group)) state
     else {
-      val scalaV =
-        if (group === `sbt-build`) PluginCompat.metaBuildScalaVersion else project.get(ThisBuild / scalaVersion)
-      f(project, dependenciesFile)(Finders.fromState(state, scalaV))
+      val finders =
+        if (group === `sbt-build`)
+          Finders.fromState(state, PluginCompat.metaBuildScalaVersion)
+        else
+          Finders.fromState(state, project.get(ThisBuild / scalaVersion), project.get(ThisBuild / crossScalaVersions))
+
+      f(project, dependenciesFile)(finders)
     }
   }
 
