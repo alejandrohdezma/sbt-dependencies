@@ -1,0 +1,7 @@
+## :hammer_and_wrench: Post-update hooks executed
+
+- Touch a marker file
+
+## :warning: Post-update hooks that failed
+
+- Always fails (`exit 1`)

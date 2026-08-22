@@ -1,0 +1,1 @@
+lazy val myproject = project

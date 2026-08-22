@@ -428,6 +428,53 @@ class UpdateScriptSuite extends munit.FunSuite {
     assert(result.contains("""\""""))
   }
 
+  // --- fromJson ---
+
+  test("fromJson parses what toJson renders, including escaped characters") {
+    val scripts = List(
+      UpdateScript("""sbt "scalafixEnable; core/scalafixAll Rule1"""", "Run migration"),
+      UpdateScript("sbt headerCreateAll", "Update headers\nafter bumping sbt-header")
+    )
+
+    val result = UpdateScript.fromJson(UpdateScript.toJson(scripts))
+
+    assertEquals(result, scripts)
+  }
+
+  test("fromJson parses an empty array") {
+    assertEquals(UpdateScript.fromJson("[]"), Nil)
+  }
+
+  // --- toMarkdown ---
+
+  test("toMarkdown renders sections for executed and failed scripts") {
+    val executed = List(UpdateScript("sbt headerCreateAll", "Update headers"))
+    val failed   = List(UpdateScript("sbt scalafixAll", "Run migration"))
+
+    val expected =
+      """|## :hammer_and_wrench: Post-update hooks executed
+         |
+         |- Update headers
+         |
+         |## :warning: Post-update hooks that failed
+         |
+         |- Run migration (`sbt scalafixAll`)
+         |""".stripMargin
+
+    assertNoDiff(UpdateScript.toMarkdown(executed, failed), expected)
+  }
+
+  test("toMarkdown omits empty sections") {
+    val result = UpdateScript.toMarkdown(List(UpdateScript("sbt compile", "Recompile")), Nil)
+
+    assert(result.contains("executed"))
+    assert(!result.contains(":warning:"))
+  }
+
+  test("toMarkdown returns an empty string when there is nothing to report") {
+    assertEquals(UpdateScript.toMarkdown(Nil, Nil), "")
+  }
+
   // --- fromMigrations + ProjectDiff.withMigratedUpdates ---
 
   test("fromMigrations matches migrations on the old groupId after an artifact migration") {

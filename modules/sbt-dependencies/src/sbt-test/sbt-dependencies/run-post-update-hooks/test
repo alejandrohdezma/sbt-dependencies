@@ -1,0 +1,15 @@
+# Verify runPostUpdateHooks executes the scripts from .sbt-post-update-hooks
+# best-effort (a failing script doesn't fail the command) and writes a
+# markdown report
+
+# Does nothing when the hooks file doesn't exist
+> runPostUpdateHooks
+-$ exists target/sbt-dependencies/.sbt-post-update-hooks.md
+
+$ copy-file hooks.json target/sbt-dependencies/.sbt-post-update-hooks
+
+> runPostUpdateHooks
+
+$ exists hook-ran.txt
+$ exists target/sbt-dependencies/.sbt-post-update-hooks.md
+$ must-mirror target/sbt-dependencies/.sbt-post-update-hooks.md expected-report

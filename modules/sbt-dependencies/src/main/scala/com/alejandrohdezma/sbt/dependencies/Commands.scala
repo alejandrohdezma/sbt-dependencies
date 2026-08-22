@@ -48,7 +48,7 @@ class Commands {
     updateBuildDependencies, updateCommonDependencies, installBuildDependencies, installCommonDependencies, updateSbt,
     updateBuildScalaVersions, updateCommonScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
     enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, snapshotCommonDependencies,
-    snapshotSbtPlugin, snapshotSbtVersion, computeDependencyDiff, computePostUpdateHooks)
+    snapshotSbtPlugin, snapshotSbtVersion, computeDependencyDiff, computePostUpdateHooks, runPostUpdateHooks)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -693,6 +693,58 @@ class Commands {
         }
       }
     }.onError { case e => state.log.warn(s"Unable to compute post-update hooks: ${e.getMessage}") }
+
+    state
+  }
+
+  /** Runs the scripts listed in `target/sbt-dependencies/.sbt-post-update-hooks` (written by `computePostUpdateHooks`).
+    * Does nothing when the file doesn't exist.
+    *
+    * Each script runs as a `bash -c` subprocess from the build root, so `sbt "..."` hooks pick up the updated
+    * dependencies in a fresh JVM. Execution is best-effort: a failing script is logged as a warning and never fails the
+    * command, so it is safe to append to a CI pipeline that should always finish.
+    *
+    * A markdown report of executed and failed hooks is written to `target/sbt-dependencies/.sbt-post-update-hooks.md`
+    * and appended to the `GITHUB_STEP_SUMMARY` file when running in GitHub Actions.
+    */
+  lazy val runPostUpdateHooks = Command.command("runPostUpdateHooks") { state =>
+    val _ = Try {
+      implicit val logger: Logger = state.log
+
+      val project = Project.extract(state)
+
+      val base      = project.get(ThisBuild / baseDirectory)
+      val outputDir = base / "target" / "sbt-dependencies"
+      val hooksFile = outputDir / ".sbt-post-update-hooks"
+
+      if (hooksFile.exists()) {
+        val scripts = UpdateScript.fromJson(IO.read(hooksFile))
+
+        val results = scripts.map { script =>
+          logger.info(s"▶ ${script.message}")
+
+          val processLogger = scala.sys.process.ProcessLogger(logger.info(_), logger.info(_))
+
+          val exitCode = scala.sys.process.Process(Seq("bash", "-c", script.script), base).!(processLogger)
+
+          if (exitCode !== 0) logger.warn(s"✗ Post-update hook failed ($exitCode): ${script.script}")
+
+          script -> exitCode
+        }
+
+        val (executed, failed) = results.partition { case (_, exitCode) => exitCode === 0 }
+
+        val markdown = UpdateScript.toMarkdown(executed.map(_._1), failed.map(_._1))
+
+        if (markdown.nonEmpty) {
+          IO.write(outputDir / ".sbt-post-update-hooks.md", markdown)
+
+          sys.env.get("GITHUB_STEP_SUMMARY").foreach(path => IO.append(new File(path), markdown))
+
+          logger.info(s"✎ Wrote post-update hooks report to $outputDir/.sbt-post-update-hooks.md")
+        }
+      }
+    }.onError { case e => state.log.warn(s"Unable to run post-update hooks: ${e.getMessage}") }
 
     state
   }

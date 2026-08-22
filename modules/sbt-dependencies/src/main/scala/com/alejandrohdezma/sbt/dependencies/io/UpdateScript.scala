@@ -16,11 +16,14 @@
 
 package com.alejandrohdezma.sbt.dependencies.io
 
+import scala.jdk.CollectionConverters._
+
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff.ProjectDiff
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
+import com.typesafe.config.ConfigFactory
 
 /** A script to be run after updating dependencies, with a human-readable message.
   *
@@ -76,6 +79,33 @@ object UpdateScript {
         case _                                                      => Nil
       }
     }.distinctBy(_.script)
+
+  /** Parses a JSON array previously written by `toJson`. */
+  def fromJson(json: String): List[UpdateScript] =
+    ConfigFactory
+      .parseString(s"scripts = $json")
+      .getConfigList("scripts")
+      .asScala
+      .toList
+      .map(entry => UpdateScript(entry.getString("script"), entry.getString("message")))
+
+  /** Renders executed and failed scripts as a markdown report with a section for each non-empty list. Returns an empty
+    * string when there is nothing to report.
+    */
+  def toMarkdown(executed: List[UpdateScript], failed: List[UpdateScript]): String = {
+    val executedSection = executed
+      .map(script => s"- ${script.message}")
+      .mkString("## :hammer_and_wrench: Post-update hooks executed\n\n", "\n", "")
+
+    val failedSection = failed
+      .map(script => s"- ${script.message} (`${script.script}`)")
+      .mkString("## :warning: Post-update hooks that failed\n\n", "\n", "")
+
+    val sections =
+      List(executed.nonEmpty -> executedSection, failed.nonEmpty -> failedSection).collect { case (true, s) => s }
+
+    if (sections.isEmpty) "" else sections.mkString("", "\n\n", "\n")
+  }
 
   /** Renders a list of update scripts as a JSON array string. */
   def toJson(scripts: List[UpdateScript]): String =

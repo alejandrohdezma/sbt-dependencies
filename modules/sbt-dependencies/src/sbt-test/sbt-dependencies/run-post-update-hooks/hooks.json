@@ -1,0 +1,4 @@
+[
+  {"script": "touch hook-ran.txt", "message": "Touch a marker file"},
+  {"script": "exit 1", "message": "Always fails"}
+]
