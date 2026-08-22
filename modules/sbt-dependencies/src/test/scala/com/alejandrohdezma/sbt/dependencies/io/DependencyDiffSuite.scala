@@ -21,6 +21,7 @@ import java.nio.file.Files
 
 import sbt.librarymanagement.ModuleID
 
+import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
 import com.alejandrohdezma.sbt.dependencies.io.DependencyDiff._
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Group
@@ -563,5 +564,62 @@ class DependencyDiffSuite extends munit.FunSuite {
       ()
     }
   )
+
+  // --- ProjectDiff.withMigratedUpdates ---
+
+  val doobieArtifactMigration = ArtifactMigration(
+    groupIdBefore = Some("org.tpolecat"),
+    groupIdAfter = "org.typelevel",
+    artifactIdBefore = None,
+    artifactIdAfter = "doobie-core"
+  )
+
+  test("withMigratedUpdates folds removed/added pair matching an artifact migration into an updated entry") {
+    val diff = ProjectDiff(
+      updated = Nil,
+      added = List(ResolvedDep("org.typelevel", "doobie-core_3", "1.0.0-RC13")),
+      removed = List(ResolvedDep("org.tpolecat", "doobie-core_3", "1.0.0-RC12"))
+    )
+
+    val result = diff.withMigratedUpdates(List(doobieArtifactMigration))
+
+    assertEquals(result.updated, List(UpdatedDep("org.tpolecat", "doobie-core_3", "1.0.0-RC12", "1.0.0-RC13")))
+  }
+
+  test("withMigratedUpdates does not pair dependencies with different Scala version suffixes") {
+    val diff = ProjectDiff(
+      updated = Nil,
+      added = List(ResolvedDep("org.typelevel", "doobie-core_2.13", "1.0.0-RC13")),
+      removed = List(ResolvedDep("org.tpolecat", "doobie-core_3", "1.0.0-RC12"))
+    )
+
+    val result = diff.withMigratedUpdates(List(doobieArtifactMigration))
+
+    assertEquals(result.updated, Nil)
+  }
+
+  test("withMigratedUpdates does not pair dependencies with different configurations") {
+    val diff = ProjectDiff(
+      updated = Nil,
+      added = List(ResolvedDep("org.typelevel", "doobie-core_3", "1.0.0-RC13", "test")),
+      removed = List(ResolvedDep("org.tpolecat", "doobie-core_3", "1.0.0-RC12"))
+    )
+
+    val result = diff.withMigratedUpdates(List(doobieArtifactMigration))
+
+    assertEquals(result.updated, Nil)
+  }
+
+  test("withMigratedUpdates leaves the diff untouched when no artifact migration matches") {
+    val diff = ProjectDiff(
+      updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
+      added = List(ResolvedDep("io.circe", "circe-core_2.13", "0.14.0")),
+      removed = List(ResolvedDep("io.argonaut", "argonaut_2.13", "6.3.0"))
+    )
+
+    val result = diff.withMigratedUpdates(List(doobieArtifactMigration))
+
+    assertEquals(result, diff)
+  }
 
 }
