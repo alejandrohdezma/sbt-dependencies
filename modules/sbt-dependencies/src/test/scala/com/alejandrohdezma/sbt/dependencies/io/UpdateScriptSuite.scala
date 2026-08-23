@@ -136,6 +136,48 @@ class UpdateScriptSuite extends munit.FunSuite {
     assertEquals(result.head.script, "sbt scalafixAll")
   }
 
+  test("fromHooks quotes command parts containing whitespace or semicolons") {
+    val hook = PostUpdateHook(
+      groupId = None,
+      artifactId = None,
+      command = List("sbt", "scalafmtAll; scalafmtSbt; scalafixAll"),
+      commitMessage = "Format code after dependency updates"
+    )
+
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
+        updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
+        added = Nil,
+        removed = Nil
+      )
+    )
+
+    val result = UpdateScript.fromHooks(List(hook), diffs)
+
+    assertEquals(result.map(_.script), List("""sbt "scalafmtAll; scalafmtSbt; scalafixAll""""))
+  }
+
+  test("fromHooks escapes double quotes in command parts") {
+    val hook = PostUpdateHook(
+      groupId = None,
+      artifactId = None,
+      command = List("bash", "-c", """echo "hello""""),
+      commitMessage = "Say hello"
+    )
+
+    val diffs: Map[Group, ProjectDiff] = Map(
+      Group("core") -> ProjectDiff(
+        updated = List(UpdatedDep("org.typelevel", "cats-core_2.13", "2.9.0", "2.10.0")),
+        added = Nil,
+        removed = Nil
+      )
+    )
+
+    val result = UpdateScript.fromHooks(List(hook), diffs)
+
+    assertEquals(result.map(_.script), List("bash -c \"echo \\\"hello\\\"\""))
+  }
+
   // --- fromMigrations ---
 
   test("fromMigrations matches migration within version range") {
