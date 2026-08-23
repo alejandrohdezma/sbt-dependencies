@@ -682,7 +682,9 @@ class Commands {
 
         val migrations = ScalafixMigration.loadFromUrls(project.get(ThisBuild / Keys.dependencyScalafixMigrations))
 
-        val scripts = UpdateScript.fromHooks(hooks, diffs) ++ UpdateScript.fromMigrations(migrations, diffs)
+        // Migrations first, hooks last, mirroring Scala Steward: post-update hooks (e.g. a formatting hook) must run
+        // after the scalafix migration rewrites so their changes are covered too.
+        val scripts = UpdateScript.fromMigrations(migrations, diffs) ++ UpdateScript.fromHooks(hooks, diffs)
 
         if (scripts.nonEmpty) {
           val json = UpdateScript.toJson(scripts)
