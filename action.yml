@@ -1,0 +1,223 @@
+name: sbt-dependencies
+description: Update every dependency in project/dependencies.conf, run matching post-update hooks, and upsert an update pull request.
+
+branding:
+  icon: arrow-up-circle
+  color: red
+
+inputs:
+  config-file:
+    description: |
+      Path (relative to the workspace) to a Scala Steward-style HOCON file
+      applied to every constraint class: `postUpdateHooks`, `migrations`
+      (scalafix), `changes` (artifact migrations), `updates.ignore`,
+      `updates.pin`, `updates.retracted` and `updates.cooldown`.
+
+      Sections the plugin doesn't know are ignored, so an existing
+      `.scala-steward.conf` can be reused as-is. The action fails when the
+      file doesn't exist.
+    required: false
+    default: ""
+  extra-command:
+    description: |
+      Optional sbt command(s) to run in their own step (and commit) after the
+      dependency update (e.g. `changesetFromDependencyDiff`). Use `;` to
+      chain multiple commands.
+    required: false
+    default: ""
+  create-pr:
+    description: |
+      Whether to commit the changes (one commit per stage: the update, the
+      extra command, and each post-update hook, mirroring Scala Steward) and
+      create/update the pull request. When `false` the working tree is left
+      dirty for the caller to handle.
+    required: false
+    default: "true"
+  branch:
+    description: "Branch to push the updates to when creating the pull request"
+    required: false
+    default: updates/dependencies
+  base:
+    description: |
+      Base branch for the created pull request. When empty, the default
+      branch of the repository in the workspace is detected from `origin`
+      (the event's repository can't be trusted for this: an org-wide
+      workflow runs from another repository entirely).
+    required: false
+    default: ""
+  pr-title:
+    description: "Title for the created/updated pull request. Also used as the update commit's message."
+    required: false
+    default: Update dependencies
+  pr-body:
+    description: "Body for the created/updated pull request. The post-update hooks report is appended to it."
+    required: false
+    default: "Automated dependency updates from [`sbt-dependencies`](https://github.com/alejandrohdezma/sbt-dependencies)."
+  github-token:
+    description: "GitHub token used to create/update the pull request (defaults to github.token)"
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  hooks-report:
+    description: "Markdown report of executed and failed post-update hooks. Empty when no hooks matched the update."
+    value: ${{ steps.hooks.outputs.report }}
+  pr-number:
+    description: "Number of the created/updated pull request (empty when no PR was created)"
+    value: ${{ steps.upsert-pr.outputs.pr-number }}
+  pr-url:
+    description: "URL of the created/updated pull request (empty when no PR was created)"
+    value: ${{ steps.upsert-pr.outputs.pr-url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate config file
+      if: inputs.config-file != ''
+      shell: bash
+      env:
+        CONFIG_FILE: ${{ inputs.config-file }}
+      run: |
+        if [ ! -f "$CONFIG_FILE" ]; then
+          echo "::error::Provided config file ($CONFIG_FILE) does not exist"
+          exit 1
+        fi
+
+    - name: Prepare branch
+      if: inputs.create-pr == 'true'
+      id: branch
+      shell: bash
+      env:
+        BRANCH: ${{ inputs.branch }}
+        BASE: ${{ inputs.base }}
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        if [ -z "$BASE" ]; then
+          BASE=$(git ls-remote --symref origin HEAD | awk '/^ref:/ {sub("refs/heads/", "", $2); print $2}')
+          echo "🔎 Detected default branch: $BASE"
+        fi
+
+        git checkout -B "$BRANCH"
+
+        echo "base=$BASE" >> "$GITHUB_OUTPUT"
+        echo "start-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+    # When a config file is provided it is appended to every constraint-class
+    # setting, so a single Scala Steward-style file drives hooks, migrations,
+    # ignores, pins, retractions and cooldown.
+    - name: Update dependencies
+      shell: bash
+      env:
+        CONFIG_FILE: ${{ inputs.config-file }}
+      run: |
+        args=()
+        if [ -n "$CONFIG_FILE" ]; then
+          for setting in dependencyPostUpdateHooks dependencyScalafixMigrations dependencyMigrations \
+            dependencyUpdateIgnores dependencyUpdatePins dependencyUpdateRetractions dependencyCooldowns; do
+            args+=("set ThisBuild / $setting += file(\"$CONFIG_FILE\").toURI")
+          done
+        fi
+        sbt "${args[@]}" updateAllDependencies
+
+    - name: Format dependencies file
+      shell: bash
+      env:
+        CREATE_PR: ${{ inputs.create-pr }}
+        COMMIT_MESSAGE: ${{ inputs.pr-title }}
+      run: |
+        sbt formatDependenciesFile
+        if [ "$CREATE_PR" = "true" ] && [ -n "$(git status --porcelain)" ]; then
+          git add -A
+          git commit -m "$COMMIT_MESSAGE"
+        fi
+
+    - name: Run extra command
+      if: inputs.extra-command != ''
+      shell: bash
+      env:
+        EXTRA_COMMAND: ${{ inputs.extra-command }}
+        CREATE_PR: ${{ inputs.create-pr }}
+      run: |
+        sbt "$EXTRA_COMMAND"
+        if [ "$CREATE_PR" = "true" ] && [ -n "$(git status --porcelain)" ]; then
+          git add -A
+          git commit -m "Run \`$EXTRA_COMMAND\`"
+        fi
+
+    # Runs the scripts matched against the dependency diff (e.g. scalafix
+    # migrations) best-effort: a failing hook becomes a warning and a line in
+    # the report, never a failed step. Each hook that changed something gets
+    # its own commit, using the hook's message.
+    - name: Run post-update hooks
+      id: hooks
+      shell: bash
+      env:
+        CREATE_PR: ${{ inputs.create-pr }}
+      run: |
+        file=target/sbt-dependencies/.sbt-post-update-hooks
+        ran=""
+        failed=""
+        if [ -f "$file" ]; then
+          while IFS= read -r hook; do
+            script=$(jq -r '.script' <<<"$hook")
+            message=$(jq -r '.message' <<<"$hook")
+            echo "::group::$message"
+            if bash -c "$script"; then
+              ran="$ran- $message"$'\n'
+            else
+              echo "::warning::Post-update hook failed: $script"
+              failed="$failed- $message (\`$script\`)"$'\n'
+            fi
+            if [ "$CREATE_PR" = "true" ] && [ -n "$(git status --porcelain)" ]; then
+              git add -A
+              git commit -m "$message"
+            fi
+            echo "::endgroup::"
+          done < <(jq -c '.[]' "$file")
+        fi
+        report=""
+        if [ -n "$ran" ]; then
+          report+=$'## :hammer_and_wrench: Post-update hooks executed\n\n'"$ran"
+        fi
+        if [ -n "$failed" ]; then
+          [ -n "$report" ] && report+=$'\n'
+          report+=$'## :warning: Post-update hooks that failed\n\n'"$failed"
+        fi
+        if [ -n "$report" ]; then
+          printf '%s' "$report" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        {
+          echo "report<<REPORT_EOF"
+          printf '%s' "$report"
+          echo "REPORT_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Check for changes
+      if: inputs.create-pr == 'true'
+      id: changes
+      shell: bash
+      env:
+        START_SHA: ${{ steps.branch.outputs.start-sha }}
+      run: |
+        if [ "$(git rev-parse HEAD)" = "$START_SHA" ]; then
+          echo "🧺 No dependency updates."
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Create or update PR
+      if: inputs.create-pr == 'true' && steps.changes.outputs.changed == 'true'
+      id: upsert-pr
+      uses: alejandrohdezma/actions/upsert-pr@v1
+      with:
+        branch: ${{ inputs.branch }}
+        base: ${{ steps.branch.outputs.base }}
+        title: ${{ inputs.pr-title }}
+        body: |
+          ${{ inputs.pr-body }}
+
+          ${{ steps.hooks.outputs.report }}
+        github-token: ${{ inputs.github-token }}

@@ -18,6 +18,7 @@
 - Share versions across dependencies with [version variables](#user-content-use-shared-version-variables).
 - Import [Maven BOMs](#user-content-use-bom-managed-versions) with the `bom` configuration, use `*` to take dependency versions from them and align transitive versions through `dependencyOverrides`.
 - [VS Code / Cursor extension](#vs-code--cursor-extension) with syntax highlighting for `dependencies.conf`.
+- Automate the whole update flow on CI with the [GitHub Action](#github-action).
 
 ## Installation
 
@@ -91,6 +92,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Get all resolved dependencies](#user-content-get-all-resolved-dependencies)
   + [Validate resolved dependencies](#user-content-validate-resolved-dependencies)
   + [Disable eviction warnings](#user-content-disable-eviction-warnings)
+- [GitHub Action](#github-action)
 - [IDE plugins](#ide-plugins) for VS Code / Cursor and IntelliJ IDEA
 
 ## IDE Plugins
@@ -876,6 +878,8 @@ sbt "updateAllDependencies; runPostUpdateHooks"
 
 It runs each script as a `bash -c` subprocess from the build root (so `sbt "..."` hooks pick up the updated dependencies in a fresh JVM) and is best-effort: a failing script is logged as a warning and never fails the command. It also writes a markdown report of executed and failed hooks to `target/sbt-dependencies/.sbt-post-update-hooks.md` — handy for including in a PR description — and appends it to the job summary (`$GITHUB_STEP_SUMMARY`) when running in GitHub Actions.
 
+On GitHub Actions, prefer the [GitHub Action](#github-action), which runs the hooks (and the rest of the update flow) for you.
+
 You can customize the hook sources using the `dependencyPostUpdateHooks` setting:
 
 ```scala
@@ -1028,6 +1032,85 @@ sbt> enableEvictionWarnings
 ---
 
 </details>
+
+## GitHub Action
+
+This repository also ships a composite GitHub Action that runs the whole update flow: `updateAllDependencies`, `formatDependenciesFile`, an optional extra sbt command, the generated post-update hooks (executed with bash, best-effort), and finally creating or updating a pull request with the changes.
+
+Mirroring Scala Steward, every stage gets its own commit on the update branch: one for the dependency updates, one for the extra command, and one per post-update hook (using the hook's commit message), so the PR history shows exactly what each step changed.
+
+Reference it as `alejandrohdezma/sbt-dependencies@AT_VERSION@`:
+
+```yaml
+name: Update Dependencies
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: "sbt"
+
+      - uses: sbt/setup-sbt@v1
+
+      - uses: alejandrohdezma/sbt-dependencies@AT_VERSION@
+        with:
+          config-file: .github/.scala-steward.conf
+```
+
+The action assumes sbt (and any repository credentials) are already set up.
+
+### Inputs
+
+| Input | Description | Default |
+| :--- | :--- | :--- |
+| `config-file` | Path to a [Scala Steward-style HOCON file](#user-content-github-action-config-file) applied to every constraint class. Fails when set but missing. | _(none)_ |
+| `extra-command` | sbt command(s) run in their own step (and commit) after the dependency update. Use `;` to chain. | _(none)_ |
+| `create-pr` | Whether to commit each stage and create/update the pull request. When `false` the working tree is left dirty for the caller. | `true` |
+| `branch` | Branch to push the updates to. | `updates/dependencies` |
+| `base` | Base branch for the created pull request. | the default branch detected from `origin` |
+| `pr-title` | Title for the pull request. Also used as the update commit's message. | `Update dependencies` |
+| `pr-body` | Body for the pull request. The post-update hooks report is appended to it. | short default text |
+| `github-token` | Token used to create/update the pull request. | `github.token` |
+
+### Outputs
+
+| Output | Description |
+| :--- | :--- |
+| `hooks-report` | Markdown report of executed and failed post-update hooks. Empty when no hooks matched. |
+| `pr-number` | Number of the created/updated pull request. Empty when nothing changed. |
+| `pr-url` | URL of the created/updated pull request. Empty when nothing changed. |
+
+### <b id="github-action-config-file">The `config-file` input</b>
+
+A single Scala Steward-style HOCON file that is applied to **every** constraint class: `postUpdateHooks`, `migrations` (scalafix migrations), `changes` (artifact migrations), `updates.ignore`, `updates.pin`, `updates.retracted` and `updates.cooldown`. Sections the plugin doesn't know are ignored, so an existing `.scala-steward.conf` can be reused as-is.
+
+This is also the place to hook code formatting into the update flow — post-update hooks run after the scalafix migrations, so a global hook (no `groupId`/`artifactId` filter) covers migration rewrites too:
+
+```hocon
+postUpdateHooks = [
+  {
+    command = ["sbt", "scalafmtAll; scalafixAll"]
+    commitMessage = "Format code after dependency updates"
+  }
+]
+```
+
+> On CI systems other than GitHub Actions, chain the [`runPostUpdateHooks`](#user-content-configure-post-update-hooks) command instead of using the action.
 
 ## Contributors to this project
 

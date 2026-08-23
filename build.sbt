@@ -32,6 +32,7 @@ addCommandAlias("ci-publish", "versionCheck; github; ci-release; intellij-plugin
 
 lazy val documentation = project
   .enablePlugins(MdocPlugin)
+  .settings(mdocVariables += "AT_VERSION" -> s"@v${mdocVariables.value("VERSION")}")
 
 lazy val `sbt-dependencies-core` = module
 
