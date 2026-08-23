@@ -50,7 +50,7 @@ object UpdateScript {
       }
 
       matches.map { dep =>
-        val script = hook.command.mkString(" ")
+        val script = hook.command.map(shellQuote).mkString(" ")
 
         val message = hook.commitMessage
           .replace("${nextVersion}", dep.to)
@@ -79,6 +79,14 @@ object UpdateScript {
         case _                                                      => Nil
       }
     }.distinctBy(_.script)
+
+  /** Quotes a command part so the script survives `bash -c`: hook commands are arrays (executed verbatim by Scala
+    * Steward), but the generated script is a single shell string, so a part like `scalafmtAll; scalafixAll` must not be
+    * split by the shell.
+    */
+  private def shellQuote(part: String): String =
+    if (part.exists(c => c.isWhitespace || ";\"".contains(c))) "\"" + part.replace("\"", "\\\"") + "\""
+    else part
 
   /** Parses a JSON array previously written by `toJson`. */
   def fromJson(json: String): List[UpdateScript] =
