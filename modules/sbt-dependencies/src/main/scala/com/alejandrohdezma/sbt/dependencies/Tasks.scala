@@ -23,12 +23,15 @@ import sbt.complete.DefaultParsers._
 import sbt.internal.util.complete.Parser
 import sbt.{Keys => _, _}
 
+import com.alejandrohdezma.sbt.dependencies.bom.BomReader
+import com.alejandrohdezma.sbt.dependencies.bom.ModuleFetcher
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdateFilter
 import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
+import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.alejandrohdezma.string.box._
 
 /** SBT input tasks for managing dependencies. */
@@ -44,12 +47,23 @@ class Tasks {
     val groupExists = file.hasGroup(group)
     val bomPins     = Keys.dependenciesFromBom.value
     val scalaBinary = (update / scalaBinaryVersion).value
+    val variables   = Keys.dependencyVersionVariables.value
 
     val dependencies = file
-      .read(group, Keys.dependencyVersionVariables.value)
+      .read(group, variables)
       .map(_.resolveBom(bomPins, scalaBinary))
 
     val filter = updateFilterParser.parsed
+
+    val isSbtBuild = Settings.isSbtBuild.value
+    val sbtBinary  = (pluginCrossBuild / sbtBinaryVersion).value
+    val extracted  = Project.extract(state.value)
+
+    val inheritedGroups = buildDependencies.value.classpathTransitive
+      .getOrElse(thisProjectRef.value, Nil)
+      .map(ref => Group(extracted.get(ref / name)))
+
+    implicit val fetcher: ModuleFetcher = Settings.bomFetcher.value
 
     if (!groupExists) {
       // Group not in YAML file - silently skip
@@ -66,7 +80,31 @@ class Tasks {
 
       updated.foreach(finders.retractionFinder.warnIfRetracted(_))
 
-      file.write(group, filtered ++ updated)
+      val toWrite = filtered ++ updated
+
+      // A BOM bump can drop the old coordinates of a migrated `*` dependency, so the whole group — matching the
+      // filter or not — is checked against the pins the visible BOMs have at the versions this run actually
+      // produces. Lines whose BOMs didn't move keep their old coordinates pinned and are never rewritten.
+      val migrated = if (toWrite.exists(_.hasBomManagedMigration)) {
+        def bomsOf(g: Group): List[Dependency] = file.read(g, variables).filter(_.configuration === "bom")
+
+        // Visible BOMs in precedence order (own group, common-settings, dependsOn groups). Own-group entries come
+        // from the list being written; common-settings from the file (updateCommonDependencies runs earlier, so it's
+        // already bumped when part of updateAllDependencies); dependsOn groups' entries matching the filter are
+        // predicted with the same version lookup their own task instance uses — that instance applies the same
+        // filter, so the result is independent of aggregation ordering.
+        val newPins = toWrite
+          .filter(_.configuration === "bom")
+          .++(if (isSbtBuild) Nil else bomsOf(Group.`common-settings`))
+          .++(inheritedGroups.flatMap(bomsOf).map(dep => if (filter.matches(dep)) dep.findLatestVersion else dep))
+          .distinct
+          .map(_.toModuleID(sbtBinary, scalaBinary))
+          .flatMap(BomReader.read(_, scalaBinary))
+
+        toWrite.map(_.migrateBomManaged(newPins, scalaBinary))
+      } else toWrite
+
+      file.write(group, migrated)
     }
   }
 

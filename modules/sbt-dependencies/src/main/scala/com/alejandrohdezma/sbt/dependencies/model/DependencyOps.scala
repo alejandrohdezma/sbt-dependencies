@@ -16,6 +16,8 @@
 
 package com.alejandrohdezma.sbt.dependencies.model
 
+import scala.Console._
+
 import sbt.Defaults.sbtPluginExtra
 import sbt.librarymanagement.CrossVersion
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
@@ -118,6 +120,68 @@ object DependencyOps {
               }
           }
         case _ => dependency
+      }
+
+    /** Whether this dependency is BOM-managed (`*`) and matches an artifact migration — the cheap pre-check before
+      * flattening the visible BOMs' new versions for [[migrateBomManaged]].
+      */
+    def hasBomManagedMigration(implicit finders: Finders): Boolean =
+      dependency.version match {
+        case _: Version.Bom => finders.migrationFinder.findMigration(dependency).isDefined
+        case _              => false
+      }
+
+    /** Applies an artifact migration to a BOM-managed (`*`) dependency once the new versions of the visible BOMs are
+      * known. `updateDependencies` never rewrites a `*` line's version, but when its coordinates match an artifact
+      * migration and a BOM's new version drops the old coordinates, leaving the line untouched breaks the build on the
+      * next reload — so:
+      *
+      *   - `newBomPins` pins the migrated coordinates → rewrite the line to them (the version stays `*`).
+      *   - `newBomPins` still pins the old coordinates → keep the line (the BOMs haven't moved, the user decides).
+      *   - `newBomPins` pins neither → keep the line and warn: the build needs manual attention once the BOM bump
+      *     lands.
+      *
+      * `newBomPins` must be the flattened pins of every visible BOM at the version the current update run produces, in
+      * BOM precedence order. A dependency that is not BOM-managed or matches no migration is returned unchanged.
+      */
+    def migrateBomManaged(newBomPins: Seq[ModuleID], scalaBinaryVersion: String)(implicit
+        finders: Finders,
+        logger: Logger
+    ): Dependency =
+      (dependency.version, finders.migrationFinder.findMigration(dependency)) match {
+        case (_: Version.Bom, Some(migration)) =>
+          val migrated = dependency
+            .withOrganization(migration.groupIdAfter)
+            .withName(migration.artifactIdAfter)
+            .withVersion(Version.Bom(None))
+
+          if (migrated.isPinned(newBomPins, scalaBinaryVersion)) {
+            logger.info(s" ↳ $YELLOW🔀$RESET $YELLOW${dependency.toLine}$RESET -> $CYAN${migrated.toLine}$RESET")
+
+            migrated
+          } else if (dependency.isPinned(newBomPins, scalaBinaryVersion)) {
+            dependency
+          } else {
+            logger.warn {
+              s"${dependency.organization}:${dependency.name} has migrated to " +
+                s"${migrated.organization}:${migrated.name}, but no visible BOM's new version pins either " +
+                "coordinate — the `*` line was left untouched and will need manual attention"
+            }
+
+            dependency
+          }
+
+        case _ =>
+          dependency
+      }
+
+    /** Whether `pins` contains this dependency's concrete artifact — the name suffixed with `scalaBinaryVersion` for
+      * cross-compiled deps and the plain name for Java ones — regardless of this dependency's declared version.
+      */
+    def isPinned(pins: Seq[ModuleID], scalaBinaryVersion: String)(implicit logger: Logger): Boolean =
+      dependency.withVersion(Version.Bom(None)).resolveBom(pins, scalaBinaryVersion).version match {
+        case Version.Bom(Some(_)) => true
+        case _                    => false
       }
 
     /** Converts this dependency to an SBT ModuleID for use in libraryDependencies.

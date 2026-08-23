@@ -404,7 +404,7 @@ lazy val app  = project.dependsOn(core)
 
 **Precedence** — pins keep BOM declaration order: the project's own group first, then `common-settings`, then the projects it depends on. The first BOM pinning an artifact wins, matching Maven's import semantics.
 
-**Updates** — `updateDependencies` never rewrites a `*`: it shows the version it currently resolves to (and whether something newer exists), but updating means bumping the BOM entry itself, which is a regular versioned dependency.
+**Updates** — `updateDependencies` never rewrites a `*` version: it shows the version it currently resolves to (and whether something newer exists), but updating means bumping the BOM entry itself, which is a regular versioned dependency. The one exception is coordinates: when a `*` dependency matches an [artifact migration](#user-content-configure-artifact-migrations) and a visible BOM's new version pins the migrated coordinates, the update rewrites the line to them (keeping the `*`) — otherwise the BOM bump in the same run would leave the old coordinates pointing at nothing. This also applies to filtered runs that bump the BOM: migrating an artifact the BOM provides is part of updating the BOM. When the new BOM pins neither the old nor the new coordinates, the line is left untouched and a warning is logged.
 
 **Transitive dependencies** — the BOM pins are also added to sbt's `dependencyOverrides`, so *transitive* dependencies resolve to the BOM's versions too, matching Maven's `dependencyManagement` behavior. When two BOMs pin the same artifact, the first-declared BOM wins — the same precedence `*` versions follow. Opt out (or trim the pins) through the `dependencyOverridesFromBom` setting:
 
@@ -652,6 +652,12 @@ Migrated dependencies are shown with a `🔀` indicator:
 
 ```
  ↳ 🔀 org.json4s::json4s-core:4.0.7 -> io.github.json4s::json4s-core:4.1.0
+```
+
+[BOM-managed (`*`) dependencies](#user-content-use-bom-managed-versions) are migrated too — when a visible BOM's new version pins the migrated coordinates — keeping the `*`:
+
+```
+ ↳ 🔀 org.tpolecat::doobie-hikari:* -> org.typelevel::doobie-hikari:*
 ```
 
 You can customize the migration sources using the `dependencyMigrations` setting:
