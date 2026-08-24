@@ -406,6 +406,17 @@ lazy val app  = project.dependsOn(core)
 
 **Updates** — `updateDependencies` never rewrites a `*` version: it shows the version it currently resolves to (and whether something newer exists), but updating means bumping the BOM entry itself, which is a regular versioned dependency. The one exception is coordinates: when a `*` dependency matches an [artifact migration](#user-content-configure-artifact-migrations) and a visible BOM's new version pins the migrated coordinates, the update rewrites the line to them (keeping the `*`) — otherwise the BOM bump in the same run would leave the old coordinates pointing at nothing. This also applies to filtered runs that bump the BOM: migrating an artifact the BOM provides is part of updating the BOM. When the new BOM pins neither the old nor the new coordinates, the line is left untouched and a warning is logged.
 
+**Adopting a BOM** — when a BOM is introduced (or starts pinning more of the build), the `useBomManagedVersions` task rewrites every dependency version a visible BOM pins to `*` in one go:
+
+```
+↻ Using BOM-managed versions for `my-project`
+
+ ↳ 🔗 com.fasterxml.jackson.core:jackson-databind:2.17.2 -> com.fasterxml.jackson.core:jackson-databind:*
+ ↳ 🔗 com.fasterxml.jackson.module::jackson-module-scala:2.17.1 -> com.fasterxml.jackson.module::jackson-module-scala:* (now 2.17.2)
+```
+
+It runs per project and aggregates, so a bare `useBomManagedVersions` at the root covers every group. Neither a version marker (`=`, `^`, `~`) nor a `{{variable}}` is an opt-out — the precedence is bom > variable > numeric, so both drop with the version — and a pin that differs from the declared version still rewrites (adopting the BOM means adopting its versions), logging what the line now resolves to. Lines where `*` would be illegal, already-`*` lines and unpinned artifacts are left untouched. The [IDE plugins](#ide-plugins) offer the same rewrite as a suggestion on each pinned line, applying to that dependency or to all of them.
+
 **Transitive dependencies** — the BOM pins are also added to sbt's `dependencyOverrides`, so *transitive* dependencies resolve to the BOM's versions too, matching Maven's `dependencyManagement` behavior. When two BOMs pin the same artifact, the first-declared BOM wins — the same precedence `*` versions follow. Opt out (or trim the pins) through the `dependencyOverridesFromBom` setting:
 
 ```scala

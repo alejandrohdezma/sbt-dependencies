@@ -251,11 +251,30 @@ describe("parseBomManagedVersions", () => {
     expect(results).toEqual([{ line: 1, version: "2.16.0", bomName: "jackson-bom" }]);
   });
 
-  it("ignores *, variable, bom and sbt-plugin entries, and artifacts no BOM pins", () => {
+  it("flags variable and marked versions a visible BOM manages (bom > variable > numeric)", () => {
+    const lines = [
+      "my-group = [",
+      '  "com.fasterxml.jackson.core:jackson-databind:{{v}}"',
+      "]",
+    ];
+    expect(parseBomManagedVersions(lines, fakePinLookup())).toEqual([
+      { line: 1, version: "{{v}}", bomName: "jackson-bom" },
+    ]);
+
+    const marked = [
+      "my-group = [",
+      '  "com.fasterxml.jackson.core:jackson-databind:=2.16.0"',
+      "]",
+    ];
+    expect(parseBomManagedVersions(marked, fakePinLookup())).toEqual([
+      { line: 1, version: "=2.16.0", bomName: "jackson-bom" },
+    ]);
+  });
+
+  it("ignores *, bom and sbt-plugin entries, and artifacts no BOM pins", () => {
     const lines = [
       "my-group = [",
       '  "com.fasterxml.jackson.core:jackson-databind:*"',
-      '  "com.fasterxml.jackson.core:jackson-databind:{{v}}"',
       '  "com.fasterxml.jackson:jackson-bom:2.18.2:bom"',
       '  "com.unknown:thing:1.0.0"',
       "]",

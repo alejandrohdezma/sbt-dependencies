@@ -36,7 +36,8 @@ import com.intellij.psi.PsiFile
 /** Surfaces `Diagnostics.check` in the editor: parses the document with the positioned lenient model on a background
   * thread and reports each problem as an error or warning annotation, with the exact messages the SBT plugin itself
   * would fail with. When a fresh `.sbt-resolutions` dump is available it also offers version rewrites as intentions:
-  * materializing a `*` into its resolved version and switching a hardcoded version a BOM manages to `*`.
+  * materializing a `*` into its resolved version and switching a hardcoded or `{{variable}}` version a BOM manages to
+  * `*` — per line, or all at once when more than one line qualifies.
   */
 final class SbtDependenciesAnnotator
     extends ExternalAnnotator[SbtDependenciesAnnotator.Info, SbtDependenciesAnnotator.Result] {
@@ -94,15 +95,23 @@ final class SbtDependenciesAnnotator
       }
     }
 
+    val bomManaged = result.rewrites.filter(_.replacement == "*")
+
     result.rewrites.foreach { rewrite =>
       SbtDependenciesAnnotator.visibleRange(rewrite.span, file.getTextLength).foreach { range =>
-        rewrite.message
+        val annotation = rewrite.message
           .fold(holder.newSilentAnnotation(HighlightSeverity.INFORMATION))(message =>
             holder.newAnnotation(HighlightSeverity.WEAK_WARNING, message)
           )
           .range(range)
           .withFix(new ReplaceVersionQuickFix(rewrite))
-          .create()
+
+        val withReplaceAll =
+          if (rewrite.replacement == "*" && bomManaged.sizeIs > 1)
+            annotation.withFix(new ReplaceAllVersionsQuickFix(bomManaged))
+          else annotation
+
+        withReplaceAll.create()
       }
     }
 
@@ -158,8 +167,9 @@ object SbtDependenciesAnnotator {
   final case class Found(diagnostic: Diagnostic, entrySpan: Option[Span])
 
   /** The version rewrites the dump enables on plain dependency strings: `*` materializes into its resolved version
-    * (on-demand intention), and a hardcoded version a visible BOM manages switches to `*` (reported as a weak warning
-    * so the option is visible). Spans always come from the current text, so the offers survive unrelated edits.
+    * (on-demand intention), and a hardcoded or `{{variable}}` version a visible BOM manages switches to `*` (reported
+    * as a weak warning so the option is visible) — the precedence is bom > variable > numeric, so a variable is not an
+    * opt-out from BOM management. Spans always come from the current text, so the offers survive unrelated edits.
     */
   def rewrites(document: DependenciesDocument, lookup: Option[Resolutions.Lookup]): List[Rewrite] =
     lookup.fold(List.empty[Rewrite]) { lookup =>
@@ -177,7 +187,6 @@ object SbtDependenciesAnnotator {
                 lookup
                   .resolveWildcard(group.name, org, name, isCross)
                   .map(pin => Rewrite(span, pin.version, s"Replace * with resolved version ${pin.version}"))
-              case version if version.startsWith("{{")                                     => None
               case _ if Set("bom", "sbt-plugin").contains(Option(matched.group(5)).orNull) => None
               case version                                                                 =>
                 lookup

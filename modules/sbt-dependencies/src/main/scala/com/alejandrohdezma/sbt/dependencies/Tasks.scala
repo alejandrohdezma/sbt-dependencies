@@ -108,6 +108,29 @@ class Tasks {
     }
   }
 
+  /** Replaces every dependency version pinned by a visible BOM with the `*` marker. */
+  val useBomManagedVersions = Def.task {
+    implicit val logger: Logger = streams.value.log
+
+    val file        = Settings.dependenciesFile.value
+    val group       = Settings.currentGroup.value
+    val bomPins     = Keys.dependenciesFromBom.value
+    val scalaBinary = (update / scalaBinaryVersion).value
+
+    if (file.hasGroup(group) && bomPins.nonEmpty) {
+      val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
+
+      logger.info(s"\n↻ Using BOM-managed versions for `$group`\n")
+
+      val rewritten = dependencies.map(_.useBomManagedVersion(bomPins, scalaBinary))
+
+      val changed = rewritten.zip(dependencies).exists { case (a, b) => a.version !== b.version }
+
+      if (changed) file.write(group, rewritten)
+      else logger.info(s" ↳ $GREEN✓$RESET Nothing to replace")
+    }
+  }
+
   /** Installs a dependency, validating if the provided version is available or finding the latest version if version is
     * not provided.
     */

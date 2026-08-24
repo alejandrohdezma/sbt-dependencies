@@ -19,9 +19,10 @@ export interface BomManagedLensData {
 }
 
 /**
- * Scans plain dependency strings for a hardcoded version that a visible BOM pins, producing CodeLens data suggesting
- * the version could be replaced with `*`. Skips `*`/`{{variable}}` versions and `bom`/`sbt-plugin` configurations
- * (which cannot take a BOM-managed version). Callers should skip this when the dump is stale.
+ * Scans plain dependency strings for a hardcoded or `{{variable}}` version that a visible BOM pins, producing CodeLens
+ * data suggesting the version could be replaced with `*` (the precedence is bom > variable > numeric, so variables are
+ * not an opt-out). Skips `*` versions and `bom`/`sbt-plugin` configurations (which cannot take a BOM-managed version).
+ * Callers should skip this when the dump is stale.
  *
  * ponytail: plain-string-only — object-form entries carry notes/cross-version and are left alone.
  */
@@ -41,7 +42,7 @@ export function parseBomManagedVersions(lines: string[], lookup: ResolutionLooku
     if (event.type !== "dependency-string" || group === undefined) continue;
 
     const dep = parseDependency(event.content);
-    if (!dep?.version || dep.version === "*" || dep.version.startsWith("{{")) continue;
+    if (!dep?.version || dep.version === "*") continue;
     if (dep.config === "bom" || dep.config === "sbt-plugin") continue;
 
     const pin = lookup.pinFor(group, dep.org, dep.artifact, dep.separator === "::");

@@ -104,6 +104,7 @@ object DependenciesPlugin extends AutoPlugin {
     inheritedDependencies      := Settings.inheritedDependencies.value,
     showLibraryDependencies    := Tasks.showLibraryDependencies.tag(Exclusive).value,
     updateDependencies         := Tasks.updateDependencies.tag(Exclusive).evaluated,
+    useBomManagedVersions      := Tasks.useBomManagedVersions.tag(Exclusive).value,
     updateScalaVersions        := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
     install                    := Tasks.install.tag(Exclusive).evaluated,
     dependenciesCheck          := Nil,
