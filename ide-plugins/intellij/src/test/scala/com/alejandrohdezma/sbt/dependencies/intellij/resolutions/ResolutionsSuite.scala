@@ -138,6 +138,27 @@ class ResolutionsSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  test("rewrites switches BOM-managed variable and marked versions to * (bom > variable > numeric)") {
+    val text =
+      """myproject = [
+        |  "org.typelevel::cats-core:{{catsVersion}}"
+        |  "com.fasterxml.jackson.core:jackson-databind:=2.17.0"
+        |]
+        |""".stripMargin
+
+    val document = DependenciesDocument.parse(text)
+
+    val result = SbtDependenciesAnnotator.rewrites(document, Some(lookup))
+
+    assertEquals(
+      result.map(rewrite => (rewrite.span, rewrite.replacement, rewrite.label)),
+      List(
+        (spanOf(text, "cats-core:", "{{catsVersion}}"), "*", "Replace {{catsVersion}} with * (managed by jackson-bom)"),
+        (spanOf(text, "jackson-databind:", "=2.17.0"), "*", "Replace =2.17.0 with * (managed by jackson-bom)")
+      )
+    )
+  }
+
   test("rewrites skips bom and sbt-plugin configurations") {
     val text =
       """myproject = [
