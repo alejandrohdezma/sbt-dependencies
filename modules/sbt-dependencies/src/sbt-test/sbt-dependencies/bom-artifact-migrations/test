@@ -1,0 +1,15 @@
+# A `*` dependency matching an artifact migration is rewritten to the migrated coordinates when a visible BOM's
+# new version pins them. A filtered run that doesn't bump the BOM leaves the `*` line untouched (the old
+# coordinates are still pinned), while any run that bumps the BOM — filtered to it or not — migrates the line.
+
+> myproject/updateDependencies org.old:
+
+$ must-mirror project/dependencies.conf project/dependencies.conf.filtered.expected
+
+> myproject/updateDependencies com.example:
+
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected
+
+> myproject/updateDependencies
+
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

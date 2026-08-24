@@ -1,0 +1,4 @@
+myproject = [
+  "com.example:test-bom:2.0.0:bom"
+  "org.new:new-lib:*"
+]
