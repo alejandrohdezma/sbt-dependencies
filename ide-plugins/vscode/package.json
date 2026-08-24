@@ -2,7 +2,7 @@
   "name": "sbt-dependencies",
   "displayName": "sbt-dependencies",
   "description": "Syntax highlighting for sbt-dependencies configuration files",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "publisher": "alejandrohdezma",
   "license": "Apache-2.0",
   "repository": {
@@ -54,6 +54,12 @@
       {
         "command": "sbt-dependencies.installDependency",
         "title": "Install Dependency",
+        "category": "SBT Dependencies",
+        "enablement": "resourceLangId == sbt-dependencies"
+      },
+      {
+        "command": "sbt-dependencies.useBomManagedVersions",
+        "title": "Replace All BOM-Managed Versions With *",
         "category": "SBT Dependencies",
         "enablement": "resourceLangId == sbt-dependencies"
       },

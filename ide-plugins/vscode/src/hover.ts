@@ -108,3 +108,20 @@ export function buildHoverMarkdown(dep: DependencyMatch, available: boolean, res
 
   return md;
 }
+
+/**
+ * Rewrites every dependency-string version in `text` to `*`, so two documents that differ only in version tokens
+ * normalize to the same string. BOM pins are keyed by group/org/artifact, so a version-only edit (a rewrite to `*`, a
+ * manual bump) leaves them valid — callers use this to keep pin-based features alive on an otherwise stale dump.
+ */
+export function normalizeVersions(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => {
+      const dep = parseDependency(line);
+      if (!dep?.version) return line;
+      const versionStart = dep.matchStart + dep.org.length + dep.separator.length + dep.artifact.length + 1;
+      return line.slice(0, versionStart) + "*" + line.slice(versionStart + dep.version.length);
+    })
+    .join("\n");
+}

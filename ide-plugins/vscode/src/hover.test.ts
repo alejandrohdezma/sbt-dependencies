@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDependency, buildHoverMarkdown, DependencyMatch } from "./hover";
+import { normalizeVersions, parseDependency, buildHoverMarkdown, DependencyMatch } from "./hover";
 
 describe("parseDependency", () => {
   it("parses a standard Scala dep", () => {
@@ -224,5 +224,31 @@ describe("buildHoverMarkdown", () => {
     };
     const md = buildHoverMarkdown(dep, true);
     expect(md).toContain("[Open on mvnrepository](https://mvnrepository.com/artifact/ch.epfl.scala/sbt-scalafix_2.12_1.0)");
+  });
+});
+
+describe("normalizeVersions", () => {
+  it("equates documents that differ only in version tokens", () => {
+    const before = [
+      "my-group = [",
+      '  "org.typelevel::cats-core:2.10.0"',
+      '  "com.example:thing:=1.0.0:test"',
+      '  "com.example:other:{{v}}"',
+      "]",
+    ].join("\n");
+    const after = [
+      "my-group = [",
+      '  "org.typelevel::cats-core:*"',
+      '  "com.example:thing:*:test"',
+      '  "com.example:other:2.0.0"',
+      "]",
+    ].join("\n");
+    expect(normalizeVersions(before)).toBe(normalizeVersions(after));
+  });
+
+  it("distinguishes documents that differ beyond versions", () => {
+    const before = 'my-group = [\n  "org.typelevel::cats-core:2.10.0"\n]';
+    const renamed = 'my-group = [\n  "org.typelevel::cats-effect:2.10.0"\n]';
+    expect(normalizeVersions(before)).not.toBe(normalizeVersions(renamed));
   });
 });

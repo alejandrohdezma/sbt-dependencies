@@ -15,7 +15,7 @@ import { parsePinnedWithoutNote, parseBomManagedVersions } from "./dep-codelens"
 import { parseDiagnostics } from "./diagnostics";
 import { formatDocument } from "./formatting";
 import { COMMON_SETTINGS, SBT_BUILD } from "./groups";
-import { parseDependency, buildHoverMarkdown, HoverResolution } from "./hover";
+import { parseDependency, buildHoverMarkdown, normalizeVersions, HoverResolution } from "./hover";
 import { parseGroupHeader, buildGroupHoverMarkdown } from "./group-hover";
 import { parseDocumentLinks } from "./links";
 import { parseNoteDecorations } from "./note-decorations";
@@ -76,11 +76,16 @@ function readDump(filePath: string) {
   }
 }
 
+/** Last buffer text per conf whose hash matched the dump — the baseline version-only edits are compared against. */
+const freshBaselines = new Map<string, string>();
+
 /**
  * Returns a resolution lookup for a `dependencies.conf` document, or `undefined` when no dump exists (feature off).
  *
  * The parsed dumps are cached and only re-read when a dump's mtime changes. Staleness is an exact SHA-1 mismatch
- * between the current buffer and the hash the plugin recorded when it wrote the dump.
+ * between the current buffer and the hash the plugin recorded when it wrote the dump — except when the buffer differs
+ * from the last matching text only in version tokens (a rewrite to `*`, a manual bump): pins are keyed by
+ * group/org/artifact, so the dump stays usable until something other than a version changes.
  */
 function getResolutions(document: vscode.TextDocument): ResolutionLookup | undefined {
   if (document.languageId !== "sbt-dependencies") return undefined;
@@ -108,7 +113,14 @@ function getResolutions(document: vscode.TextDocument): ResolutionLookup | undef
   if (!entry.index.hasData) return undefined;
 
   const bufferHash = crypto.createHash("sha1").update(document.getText(), "utf8").digest("hex");
-  const stale = entry.index.sourceHash !== undefined && entry.index.sourceHash !== bufferHash;
+  let stale = entry.index.sourceHash !== undefined && entry.index.sourceHash !== bufferHash;
+
+  if (!stale) {
+    freshBaselines.set(conf, document.getText());
+  } else {
+    const baseline = freshBaselines.get(conf);
+    if (baseline !== undefined && normalizeVersions(baseline) === normalizeVersions(document.getText())) stale = false;
+  }
 
   return entry.index.asLookup(stale);
 }
@@ -1012,6 +1024,46 @@ async function useBomManagedVersion(line: number): Promise<void> {
 }
 
 /**
+ * Command handler for the "replace all" BOM-managed CodeLens: replaces every version a visible BOM pins with `*` in a
+ * single edit, reusing the same scan the lenses come from.
+ */
+async function useBomManagedVersions(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== "sbt-dependencies") return;
+
+  const lookup = getResolutions(editor.document);
+  if (!lookup || lookup.stale) {
+    vscode.window.showWarningMessage(
+      "BOM resolutions are missing or stale — import the sbt build first so the resolutions dump is up to date."
+    );
+    return;
+  }
+
+  const lines: string[] = [];
+  for (let i = 0; i < editor.document.lineCount; i++) {
+    lines.push(editor.document.lineAt(i).text);
+  }
+
+  const rewrites = parseBomManagedVersions(lines, lookup);
+  if (rewrites.length === 0) {
+    vscode.window.showInformationMessage("No BOM-managed versions to replace.");
+    return;
+  }
+
+  await editor.edit((editBuilder) => {
+    for (const rewrite of rewrites) {
+      const dep = parseDependency(editor.document.lineAt(rewrite.line).text);
+      if (!dep?.version || dep.version === "*") continue;
+
+      const versionStart = dep.matchStart + dep.org.length + dep.separator.length + dep.artifact.length + 1;
+      editBuilder.replace(new vscode.Range(rewrite.line, versionStart, rewrite.line, versionStart + dep.version.length), "*");
+    }
+  });
+
+  vscode.window.showInformationMessage(`Replaced ${rewrites.length} BOM-managed version(s) with *.`);
+}
+
+/**
  * Provides CodeLens annotations on pinned dependencies (`=`, `^`, `~`) that
  * lack an explanatory note, prompting the user to add one.
  */
@@ -1060,13 +1112,26 @@ class BomManagedCodeLensProvider implements vscode.CodeLensProvider {
       lines.push(document.lineAt(i).text);
     }
 
-    return parseBomManagedVersions(lines, lookup).map((data) => {
+    const managed = parseBomManagedVersions(lines, lookup);
+
+    return managed.flatMap((data) => {
       const range = new vscode.Range(data.line, 0, data.line, 0);
-      return new vscode.CodeLens(range, {
-        title: `$(sparkle) Managed by ${data.bomName} — replace ${data.version} with *`,
-        command: "sbt-dependencies.useBomManagedVersion",
-        arguments: [data.line],
-      });
+      const lenses = [
+        new vscode.CodeLens(range, {
+          title: `$(sparkle) Managed by ${data.bomName} — replace ${data.version} with *`,
+          command: "sbt-dependencies.useBomManagedVersion",
+          arguments: [data.line],
+        }),
+      ];
+      if (managed.length > 1) {
+        lenses.push(
+          new vscode.CodeLens(range, {
+            title: `$(sparkle) Replace all ${managed.length} BOM-managed versions with *`,
+            command: "sbt-dependencies.useBomManagedVersions",
+          })
+        );
+      }
+      return lenses;
     });
   }
 }
@@ -1291,6 +1356,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "sbt-dependencies.useBomManagedVersion",
       useBomManagedVersion
+    ),
+    vscode.commands.registerCommand(
+      "sbt-dependencies.useBomManagedVersions",
+      useBomManagedVersions
     ),
     vscode.commands.registerCommand(
       "sbt-dependencies.importBuild",
