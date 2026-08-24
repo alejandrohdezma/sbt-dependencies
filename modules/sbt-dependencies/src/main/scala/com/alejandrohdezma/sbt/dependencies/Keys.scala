@@ -54,6 +54,10 @@ class Keys {
 
   val updateDependencies = inputKey[Unit]("Update dependencies to their latest versions")
 
+  val useBomManagedVersions = taskKey[Unit] {
+    "Replace every dependency version pinned by a visible BOM with the `*` marker"
+  }
+
   val updateScalaVersions = inputKey[Unit]("Update Scala versions to their latest versions")
 
   val inheritedDependencies = settingKey[Seq[ModuleID]]("Inherited dependencies from other projects")

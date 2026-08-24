@@ -1,0 +1,7 @@
+# `useBomManagedVersions` replaces every dependency version pinned by a visible BOM (own group +
+# common-settings) with `*` — version markers included — and leaves unpinned lines, BOM coordinates and
+# already-`*` lines untouched. Running it at the root aggregates over every project group.
+> useBomManagedVersions
+> assertBomManaged
+> reload
+> compile

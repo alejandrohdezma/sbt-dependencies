@@ -294,6 +294,8 @@ object Dependency {
     /** Checks if the version is a variable. */
     def isVariable: Boolean
 
+    def isBom: Boolean
+
   }
 
   object Version {
@@ -341,6 +343,8 @@ object Dependency {
       }
 
       override def isVariable: Boolean = false
+
+      override def isBom: Boolean = false
 
       /** First numeric part (major version). */
       def major: Int = parts.headOption.getOrElse(0)
@@ -489,6 +493,8 @@ object Dependency {
 
       override def isVariable: Boolean = true
 
+      override def isBom: Boolean = false
+
       override def isSameVersion(other: Version): Boolean = other match {
         case n: Numeric => resolved.exists(_.isSameVersion(n))
         case _          => false
@@ -530,6 +536,8 @@ object Dependency {
       }
 
       override def isVariable: Boolean = false
+
+      override def isBom: Boolean = true
 
       override def isSameVersion(other: Version): Boolean = other match {
         case n: Numeric => resolved.exists(_.isSameVersion(n))

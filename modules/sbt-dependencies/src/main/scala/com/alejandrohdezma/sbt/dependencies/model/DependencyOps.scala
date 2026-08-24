@@ -175,6 +175,45 @@ object DependencyOps {
           dependency
       }
 
+    /** Replaces this dependency's version with the BOM-managed marker (`*`) when `pins` — the flattened pins of every
+      * visible BOM, in precedence order — contains its concrete artifact. Neither a version marker (`=`, `^`, `~`) nor
+      * a version variable is an opt-out: the precedence is bom > variable > numeric, so both drop with the version.
+      * When the pinned version differs from the declared (or variable-resolved) one the rewrite still happens —
+      * adopting the BOM means adopting its versions — and the log notes what the line now resolves to.
+      *
+      * Returned unchanged: already BOM-managed lines, lines where `*` would be illegal (`bom`/`sbt-plugin`
+      * configurations, `full`/`patch` cross-versions) and unpinned artifacts.
+      */
+    def useBomManagedVersion(pins: Seq[ModuleID], scalaBinaryVersion: String)(implicit logger: Logger): Dependency = {
+      val managed = dependency.withVersion(Version.Bom(None))
+
+      val declared: Option[Numeric] = dependency.version match {
+        case numeric: Numeric              => Some(numeric)
+        case Version.Variable(_, resolved) => resolved
+        case _: Version.Bom                => None
+      }
+
+      managed.resolveBom(pins, scalaBinaryVersion).version match {
+        // A visible BOM pins the artifact: drop the declared version (marker or variable included) in favor of `*`,
+        // noting the resolved version when it differs from the declared one.
+        case Version.Bom(Some(pinned))
+            if !dependency.version.isBom && Dependency.validateBomRestrictions(managed).isRight =>
+          val resolvesTo =
+            if (declared.exists(pinned.isSameVersion(_))) "" else s" (now ${pinned.toVersionString})"
+
+          logger.info {
+            s" ↳ $YELLOW🔗$RESET $YELLOW${dependency.toLine}$RESET -> $CYAN${managed.toLine}$RESET$resolvesTo"
+          }
+
+          managed
+
+        // Kept as is: the line is already BOM-managed, `*` would be illegal on it, or no visible BOM pins it
+        // (`resolveBom` left the probe unresolved).
+        case _ =>
+          dependency
+      }
+    }
+
     /** Whether `pins` contains this dependency's concrete artifact — the name suffixed with `scalaBinaryVersion` for
       * cross-compiled deps and the plain name for Java ones — regardless of this dependency's declared version.
       */
