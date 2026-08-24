@@ -25,7 +25,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.36.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.37.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -404,7 +404,18 @@ lazy val app  = project.dependsOn(core)
 
 **Precedence** — pins keep BOM declaration order: the project's own group first, then `common-settings`, then the projects it depends on. The first BOM pinning an artifact wins, matching Maven's import semantics.
 
-**Updates** — `updateDependencies` never rewrites a `*`: it shows the version it currently resolves to (and whether something newer exists), but updating means bumping the BOM entry itself, which is a regular versioned dependency.
+**Updates** — `updateDependencies` never rewrites a `*` version: it shows the version it currently resolves to (and whether something newer exists), but updating means bumping the BOM entry itself, which is a regular versioned dependency. The one exception is coordinates: when a `*` dependency matches an [artifact migration](#user-content-configure-artifact-migrations) and a visible BOM's new version pins the migrated coordinates, the update rewrites the line to them (keeping the `*`) — otherwise the BOM bump in the same run would leave the old coordinates pointing at nothing. This also applies to filtered runs that bump the BOM: migrating an artifact the BOM provides is part of updating the BOM. When the new BOM pins neither the old nor the new coordinates, the line is left untouched and a warning is logged.
+
+**Adopting a BOM** — when a BOM is introduced (or starts pinning more of the build), the `useBomManagedVersions` task rewrites every dependency version a visible BOM pins to `*` in one go:
+
+```
+↻ Using BOM-managed versions for `my-project`
+
+ ↳ 🔗 com.fasterxml.jackson.core:jackson-databind:2.17.2 -> com.fasterxml.jackson.core:jackson-databind:*
+ ↳ 🔗 com.fasterxml.jackson.module::jackson-module-scala:2.17.1 -> com.fasterxml.jackson.module::jackson-module-scala:* (now 2.17.2)
+```
+
+It runs per project and aggregates, so a bare `useBomManagedVersions` at the root covers every group. Neither a version marker (`=`, `^`, `~`) nor a `{{variable}}` is an opt-out — the precedence is bom > variable > numeric, so both drop with the version — and a pin that differs from the declared version still rewrites (adopting the BOM means adopting its versions), logging what the line now resolves to. Lines where `*` would be illegal, already-`*` lines and unpinned artifacts are left untouched. The [IDE plugins](#ide-plugins) offer the same rewrite as a suggestion on each pinned line, applying to that dependency or to all of them.
 
 **Transitive dependencies** — the BOM pins are also added to sbt's `dependencyOverrides`, so *transitive* dependencies resolve to the BOM's versions too, matching Maven's `dependencyManagement` behavior. When two BOMs pin the same artifact, the first-declared BOM wins — the same precedence `*` versions follow. Opt out (or trim the pins) through the `dependencyOverridesFromBom` setting:
 
@@ -652,6 +663,12 @@ Migrated dependencies are shown with a `🔀` indicator:
 
 ```
  ↳ 🔀 org.json4s::json4s-core:4.0.7 -> io.github.json4s::json4s-core:4.1.0
+```
+
+[BOM-managed (`*`) dependencies](#user-content-use-bom-managed-versions) are migrated too — when a visible BOM's new version pins the migrated coordinates — keeping the `*`:
+
+```
+ ↳ 🔀 org.tpolecat::doobie-hikari:* -> org.typelevel::doobie-hikari:*
 ```
 
 You can customize the migration sources using the `dependencyMigrations` setting:
@@ -1030,7 +1047,9 @@ This repository also ships a composite GitHub Action that runs the whole update 
 
 Mirroring Scala Steward, every stage gets its own commit on the update branch: one for the dependency updates, one for the extra command, and one per post-update hook (using the hook's commit message), so the PR history shows exactly what each step changed.
 
-Reference it as `alejandrohdezma/sbt-dependencies@v0.36.0`:
+A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
+
+Reference it as `alejandrohdezma/sbt-dependencies@v0.37.0`:
 
 ```yaml
 name: Update Dependencies
@@ -1058,7 +1077,7 @@ jobs:
 
       - uses: sbt/setup-sbt@v1
 
-      - uses: alejandrohdezma/sbt-dependencies@v0.36.0
+      - uses: alejandrohdezma/sbt-dependencies@v0.37.0
         with:
           config-file: .github/.scala-steward.conf
 ```
