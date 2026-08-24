@@ -107,7 +107,13 @@ runs:
     # When a config file is provided it is appended to every constraint-class
     # setting, so a single Scala Steward-style file drives hooks, migrations,
     # ignores, pins, retractions and cooldown.
+    #
+    # A failing sbt invocation (here and in the following steps) never stops
+    # the flow: whatever the update managed to change is still committed and
+    # ends up in the pull request, together with a warning explaining how to
+    # finish the update manually. The job itself still fails at the end.
     - name: Update dependencies
+      id: update
       shell: bash
       env:
         CONFIG_FILE: ${{ inputs.config-file }}
@@ -119,28 +125,39 @@ runs:
             args+=("set ThisBuild / $setting += file(\"$CONFIG_FILE\").toURI")
           done
         fi
-        sbt "${args[@]}" updateAllDependencies
+        if ! sbt "${args[@]}" updateAllDependencies; then
+          echo "::warning::updateAllDependencies failed — the changes made so far will still be committed"
+          echo "failed=true" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Format dependencies file
+      id: format
       shell: bash
       env:
         CREATE_PR: ${{ inputs.create-pr }}
         COMMIT_MESSAGE: ${{ inputs.pr-title }}
       run: |
-        sbt formatDependenciesFile
+        if ! sbt formatDependenciesFile; then
+          echo "::warning::formatDependenciesFile failed — the update changes will still be committed"
+          echo "failed=true" >> "$GITHUB_OUTPUT"
+        fi
         if [ "$CREATE_PR" = "true" ] && [ -n "$(git status --porcelain)" ]; then
           git add -A
           git commit -m "$COMMIT_MESSAGE"
         fi
 
     - name: Run extra command
+      id: extra
       if: inputs.extra-command != ''
       shell: bash
       env:
         EXTRA_COMMAND: ${{ inputs.extra-command }}
         CREATE_PR: ${{ inputs.create-pr }}
       run: |
-        sbt "$EXTRA_COMMAND"
+        if ! sbt "$EXTRA_COMMAND"; then
+          echo "::warning::\`$EXTRA_COMMAND\` failed — its changes (if any) will still be committed"
+          echo "failed=true" >> "$GITHUB_OUTPUT"
+        fi
         if [ "$CREATE_PR" = "true" ] && [ -n "$(git status --porcelain)" ]; then
           git add -A
           git commit -m "Run \`$EXTRA_COMMAND\`"
@@ -194,6 +211,36 @@ runs:
           echo "REPORT_EOF"
         } >> "$GITHUB_OUTPUT"
 
+    # The plugin writes target/sbt-dependencies/.sbt-update-report when a step
+    # of updateAllDependencies fails: a warning block with instructions to
+    # finish the update manually. Reuse it for the PR body, falling back to a
+    # generic warning when sbt died before it could be written.
+    - name: Build failure report
+      if: steps.update.outputs.failed == 'true' || steps.format.outputs.failed == 'true' || steps.extra.outputs.failed == 'true'
+      id: failure
+      shell: bash
+      run: |
+        file=target/sbt-dependencies/.sbt-update-report
+        if [ -f "$file" ]; then
+          report=$(cat "$file")
+        else
+          report="> [!WARNING]
+        > An sbt step failed while updating dependencies, so this update may be incomplete.
+        >
+        > To fix this:
+        > 1. Clone this branch locally.
+        > 2. Fix the build so it compiles.
+        > 3. Run \`sbt updateAllDependencies\` to complete the remaining updates.
+        > 4. Push the changes to this branch."
+        fi
+        report+=$'\n>\n'"> Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        printf '%s' "$report" >> "$GITHUB_STEP_SUMMARY"
+        {
+          echo "report<<FAILURE_EOF"
+          printf '%s\n' "$report"
+          echo "FAILURE_EOF"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Check for changes
       if: inputs.create-pr == 'true'
       id: changes
@@ -219,5 +266,14 @@ runs:
         body: |
           ${{ inputs.pr-body }}
 
+          ${{ steps.failure.outputs.report }}
+
           ${{ steps.hooks.outputs.report }}
         github-token: ${{ inputs.github-token }}
+
+    - name: Fail if any sbt step failed
+      if: steps.update.outputs.failed == 'true' || steps.format.outputs.failed == 'true' || steps.extra.outputs.failed == 'true'
+      shell: bash
+      run: |
+        echo "::error::An sbt step failed while updating dependencies — see the warnings above. Any partial changes were still committed and the pull request was created/updated."
+        exit 1

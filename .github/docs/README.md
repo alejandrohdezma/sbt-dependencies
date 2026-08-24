@@ -1030,6 +1030,8 @@ This repository also ships a composite GitHub Action that runs the whole update 
 
 Mirroring Scala Steward, every stage gets its own commit on the update branch: one for the dependency updates, one for the extra command, and one per post-update hook (using the hook's commit message), so the PR history shows exactly what each step changed.
 
+A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
+
 Reference it as `alejandrohdezma/sbt-dependencies@AT_VERSION@`:
 
 ```yaml
