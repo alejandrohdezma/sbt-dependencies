@@ -28,6 +28,8 @@ import com.alejandrohdezma.sbt.dependencies.bom.ModuleFetcher
 import com.alejandrohdezma.sbt.dependencies.constraints.UpdateFilter
 import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
+import com.alejandrohdezma.sbt.dependencies.io.BomAdoptionReport
+import com.alejandrohdezma.sbt.dependencies.model.BomAdoption
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
@@ -112,26 +114,40 @@ class Tasks {
     }
   }
 
-  /** Replaces every dependency version pinned by a visible BOM with the `*` marker. */
-  val useBomManagedVersions = Def.task {
+  /** Replaces every dependency version pinned by a visible BOM with the `*` marker; `--safe` leaves marked (`=`, `^`,
+    * `~`) and variable versions as is. What happened to the group is written to
+    * `target/sbt-dependencies/bom-managed/<group>.md` for the GitHub Action's report — one file per group, so
+    * aggregated runs need no coordination — and deleted when there is nothing to report.
+    */
+  val useBomManagedVersions = Def.inputTask {
     implicit val logger: Logger = streams.value.log
 
+    val safe        = safeParser.parsed
     val file        = Settings.dependenciesFile.value
     val group       = Settings.currentGroup.value
     val bomPins     = Keys.dependenciesFromBom.value
     val scalaBinary = (update / scalaBinaryVersion).value
+    val reportFile  = (ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "bom-managed" / s"$group.md"
 
-    if (file.hasGroup(group) && bomPins.nonEmpty) {
-      val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
+    val adoptions =
+      if (file.hasGroup(group) && bomPins.nonEmpty) {
+        val dependencies = file.read(group, Keys.dependencyVersionVariables.value)
 
-      logger.info(s"\n↻ Using BOM-managed versions for `$group`\n")
+        logger.info(s"\n↻ Using BOM-managed versions for `$group`${if (safe) " (safe mode)" else ""}\n")
 
-      val rewritten = dependencies.map(_.useBomManagedVersion(bomPins, scalaBinary))
+        val adoptions = dependencies.map(_.adoptBomManagedVersion(bomPins, scalaBinary, safe))
 
-      val changed = rewritten.zip(dependencies).exists { case (a, b) => a.version !== b.version }
+        val adopted = adoptions.collect { case adoption: BomAdoption.Adopted => adoption }
 
-      if (changed) file.write(group, rewritten)
-      else logger.info(s" ↳ $GREEN✓$RESET Nothing to replace")
+        if (adopted.nonEmpty) file.write(group, adoptions.map(_.dependency))
+        else logger.info(s" ↳ $GREEN✓$RESET Nothing to replace")
+
+        adoptions
+      } else Nil
+
+    BomAdoptionReport.render(group, adoptions) match {
+      case Some(report) => IO.write(reportFile, report)
+      case None         => IO.delete(reportFile)
     }
   }
 
@@ -283,6 +299,10 @@ class Tasks {
 
     (Space ~> orgAndArtifact) ?? UpdateFilter.All
   }
+
+  /** Parser for useBomManagedVersions: an optional `--safe` flag */
+  private val safeParser: Parser[Boolean] =
+    (Space ~> token("--safe")).?.map(_.isDefined)
 
   /** Parser for install: `<dependency>` */
   private val installParser: Parser[String] =

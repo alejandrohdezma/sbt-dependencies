@@ -1,6 +1,9 @@
-# `useBomManagedVersions` replaces every dependency version pinned by a visible BOM (own group +
-# common-settings) with `*` — version markers included — and leaves unpinned lines, BOM coordinates and
-# already-`*` lines untouched. Running it at the root aggregates over every project group.
+# `useBomManagedVersions --safe` replaces pinned versions with `*` but leaves marked (`=`, `^`, `~`) lines as is,
+# reporting them under target/sbt-dependencies/bom-managed/<group>.md; the unrestricted run then adopts them too
+# — version markers included — and leaves unpinned lines, BOM coordinates and already-`*` lines untouched. Running
+# at the root aggregates over every project group.
+> useBomManagedVersions --safe
+> assertSafeRun
 > useBomManagedVersions
 > assertBomManaged
 > reload

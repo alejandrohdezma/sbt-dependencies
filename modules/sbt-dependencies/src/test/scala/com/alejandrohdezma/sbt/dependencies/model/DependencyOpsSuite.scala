@@ -250,4 +250,82 @@ class DependencyOpsSuite extends munit.FunSuite {
     assertEquals(input.map(_.useBomManagedVersion(pins, "2.13")), input)
   }
 
+  test("adoptBomManagedVersion in safe mode adopts unmarked numeric lines even when the pin differs") {
+    val pins = Seq(ModuleID("org.lib", "lib_2.13", "1.2.0"))
+
+    val dependency =
+      Dependency("org.lib", "lib", Version.Numeric.unapply("1.0.0").get, crossVersion = Dependency.Cross.Binary)
+
+    val result = dependency.adoptBomManagedVersion(pins, "2.13", safe = true)
+
+    assertEquals(
+      result,
+      BomAdoption.Adopted(dependency.withVersion(Version.Bom(None)), dependency, Version.Numeric.unapply("1.2.0").get)
+    )
+  }
+
+  test("adoptBomManagedVersion in safe mode leaves marked lines as is and reports the pin") {
+    val pins = Seq(ModuleID("org.lib", "lib_2.13", "1.2.0"))
+
+    List(Marker.Exact -> "=", Marker.Major -> "^", Marker.Minor -> "~").foreach { case (marker, prefix) =>
+      logger.cleanLogs()
+
+      val dependency = Dependency(
+        "org.lib",
+        "lib",
+        Version.Numeric.unapply("1.0.0").get.withMarker(marker),
+        crossVersion = Dependency.Cross.Binary
+      )
+
+      assertEquals(
+        dependency.adoptBomManagedVersion(pins, "2.13", safe = true),
+        BomAdoption.Skipped(dependency, s"`$prefix` marker", Version.Numeric.unapply("1.2.0").get)
+      )
+      assertEquals(
+        logger.getLogs(Level.Info),
+        List(s" ↳ $CYAN⊘$RESET $CYAN${dependency.toLine}$RESET left as is — `$prefix` marker (BOM pins 1.2.0)")
+      )
+    }
+  }
+
+  test("adoptBomManagedVersion in safe mode leaves variable versions as is") {
+    val pins = Seq(ModuleID("org.lib", "lib_2.13", "1.2.0"))
+
+    val dependency = Dependency(
+      "org.lib",
+      "lib",
+      Version.Variable("libVersion", Version.Numeric.unapply("1.0.0")),
+      crossVersion = Dependency.Cross.Binary
+    )
+
+    assertEquals(
+      dependency.adoptBomManagedVersion(pins, "2.13", safe = true),
+      BomAdoption.Skipped(dependency, "version variable", Version.Numeric.unapply("1.2.0").get)
+    )
+  }
+
+  test("adoptBomManagedVersion in safe mode never reports unpinned, illegal or already `*` lines as skipped") {
+    val pins = Seq(ModuleID("org.lib", "lib_2.13", "1.2.0"), ModuleID("org.lib", "lib", "1.2.0"))
+
+    val input = List(
+      Dependency("org.other", "other", Version.Numeric.unapply("=1.0.0").get, crossVersion = Dependency.Cross.Binary),
+      Dependency("org.lib", "lib", Version.Numeric.unapply("=1.0.0").get, configuration = "bom"),
+      bomDep("org.lib", "lib")
+    )
+
+    assertEquals(input.map(_.adoptBomManagedVersion(pins, "2.13", safe = true)), input.map(BomAdoption.Unchanged(_)))
+  }
+
+  test("adoptBomManagedVersion without safe mode adopts marked and variable lines") {
+    val pins = Seq(ModuleID("org.lib", "lib_2.13", "1.2.0"))
+
+    val marked =
+      Dependency("org.lib", "lib", Version.Numeric.unapply("=1.0.0").get, crossVersion = Dependency.Cross.Binary)
+
+    assertEquals(
+      marked.adoptBomManagedVersion(pins, "2.13", safe = false),
+      BomAdoption.Adopted(marked.withVersion(Version.Bom(None)), marked, Version.Numeric.unapply("1.2.0").get)
+    )
+  }
+
 }

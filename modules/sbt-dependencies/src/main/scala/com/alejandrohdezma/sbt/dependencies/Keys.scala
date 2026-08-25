@@ -54,8 +54,9 @@ class Keys {
 
   val updateDependencies = inputKey[Unit]("Update dependencies to their latest versions")
 
-  val useBomManagedVersions = taskKey[Unit] {
-    "Replace every dependency version pinned by a visible BOM with the `*` marker"
+  val useBomManagedVersions = inputKey[Unit] {
+    "Replace every dependency version pinned by a visible BOM with the `*` marker. Pass `--safe` to leave marked" +
+      " (`=`, `^`, `~`) and variable versions as is and only report them"
   }
 
   val updateScalaVersions = inputKey[Unit]("Update Scala versions to their latest versions")
