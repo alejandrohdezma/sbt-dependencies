@@ -21,8 +21,10 @@ inputs:
   extra-command:
     description: |
       Optional sbt command(s) to run in their own step (and commit) after the
-      dependency update (e.g. `changesetFromDependencyDiff`). Use `;` to
-      chain multiple commands.
+      dependency update (e.g. `changesetFromDependencyDiff`, or
+      `useBomManagedVersions --safe` to adopt BOM-managed versions
+      automatically — its report is appended to the pull request). Use `;`
+      to chain multiple commands.
     required: false
     default: ""
   create-pr:
@@ -59,6 +61,9 @@ inputs:
     default: ${{ github.token }}
 
 outputs:
+  bom-report:
+    description: "Markdown report of the BOM-managed versions adopted (and, in safe mode, left as is) by `useBomManagedVersions`. Empty when the task didn't run or had nothing to report."
+    value: ${{ steps.bom.outputs.report }}
   hooks-report:
     description: "Markdown report of executed and failed post-update hooks. Empty when no hooks matched the update."
     value: ${{ steps.hooks.outputs.report }}
@@ -162,6 +167,30 @@ runs:
           git add -A
           git commit -m "Run \`$EXTRA_COMMAND\`"
         fi
+
+    # `useBomManagedVersions` (typically run through `extra-command`) writes one markdown file per project group under
+    # target/sbt-dependencies/bom-managed; concatenating and sorting them gives a deterministic report regardless of
+    # sbt's aggregation order.
+    - name: Report BOM-managed versions
+      id: bom
+      shell: bash
+      run: |
+        dir=target/sbt-dependencies/bom-managed
+        report=""
+        if [ -d "$dir" ] && [ -n "$(ls -A "$dir")" ]; then
+          report="## :link: BOM-managed versions
+
+        \`useBomManagedVersions\` ran as part of this update. A dependency whose version a visible BOM pins is *adopted*: its line switches to \`*\`, so the version comes from the BOM from now on (and follows the BOM on every bump) — the effective version after the change is shown next to each line. In safe mode, lines with an explicit version marker (\`=\`, \`^\`, \`~\`) or a \`{{variable}}\` version are *left as is* and only listed here: they look like deliberate choices, so a human should decide whether to drop the marker or variable and adopt the BOM's version.
+
+        $(cat "$dir"/*.md | sort)
+        "
+          printf '%s' "$report" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        {
+          echo "report<<BOM_EOF"
+          printf '%s' "$report"
+          echo "BOM_EOF"
+        } >> "$GITHUB_OUTPUT"
 
     # Runs the scripts matched against the dependency diff (e.g. scalafix
     # migrations) best-effort: a failing hook becomes a warning and a line in
@@ -267,6 +296,8 @@ runs:
           ${{ inputs.pr-body }}
 
           ${{ steps.failure.outputs.report }}
+
+          ${{ steps.bom.outputs.report }}
 
           ${{ steps.hooks.outputs.report }}
         github-token: ${{ inputs.github-token }}
