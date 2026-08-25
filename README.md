@@ -25,7 +25,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.37.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.38.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -416,6 +416,13 @@ lazy val app  = project.dependsOn(core)
 ```
 
 It runs per project and aggregates, so a bare `useBomManagedVersions` at the root covers every group. Neither a version marker (`=`, `^`, `~`) nor a `{{variable}}` is an opt-out — the precedence is bom > variable > numeric, so both drop with the version — and a pin that differs from the declared version still rewrites (adopting the BOM means adopting its versions), logging what the line now resolves to. Lines where `*` would be illegal, already-`*` lines and unpinned artifacts are left untouched. The [IDE plugins](#ide-plugins) offer the same rewrite as a suggestion on each pinned line, applying to that dependency or to all of them.
+
+For unattended runs, `useBomManagedVersions --safe` treats a version marker or a `{{variable}}` as an opt-out: those lines are left as is and only reported, while plain numeric lines are still adopted (even when the pin differs from the declared version — the report says what they now resolve to). Either way the task writes what it did to `target/sbt-dependencies/bom-managed/<group>.md`, one file per group, which the [GitHub Action](#github-action) appends to the pull request when the task runs through `extra-command`:
+
+```
+- `my-project`: `org.typelevel::cats-core:2.12.0` → `*` (resolves to `2.13.0`)
+- `my-project`: `com.example:lib:=1.0.0` left as is — `=` marker (BOM pins `1.2.0`)
+```
 
 **Transitive dependencies** — the BOM pins are also added to sbt's `dependencyOverrides`, so *transitive* dependencies resolve to the BOM's versions too, matching Maven's `dependencyManagement` behavior. When two BOMs pin the same artifact, the first-declared BOM wins — the same precedence `*` versions follow. Opt out (or trim the pins) through the `dependencyOverridesFromBom` setting:
 
@@ -1049,7 +1056,7 @@ Mirroring Scala Steward, every stage gets its own commit on the update branch: o
 
 A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
 
-Reference it as `alejandrohdezma/sbt-dependencies@v0.37.0`:
+Reference it as `alejandrohdezma/sbt-dependencies@v0.38.0`:
 
 ```yaml
 name: Update Dependencies
@@ -1077,7 +1084,7 @@ jobs:
 
       - uses: sbt/setup-sbt@v1
 
-      - uses: alejandrohdezma/sbt-dependencies@v0.37.0
+      - uses: alejandrohdezma/sbt-dependencies@v0.38.0
         with:
           config-file: .github/.scala-steward.conf
 ```
@@ -1089,7 +1096,7 @@ The action assumes sbt (and any repository credentials) are already set up.
 | Input | Description | Default |
 | :--- | :--- | :--- |
 | `config-file` | Path to a [Scala Steward-style HOCON file](#user-content-github-action-config-file) applied to every constraint class. Fails when set but missing. | _(none)_ |
-| `extra-command` | sbt command(s) run in their own step (and commit) after the dependency update. Use `;` to chain. | _(none)_ |
+| `extra-command` | sbt command(s) run in their own step (and commit) after the dependency update, e.g. `changesetFromDependencyDiff` or `useBomManagedVersions --safe` (see [Use BOM-managed versions](#user-content-use-bom-managed-versions)). Use `;` to chain. | _(none)_ |
 | `create-pr` | Whether to commit each stage and create/update the pull request. When `false` the working tree is left dirty for the caller. | `true` |
 | `branch` | Branch to push the updates to. | `updates/dependencies` |
 | `base` | Base branch for the created pull request. | the default branch detected from `origin` |
@@ -1101,6 +1108,7 @@ The action assumes sbt (and any repository credentials) are already set up.
 
 | Output | Description |
 | :--- | :--- |
+| `bom-report` | Markdown report of the BOM-managed versions adopted (and, in safe mode, left as is) by `useBomManagedVersions`. Empty when the task didn't run or had nothing to report. |
 | `hooks-report` | Markdown report of executed and failed post-update hooks. Empty when no hooks matched. |
 | `pr-number` | Number of the created/updated pull request. Empty when no PR was created. |
 | `pr-url` | URL of the created/updated pull request. Empty when no PR was created. |
