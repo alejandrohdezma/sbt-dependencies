@@ -49,9 +49,7 @@ class Tasks {
     val scalaBinary = (update / scalaBinaryVersion).value
     val variables   = Keys.dependencyVersionVariables.value
 
-    val dependencies = file
-      .read(group, variables)
-      .map(_.resolveBom(bomPins, scalaBinary))
+    val raw = file.read(group, variables)
 
     val filter = updateFilterParser.parsed
 
@@ -67,10 +65,31 @@ class Tasks {
 
     if (!groupExists) {
       // Group not in YAML file - silently skip
-    } else if (dependencies.isEmpty) {
+    } else if (raw.isEmpty) {
       logger.info(s"\n∅  No dependencies found for `$group`\n")
     } else {
       logger.info(s"\n↻ Updating ${filter.show} dependencies for `$group`\n")
+
+      def bomsOf(g: Group): List[Dependency] = file.read(g, variables).filter(_.configuration === "bom")
+
+      // The pins the visible BOMs have at the versions this run produces, in precedence order (own group,
+      // common-settings, dependsOn groups). Own-group and dependsOn entries matching the filter are predicted with the
+      // same version lookup the update itself uses (cached, so the update's own lookup is free), which makes the result
+      // independent of aggregation ordering; common-settings comes from the file, already bumped by
+      // updateCommonDependencies when part of updateAllDependencies. `*` lines resolve against these pins so their
+      // "resolves to" reflects the BOM bump happening in this very run, falling back to the load-time pins for
+      // artifacts the new BOM no longer provides (the migration step below deals with those).
+      def predicted(boms: Seq[Dependency]): Seq[Dependency] =
+        boms.map(dep => if (filter.matches(dep)) dep.findLatestVersion else dep)
+
+      val newPins = predicted(raw.filter(_.configuration === "bom")).toList
+        .++(if (isSbtBuild) Nil else bomsOf(Group.`common-settings`))
+        .++(predicted(inheritedGroups.flatMap(bomsOf)))
+        .distinct
+        .map(_.toModuleID(sbtBinary, scalaBinary))
+        .flatMap(BomReader.read(_, scalaBinary))
+
+      val dependencies = raw.map(_.resolveBom(newPins, scalaBinary)).map(_.resolveBom(bomPins, scalaBinary))
 
       val filtered = dependencies.filterNot(filter.matches)
 
@@ -83,26 +102,11 @@ class Tasks {
       val toWrite = filtered ++ updated
 
       // A BOM bump can drop the old coordinates of a migrated `*` dependency, so the whole group — matching the
-      // filter or not — is checked against the pins the visible BOMs have at the versions this run actually
-      // produces. Lines whose BOMs didn't move keep their old coordinates pinned and are never rewritten.
-      val migrated = if (toWrite.exists(_.hasBomManagedMigration)) {
-        def bomsOf(g: Group): List[Dependency] = file.read(g, variables).filter(_.configuration === "bom")
-
-        // Visible BOMs in precedence order (own group, common-settings, dependsOn groups). Own-group entries come
-        // from the list being written; common-settings from the file (updateCommonDependencies runs earlier, so it's
-        // already bumped when part of updateAllDependencies); dependsOn groups' entries matching the filter are
-        // predicted with the same version lookup their own task instance uses — that instance applies the same
-        // filter, so the result is independent of aggregation ordering.
-        val newPins = toWrite
-          .filter(_.configuration === "bom")
-          .++(if (isSbtBuild) Nil else bomsOf(Group.`common-settings`))
-          .++(inheritedGroups.flatMap(bomsOf).map(dep => if (filter.matches(dep)) dep.findLatestVersion else dep))
-          .distinct
-          .map(_.toModuleID(sbtBinary, scalaBinary))
-          .flatMap(BomReader.read(_, scalaBinary))
-
-        toWrite.map(_.migrateBomManaged(newPins, scalaBinary))
-      } else toWrite
+      // filter or not — is checked against the new pins. Lines whose BOMs didn't move keep their old coordinates
+      // pinned and are never rewritten.
+      val migrated =
+        if (toWrite.exists(_.hasBomManagedMigration)) toWrite.map(_.migrateBomManaged(newPins, scalaBinary))
+        else toWrite
 
       file.write(group, migrated)
     }

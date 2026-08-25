@@ -50,7 +50,7 @@ inputs:
     required: false
     default: Update dependencies
   pr-body:
-    description: "Body for the created/updated pull request. The post-update hooks report is appended to it."
+    description: "Body for the created/updated pull request. The failure report (when an sbt step fails) and the post-update hooks report are appended to it."
     required: false
     default: "Automated dependency updates from [`sbt-dependencies`](https://github.com/alejandrohdezma/sbt-dependencies)."
   github-token:
@@ -271,9 +271,30 @@ runs:
           ${{ steps.hooks.outputs.report }}
         github-token: ${{ inputs.github-token }}
 
+    # The failure report is built before the PR exists, so the PR link gets its own summary section — the summary
+    # is what people open first when a run goes red, and it should say the update still landed and where.
+    - name: Report pull request
+      if: inputs.create-pr == 'true' && steps.upsert-pr.outputs.pr-url != ''
+      shell: bash
+      env:
+        PR_URL: ${{ steps.upsert-pr.outputs.pr-url }}
+        FAILED: ${{ steps.update.outputs.failed == 'true' || steps.format.outputs.failed == 'true' || steps.extra.outputs.failed == 'true' }}
+      run: |
+        if [ "$FAILED" = "true" ]; then
+          printf '\n## :rocket: Pull request\n\nThe pull request was still created/updated with the partial changes: %s\n' "$PR_URL" >> "$GITHUB_STEP_SUMMARY"
+        else
+          printf '\n## :rocket: Pull request\n\n%s\n' "$PR_URL" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
     - name: Fail if any sbt step failed
       if: steps.update.outputs.failed == 'true' || steps.format.outputs.failed == 'true' || steps.extra.outputs.failed == 'true'
       shell: bash
+      env:
+        PR_URL: ${{ steps.upsert-pr.outputs.pr-url }}
       run: |
-        echo "::error::An sbt step failed while updating dependencies — see the warnings above. Any partial changes were still committed and the pull request was created/updated."
+        if [ -n "$PR_URL" ]; then
+          echo "::error::An sbt step failed while updating dependencies — see the warnings above. The partial changes were still committed and the pull request was created/updated: $PR_URL"
+        else
+          echo "::error::An sbt step failed while updating dependencies — see the warnings above. No changes were produced, so no pull request was created."
+        fi
         exit 1
