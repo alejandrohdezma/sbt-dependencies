@@ -182,9 +182,19 @@ object DependencyOps {
       * adopting the BOM means adopting its versions — and the log notes what the line now resolves to.
       *
       * Returned unchanged: already BOM-managed lines, lines where `*` would be illegal (`bom`/`sbt-plugin`
-      * configurations, `full`/`patch` cross-versions) and unpinned artifacts.
+      * configurations, `full`/`patch` cross-versions) and unpinned artifacts. See [[adoptBomManagedVersion]] for the
+      * outcome-reporting, safe-mode-aware variant.
       */
-    def useBomManagedVersion(pins: Seq[ModuleID], scalaBinaryVersion: String)(implicit logger: Logger): Dependency = {
+    def useBomManagedVersion(pins: Seq[ModuleID], scalaBinaryVersion: String)(implicit logger: Logger): Dependency =
+      adoptBomManagedVersion(pins, scalaBinaryVersion, safe = false).dependency
+
+    /** [[useBomManagedVersion]] reporting what happened to the line. With `safe = true` — meant for unattended runs —
+      * an explicit marker (`=`, `^`, `~`) or a version variable counts as an opt-out: the line is left as is and
+      * reported as [[BomAdoption.Skipped]] with the version the BOM would resolve it to, so a human can decide.
+      */
+    def adoptBomManagedVersion(pins: Seq[ModuleID], scalaBinaryVersion: String, safe: Boolean)(implicit
+        logger: Logger
+    ): BomAdoption = {
       val managed = dependency.withVersion(Version.Bom(None))
 
       val declared: Option[Numeric] = dependency.version match {
@@ -193,11 +203,27 @@ object DependencyOps {
         case _: Version.Bom                => None
       }
 
+      val optOut: Option[String] = dependency.version match {
+        case numeric: Numeric if safe && numeric.marker.prefix.nonEmpty => Some(s"`${numeric.marker.prefix}` marker")
+        case _: Version.Variable if safe                                => Some("version variable")
+        case _                                                          => None
+      }
+
+      val eligible = !dependency.version.isBom && Dependency.validateBomRestrictions(managed).isRight
+
       managed.resolveBom(pins, scalaBinaryVersion).version match {
+        // A visible BOM pins the artifact but safe mode treats the line's marker or variable as an opt-out.
+        case Version.Bom(Some(pinned)) if eligible && optOut.isDefined =>
+          logger.info {
+            s" ↳ $CYAN⊘$RESET $CYAN${dependency.toLine}$RESET left as is — ${optOut.getOrElse("")} " +
+              s"(BOM pins ${pinned.toVersionString})"
+          }
+
+          BomAdoption.Skipped(dependency, optOut.getOrElse(""), pinned)
+
         // A visible BOM pins the artifact: drop the declared version (marker or variable included) in favor of `*`,
         // noting the resolved version when it differs from the declared one.
-        case Version.Bom(Some(pinned))
-            if !dependency.version.isBom && Dependency.validateBomRestrictions(managed).isRight =>
+        case Version.Bom(Some(pinned)) if eligible =>
           val resolvesTo =
             if (declared.exists(pinned.isSameVersion(_))) "" else s" (now ${pinned.toVersionString})"
 
@@ -205,12 +231,12 @@ object DependencyOps {
             s" ↳ $YELLOW🔗$RESET $YELLOW${dependency.toLine}$RESET -> $CYAN${managed.toLine}$RESET$resolvesTo"
           }
 
-          managed
+          BomAdoption.Adopted(managed, dependency, pinned)
 
         // Kept as is: the line is already BOM-managed, `*` would be illegal on it, or no visible BOM pins it
         // (`resolveBom` left the probe unresolved).
         case _ =>
-          dependency
+          BomAdoption.Unchanged(dependency)
       }
     }
 
