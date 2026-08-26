@@ -1,5 +1,5 @@
 name: sbt-dependencies
-description: Update every dependency in project/dependencies.conf, run matching scalafix migrations and post-update hooks, and upsert an update pull request.
+description: Update dependencies in project/dependencies.conf, run migrations and hooks, and upsert a pull request.
 
 branding:
   icon: arrow-up-circle
