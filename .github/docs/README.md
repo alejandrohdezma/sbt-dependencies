@@ -872,7 +872,7 @@ For each candidate version the plugin would otherwise pick, it issues an HTTP `H
 
 <details><summary><b id="configure-post-update-hooks">Configure post-update hooks</b></summary><br/>
 
-When `updateAllDependencies` runs, it generates a JSON file at `target/sbt-dependencies/.sbt-post-update-hooks` listing scripts that should be run after updating. The file is only written when at least one hook or migration matched the update (a previous run's file is always removed first), so its absence means there is nothing to run. This is useful for CI automation — for example, running `sbt scalafixAll` after updating a dependency that ships scalafix rewrite rules, or `sbt headerCreateAll` after updating `sbt-header`.
+When `updateAllDependencies` runs, it generates a JSON file at `target/sbt-dependencies/.sbt-post-update-hooks` listing scripts that should be run after updating (the hooks, plus any [scalafix migration](#user-content-configure-scalafix-migrations) with `executionOrder = post-update`). The file is only written when at least one hook or migration matched the update (a previous run's file is always removed first), so its absence means there is nothing to run. This is useful for CI automation — for example, running `sbt scalafixAll` after updating a dependency that ships scalafix rewrite rules, or `sbt headerCreateAll` after updating `sbt-header`.
 
 The hooks are loaded from Scala Steward's [`postUpdateHooks` configuration](https://github.com/scala-steward-org/scala-steward/blob/main/modules/core/src/main/resources/default.scala-steward.conf) by default. Each hook specifies a `groupId`/`artifactId` filter and a `command` to run when a matching dependency is updated.
 
@@ -929,7 +929,12 @@ Each entry supports `groupId` (optional), `artifactId` (optional), `command` (st
 
 <details><summary><b id="configure-scalafix-migrations">Configure scalafix migrations</b></summary><br/>
 
-When `updateAllDependencies` runs, it also matches [Scala Steward's scalafix migrations](https://github.com/scala-steward-org/scala-steward/blob/main/modules/core/src/main/resources/scalafix-migrations.conf) against updated dependencies. When a dependency update crosses a migration's version threshold, the corresponding scalafix rule is included in the post-update hooks output.
+When `updateAllDependencies` runs, it also matches [Scala Steward's scalafix migrations](https://github.com/scala-steward-org/scala-steward/blob/main/modules/core/src/main/resources/scalafix-migrations.conf) against updated dependencies. When a dependency update crosses a migration's version threshold, the corresponding scalafix rule is turned into a script.
+
+Where the script lands depends on the migration's `executionOrder`, with the same meaning as in Scala Steward:
+
+- `pre-update` (the default): the rule must run against the build **as it was before the update** — semantic rules (package renames, signature changes) compile the code against the old classpath. These scripts are written to `target/sbt-dependencies/.sbt-pre-update-migrations`.
+- `post-update`: the rule runs after the update, alongside the [post-update hooks](#user-content-configure-post-update-hooks), so these scripts join `target/sbt-dependencies/.sbt-post-update-hooks`.
 
 The generated scripts are scoped to the project where the dependency was updated:
 
@@ -938,6 +943,18 @@ The generated scripts are scoped to the project where the dependency was updated
   {"script": "sbt \"scalafixEnable; core/scalafixAll github:typelevel/cats/Cats_v2_2_0?sha=v2.2.0\"", "message": "Run scalafix migration in core: Cats_v2_2_0 (see https://github.com/typelevel/cats/...)"}
 ]
 ```
+
+The `runPreUpdateMigrations` command runs the pre-update file with the same best-effort semantics and report (`target/sbt-dependencies/.sbt-pre-update-migrations.md`) as `runPostUpdateHooks`, but it runs the scripts in place: since `updateAllDependencies` has already rewritten the build files by then, stash the update (which only touches build files: `project/dependencies.conf`, `project/build.properties`, the plugin files and `.scalafmt.conf`) while the migrations run and pop it afterwards, e.g.
+
+```bash
+sbt updateAllDependencies
+git stash push
+sbt runPreUpdateMigrations
+git stash pop
+sbt runPostUpdateHooks
+```
+
+The [GitHub Action](#github-action) does this for you.
 
 For build-level dependencies (plugins in the `sbt-build` group), migrations run the `scalafix` CLI directly on build files instead:
 
@@ -1050,9 +1067,11 @@ sbt> enableEvictionWarnings
 
 ## GitHub Action
 
-This repository also ships a composite GitHub Action that runs the whole update flow: `updateAllDependencies`, `formatDependenciesFile`, an optional extra sbt command, the generated post-update hooks (executed with bash, best-effort), and finally creating or updating a pull request with the changes.
+This repository also ships a composite GitHub Action that runs the whole update flow: `updateAllDependencies`, `formatDependenciesFile`, the generated pre-update scalafix migrations, an optional extra sbt command, the generated post-update hooks (all executed with bash, best-effort), and finally creating or updating a pull request with the changes.
 
-Mirroring Scala Steward, every stage gets its own commit on the update branch: one for the dependency updates, one for the extra command, and one per post-update hook (using the hook's commit message), so the PR history shows exactly what each step changed.
+Mirroring Scala Steward, every stage gets its own commit on the update branch: one for the dependency updates, one per pre-update migration, one for the extra command, and one per post-update hook (using the hook's commit message), so the PR history shows exactly what each step changed.
+
+Pre-update migrations need the classpath the project had before the update, so for each of them the action temporarily rewinds the build files the update touched (`project/dependencies.conf`, `project/build.properties`, plugin files) to their pre-update content, runs the rule, and restores the updated files before committing the rewritten sources.
 
 A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
 
@@ -1101,7 +1120,7 @@ The action assumes sbt (and any repository credentials) are already set up.
 | `branch` | Branch to push the updates to. | `updates/dependencies` |
 | `base` | Base branch for the created pull request. | the default branch detected from `origin` |
 | `pr-title` | Title for the pull request. Also used as the update commit's message. | `Update dependencies` |
-| `pr-body` | Body for the pull request. The post-update hooks report is appended to it. | short default text |
+| `pr-body` | Body for the pull request. The failure, BOM-managed versions, pre-update migrations and post-update hooks reports are appended to it. | short default text |
 | `github-token` | Token used to create/update the pull request. | `github.token` |
 
 ### Outputs
@@ -1109,6 +1128,7 @@ The action assumes sbt (and any repository credentials) are already set up.
 | Output | Description |
 | :--- | :--- |
 | `bom-report` | Markdown report of the BOM-managed versions adopted (and, in safe mode, left as is) by `useBomManagedVersions`. Empty when the task didn't run or had nothing to report. |
+| `migrations-report` | Markdown report of executed and failed pre-update scalafix migrations. Empty when no migration matched. |
 | `hooks-report` | Markdown report of executed and failed post-update hooks. Empty when no hooks matched. |
 | `pr-number` | Number of the created/updated pull request. Empty when no PR was created. |
 | `pr-url` | URL of the created/updated pull request. Empty when no PR was created. |
@@ -1128,7 +1148,7 @@ postUpdateHooks = [
 ]
 ```
 
-> On CI systems other than GitHub Actions, chain the [`runPostUpdateHooks`](#user-content-configure-post-update-hooks) command instead of using the action.
+> On CI systems other than GitHub Actions, chain the [`runPreUpdateMigrations`](#user-content-configure-scalafix-migrations) and [`runPostUpdateHooks`](#user-content-configure-post-update-hooks) commands instead of using the action.
 
 ## IDE Plugins
 
