@@ -163,6 +163,51 @@ class ScalafixMigrationSuite extends munit.FunSuite {
   }
 
   withMigrationFile {
+    """migrations = [
+      |  {
+      |    groupId: "co.fs2"
+      |    artifactIds: ["fs2-.*"]
+      |    newVersion: "1.0.0"
+      |    rewriteRules: ["rule"]
+      |  },
+      |  {
+      |    groupId: "co.fs2"
+      |    artifactIds: ["fs2-.*"]
+      |    newVersion: "3.0.0"
+      |    rewriteRules: ["rule"]
+      |    executionOrder: "post-update"
+      |  }
+      |]
+      |""".stripMargin
+  }.test("loadFromUrls defaults executionOrder to pre-update and parses post-update") { urls =>
+    val orders = ScalafixMigration.loadFromUrls(urls).map(_.executionOrder)
+
+    assertEquals(
+      orders,
+      List(ScalafixMigration.ExecutionOrder.PreUpdate, ScalafixMigration.ExecutionOrder.PostUpdate)
+    )
+  }
+
+  withMigrationFile {
+    """migrations = [
+      |  {
+      |    groupId: "co.fs2"
+      |    artifactIds: ["fs2-.*"]
+      |    newVersion: "1.0.0"
+      |    rewriteRules: ["rule"]
+      |    executionOrder: "whenever"
+      |  }
+      |]
+      |""".stripMargin
+  }.test("loadFromUrls rejects an invalid executionOrder") { urls =>
+    assertEquals(ScalafixMigration.loadFromUrls(urls), Nil)
+
+    val warnings = logger.getLogs(sbt.Level.Warn)
+
+    assert(warnings.exists(_.contains("Invalid executionOrder `whenever`")), warnings.mkString("\n"))
+  }
+
+  withMigrationFile {
     """postUpdateHooks = [
       |  { command = ["sbt", "test"], commitMessage = "test" }
       |]

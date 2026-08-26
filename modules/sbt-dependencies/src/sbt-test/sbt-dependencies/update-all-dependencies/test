@@ -11,5 +11,7 @@
 # the munit:test dep added to dependencies.conf for scope coverage)
 $ must-mirror target/sbt-dependencies/.sbt-dependency-diff expected-diff
 
-# Validate the post-update hooks JSON matches expected output
+# Scalafix migrations default to pre-update (Scala Steward's default) and land in their own file;
+# post-update hooks keep the hooks file
+$ must-mirror target/sbt-dependencies/.sbt-pre-update-migrations expected-migrations
 $ must-mirror target/sbt-dependencies/.sbt-post-update-hooks expected-scripts

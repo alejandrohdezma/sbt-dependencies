@@ -1,0 +1,7 @@
+## :hammer_and_wrench: Pre-update migrations executed
+
+- Touch a migration marker file
+
+## :warning: Pre-update migrations that failed
+
+- Always fails (`exit 1`)

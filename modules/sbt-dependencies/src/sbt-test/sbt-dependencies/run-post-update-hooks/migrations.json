@@ -1,0 +1,4 @@
+[
+  {"script": "touch migration-ran.txt", "message": "Touch a migration marker file"},
+  {"script": "exit 1", "message": "Always fails"}
+]

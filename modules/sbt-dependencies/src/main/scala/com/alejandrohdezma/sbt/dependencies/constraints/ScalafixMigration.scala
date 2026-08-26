@@ -44,6 +44,9 @@ import com.typesafe.config.Config
   *   Optional URL to migration documentation.
   * @param scalacOptions
   *   Extra scalac options needed when running the migration (e.g., `"-P:semanticdb:synthetics:on"`).
+  * @param executionOrder
+  *   Whether the rules must run against the build as it was before the update (`pre-update`, Scala Steward's default)
+  *   or after it (`post-update`).
   */
 final case class ScalafixMigration(
     groupId: String,
@@ -51,7 +54,8 @@ final case class ScalafixMigration(
     newVersion: String,
     rewriteRules: List[String],
     doc: Option[String] = None,
-    scalacOptions: List[String] = Nil
+    scalacOptions: List[String] = Nil,
+    executionOrder: ScalafixMigration.ExecutionOrder = ScalafixMigration.ExecutionOrder.PreUpdate
 ) {
 
   /** Converts this migration to a script for the given group. */
@@ -99,16 +103,35 @@ final case class ScalafixMigration(
 
 object ScalafixMigration extends Cached[ScalafixMigration] {
 
+  sealed trait ExecutionOrder extends Product with Serializable
+
+  object ExecutionOrder {
+
+    case object PreUpdate extends ExecutionOrder
+
+    case object PostUpdate extends ExecutionOrder
+
+    def fromString(value: String): Either[String, ExecutionOrder] = value match {
+      case "pre-update"  => Right(PreUpdate)
+      case "post-update" => Right(PostUpdate)
+      case other         => Left(s"Invalid executionOrder `$other`, expected `pre-update` or `post-update`")
+    }
+
+  }
+
   implicit val ScalafixMigrationConfigDecoder: ConfigDecoder[List[ScalafixMigration]] =
     ConfigDecoder.optionalConfigList[ScalafixMigration] { config =>
       for {
-        groupId       <- config.as[String]("groupId")
-        artifactIds   <- config.asNonEmptyList("artifactIds")
-        newVersion    <- config.as[String]("newVersion")
-        rewriteRules  <- config.asNonEmptyList("rewriteRules")
-        doc           <- config.as[Option[String]]("doc")
-        scalacOptions <- config.as[List[String]]("scalacOptions")
-      } yield ScalafixMigration(groupId, artifactIds, newVersion, rewriteRules, doc, scalacOptions)
+        groupId        <- config.as[String]("groupId")
+        artifactIds    <- config.asNonEmptyList("artifactIds")
+        newVersion     <- config.as[String]("newVersion")
+        rewriteRules   <- config.asNonEmptyList("rewriteRules")
+        doc            <- config.as[Option[String]]("doc")
+        scalacOptions  <- config.as[List[String]]("scalacOptions")
+        order          <- config.as[Option[String]]("executionOrder")
+        executionOrder <-
+          order.fold[Either[String, ExecutionOrder]](Right(ExecutionOrder.PreUpdate))(ExecutionOrder.fromString)
+      } yield ScalafixMigration(groupId, artifactIds, newVersion, rewriteRules, doc, scalacOptions, executionOrder)
     }
 
   /** The default list of scalafix migration URLs. */
