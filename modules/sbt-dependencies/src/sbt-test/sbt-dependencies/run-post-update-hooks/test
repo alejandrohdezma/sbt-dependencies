@@ -13,3 +13,14 @@ $ copy-file hooks.json target/sbt-dependencies/.sbt-post-update-hooks
 $ exists hook-ran.txt
 $ exists target/sbt-dependencies/.sbt-post-update-hooks.md
 $ must-mirror target/sbt-dependencies/.sbt-post-update-hooks.md expected-report
+
+# runPreUpdateMigrations does the same for .sbt-pre-update-migrations
+> runPreUpdateMigrations
+-$ exists target/sbt-dependencies/.sbt-pre-update-migrations.md
+
+$ copy-file migrations.json target/sbt-dependencies/.sbt-pre-update-migrations
+
+> runPreUpdateMigrations
+
+$ exists migration-ran.txt
+$ must-mirror target/sbt-dependencies/.sbt-pre-update-migrations.md expected-migrations-report

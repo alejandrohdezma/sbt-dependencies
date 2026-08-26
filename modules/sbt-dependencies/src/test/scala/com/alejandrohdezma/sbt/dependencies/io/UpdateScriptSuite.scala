@@ -503,18 +503,24 @@ class UpdateScriptSuite extends munit.FunSuite {
          |- Run migration (`sbt scalafixAll`)
          |""".stripMargin
 
-    assertNoDiff(UpdateScript.toMarkdown(executed, failed), expected)
+    assertNoDiff(UpdateScript.toMarkdown(executed, failed, "Post-update hooks"), expected)
+  }
+
+  test("toMarkdown names the scripts after the given subject") {
+    val result = UpdateScript.toMarkdown(List(UpdateScript("sbt compile", "Recompile")), Nil, "Pre-update migrations")
+
+    assert(result.startsWith("## :hammer_and_wrench: Pre-update migrations executed"), result)
   }
 
   test("toMarkdown omits empty sections") {
-    val result = UpdateScript.toMarkdown(List(UpdateScript("sbt compile", "Recompile")), Nil)
+    val result = UpdateScript.toMarkdown(List(UpdateScript("sbt compile", "Recompile")), Nil, "Post-update hooks")
 
     assert(result.contains("executed"))
     assert(!result.contains(":warning:"))
   }
 
   test("toMarkdown returns an empty string when there is nothing to report") {
-    assertEquals(UpdateScript.toMarkdown(Nil, Nil), "")
+    assertEquals(UpdateScript.toMarkdown(Nil, Nil, "Post-update hooks"), "")
   }
 
   // --- fromMigrations + ProjectDiff.withMigratedUpdates ---

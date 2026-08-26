@@ -98,16 +98,16 @@ object UpdateScript {
       .map(entry => UpdateScript(entry.getString("script"), entry.getString("message")))
 
   /** Renders executed and failed scripts as a markdown report with a section for each non-empty list. Returns an empty
-    * string when there is nothing to report.
+    * string when there is nothing to report. `subject` names the scripts in the section headings.
     */
-  def toMarkdown(executed: List[UpdateScript], failed: List[UpdateScript]): String = {
+  def toMarkdown(executed: List[UpdateScript], failed: List[UpdateScript], subject: String): String = {
     val executedSection = executed
       .map(script => s"- ${script.message}")
-      .mkString("## :hammer_and_wrench: Post-update hooks executed\n\n", "\n", "")
+      .mkString(s"## :hammer_and_wrench: $subject executed\n\n", "\n", "")
 
     val failedSection = failed
       .map(script => s"- ${script.message} (`${script.script}`)")
-      .mkString("## :warning: Post-update hooks that failed\n\n", "\n", "")
+      .mkString(s"## :warning: $subject that failed\n\n", "\n", "")
 
     val sections =
       List(executed.nonEmpty -> executedSection, failed.nonEmpty -> failedSection).collect { case (true, s) => s }

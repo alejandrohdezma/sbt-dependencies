@@ -48,7 +48,8 @@ class Commands {
     updateBuildDependencies, updateCommonDependencies, installBuildDependencies, installCommonDependencies, updateSbt,
     updateBuildScalaVersions, updateCommonScalaVersions, updateScalafmtVersion, disableEvictionWarnings,
     enableEvictionWarnings, snapshotDependencies, snapshotBuildDependencies, snapshotCommonDependencies,
-    snapshotSbtPlugin, snapshotSbtVersion, computeDependencyDiff, computePostUpdateHooks, runPostUpdateHooks)
+    snapshotSbtPlugin, snapshotSbtVersion, computeDependencyDiff, computePostUpdateHooks, runPreUpdateMigrations,
+    runPostUpdateHooks)
 
   /** Creates (or recreates) the dependencies.conf file based on current project dependencies and Scala versions.
     *
@@ -682,21 +683,45 @@ class Commands {
 
         val migrations = ScalafixMigration.loadFromUrls(project.get(ThisBuild / Keys.dependencyScalafixMigrations))
 
+        val (preUpdate, postUpdate) = migrations.partition(_.executionOrder match {
+          case ScalafixMigration.ExecutionOrder.PreUpdate  => true
+          case ScalafixMigration.ExecutionOrder.PostUpdate => false
+        })
+
+        val preScripts = UpdateScript.fromMigrations(preUpdate, diffs)
+
         // Migrations first, hooks last, mirroring Scala Steward: post-update hooks (e.g. a formatting hook) must run
         // after the scalafix migration rewrites so their changes are covered too.
-        val scripts = UpdateScript.fromMigrations(migrations, diffs) ++ UpdateScript.fromHooks(hooks, diffs)
+        val postScripts = UpdateScript.fromMigrations(postUpdate, diffs) ++ UpdateScript.fromHooks(hooks, diffs)
 
-        if (scripts.nonEmpty) {
-          val json = UpdateScript.toJson(scripts)
+        if (preScripts.nonEmpty) {
+          IO.write(outputDir / ".sbt-pre-update-migrations", UpdateScript.toJson(preScripts))
 
-          IO.write(outputDir / ".sbt-post-update-hooks", json)
+          logger.info(s"✎ Wrote ${preScripts.size} pre-update migration(s) to $outputDir/.sbt-pre-update-migrations")
+        }
 
-          logger.info(s"✎ Wrote ${scripts.size} post-update hook(s) to $outputDir/.sbt-post-update-hooks")
+        if (postScripts.nonEmpty) {
+          IO.write(outputDir / ".sbt-post-update-hooks", UpdateScript.toJson(postScripts))
+
+          logger.info(s"✎ Wrote ${postScripts.size} post-update hook(s) to $outputDir/.sbt-post-update-hooks")
         }
       }
     }.onError { case e => state.log.warn(s"Unable to compute post-update hooks: ${e.getMessage}") }
 
     state
+  }
+
+  /** Runs the scripts listed in `target/sbt-dependencies/.sbt-pre-update-migrations` (written by
+    * `computePostUpdateHooks`). Does nothing when the file doesn't exist.
+    *
+    * These scalafix migrations expect the build as it was before the update (they are semantic rules compiled against
+    * the old classpath), but this command runs them in place: restore the pre-update build files (e.g. `git checkout
+    * <sha> -- project/dependencies.conf`) before invoking it and put the updated ones back afterwards. The GitHub
+    * Action does this automatically. Same best-effort semantics and report as `runPostUpdateHooks`, written to
+    * `target/sbt-dependencies/.sbt-pre-update-migrations.md`.
+    */
+  lazy val runPreUpdateMigrations = Command.command("runPreUpdateMigrations") { state =>
+    runScripts(state, ".sbt-pre-update-migrations", "Pre-update migrations")
   }
 
   /** Runs the scripts listed in `target/sbt-dependencies/.sbt-post-update-hooks` (written by `computePostUpdateHooks`).
@@ -710,6 +735,10 @@ class Commands {
     * and appended to the `GITHUB_STEP_SUMMARY` file when running in GitHub Actions.
     */
   lazy val runPostUpdateHooks = Command.command("runPostUpdateHooks") { state =>
+    runScripts(state, ".sbt-post-update-hooks", "Post-update hooks")
+  }
+
+  private def runScripts(state: State, fileName: String, subject: String): State = {
     val _ = Try {
       implicit val logger: Logger = state.log
 
@@ -717,7 +746,7 @@ class Commands {
 
       val base      = project.get(ThisBuild / baseDirectory)
       val outputDir = base / "target" / "sbt-dependencies"
-      val hooksFile = outputDir / ".sbt-post-update-hooks"
+      val hooksFile = outputDir / fileName
 
       if (hooksFile.exists()) {
         val scripts = UpdateScript.fromJson(IO.read(hooksFile))
@@ -729,24 +758,24 @@ class Commands {
 
           val exitCode = scala.sys.process.Process(Seq("bash", "-c", script.script), base).!(processLogger)
 
-          if (exitCode !== 0) logger.warn(s"✗ Post-update hook failed ($exitCode): ${script.script}")
+          if (exitCode !== 0) logger.warn(s"✗ Script failed ($exitCode): ${script.script}")
 
           script -> exitCode
         }
 
         val (executed, failed) = results.partition { case (_, exitCode) => exitCode === 0 }
 
-        val markdown = UpdateScript.toMarkdown(executed.map(_._1), failed.map(_._1))
+        val markdown = UpdateScript.toMarkdown(executed.map(_._1), failed.map(_._1), subject)
 
         if (markdown.nonEmpty) {
-          IO.write(outputDir / ".sbt-post-update-hooks.md", markdown)
+          IO.write(outputDir / s"$fileName.md", markdown)
 
           sys.env.get("GITHUB_STEP_SUMMARY").foreach(path => IO.append(new File(path), markdown))
 
-          logger.info(s"✎ Wrote post-update hooks report to $outputDir/.sbt-post-update-hooks.md")
+          logger.info(s"✎ Wrote ${subject.toLowerCase} report to $outputDir/$fileName.md")
         }
       }
-    }.onError { case e => state.log.warn(s"Unable to run post-update hooks: ${e.getMessage}") }
+    }.onError { case e => state.log.warn(s"Unable to run ${subject.toLowerCase}: ${e.getMessage}") }
 
     state
   }
@@ -886,6 +915,7 @@ class Commands {
     IO.delete(outputDir / ".sbt-plugin-snapshot")
     IO.delete(outputDir / ".sbt-version-snapshot")
     IO.delete(outputDir / ".sbt-post-update-hooks")
+    IO.delete(outputDir / ".sbt-pre-update-migrations")
 
     val remaining = ListBuffer(steps *)
 
