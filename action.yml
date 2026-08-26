@@ -1,5 +1,5 @@
 name: sbt-dependencies
-description: Update every dependency in project/dependencies.conf, run matching post-update hooks, and upsert an update pull request.
+description: Update every dependency in project/dependencies.conf, run matching scalafix migrations and post-update hooks, and upsert an update pull request.
 
 branding:
   icon: arrow-up-circle
@@ -29,8 +29,9 @@ inputs:
     default: ""
   create-pr:
     description: |
-      Whether to commit the changes (one commit per stage: the update, the
-      extra command, and each post-update hook, mirroring Scala Steward) and
+      Whether to commit the changes (one commit per stage: the update, each
+      pre-update migration, the extra command, and each post-update hook,
+      mirroring Scala Steward) and
       create/update the pull request. When `false` the working tree is left
       dirty for the caller to handle.
     required: false
@@ -52,7 +53,7 @@ inputs:
     required: false
     default: Update dependencies
   pr-body:
-    description: "Body for the created/updated pull request. The failure report (when an sbt step fails) and the post-update hooks report are appended to it."
+    description: "Body for the created/updated pull request. The failure report (when an sbt step fails), the BOM-managed versions report, the pre-update migrations report and the post-update hooks report are appended to it."
     required: false
     default: "Automated dependency updates from [`sbt-dependencies`](https://github.com/alejandrohdezma/sbt-dependencies)."
   github-token:
@@ -64,6 +65,9 @@ outputs:
   bom-report:
     description: "Markdown report of the BOM-managed versions adopted (and, in safe mode, left as is) by `useBomManagedVersions`. Empty when the task didn't run or had nothing to report."
     value: ${{ steps.bom.outputs.report }}
+  migrations-report:
+    description: "Markdown report of executed and failed pre-update scalafix migrations. Empty when no migration matched the update."
+    value: ${{ steps.migrations.outputs.report }}
   hooks-report:
     description: "Markdown report of executed and failed post-update hooks. Empty when no hooks matched the update."
     value: ${{ steps.hooks.outputs.report }}
@@ -150,6 +154,72 @@ runs:
           git add -A
           git commit -m "$COMMIT_MESSAGE"
         fi
+
+    # Scalafix migrations with `executionOrder = pre-update` (Scala Steward's default) are semantic rules that must
+    # compile against the classpath the project had BEFORE the update. Matching still happens after the update (the
+    # plugin only knows the real diff then), so each migration runs with the build files the update touched temporarily
+    # rewound to their pre-update content: checked out from the start commit when the update was committed, stashed
+    # when it wasn't. Sources changed by the rule stay, build files return to their updated state, and (in PR mode)
+    # every migration gets its own commit.
+    - name: Run pre-update migrations
+      id: migrations
+      shell: bash
+      env:
+        CREATE_PR: ${{ inputs.create-pr }}
+        START_SHA: ${{ steps.branch.outputs.start-sha }}
+      run: |
+        file=target/sbt-dependencies/.sbt-pre-update-migrations
+        ran=""
+        failed=""
+        if [ -f "$file" ]; then
+          if [ "$CREATE_PR" = "true" ]; then
+            mapfile -t files < <(git diff --name-only "$START_SHA" HEAD)
+            rewind()  { git checkout "$START_SHA" -- "${files[@]}"; }
+            restore() { git checkout HEAD -- "${files[@]}"; }
+          else
+            mapfile -t files < <(git diff --name-only HEAD)
+            rewind()  { git stash push --quiet -- "${files[@]}"; }
+            restore() { git stash pop --quiet; }
+          fi
+          if [ "${#files[@]}" -eq 0 ]; then
+            rewind()  { :; }
+            restore() { :; }
+          fi
+          while IFS= read -r hook; do
+            script=$(jq -r '.script' <<<"$hook")
+            message=$(jq -r '.message' <<<"$hook")
+            echo "::group::$message"
+            rewind
+            if bash -c "$script"; then
+              ran="$ran- $message"$'\n'
+            else
+              echo "::warning::Pre-update migration failed: $script"
+              failed="$failed- $message (\`$script\`)"$'\n'
+            fi
+            restore
+            if [ "$CREATE_PR" = "true" ] && [ -n "$(git status --porcelain)" ]; then
+              git add -A
+              git commit -m "$message"
+            fi
+            echo "::endgroup::"
+          done < <(jq -c '.[]' "$file")
+        fi
+        report=""
+        if [ -n "$ran" ]; then
+          report+=$'## :hammer_and_wrench: Pre-update migrations executed\n\n'"$ran"
+        fi
+        if [ -n "$failed" ]; then
+          [ -n "$report" ] && report+=$'\n'
+          report+=$'## :warning: Pre-update migrations that failed\n\n'"$failed"
+        fi
+        if [ -n "$report" ]; then
+          printf '%s' "$report" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        {
+          echo "report<<REPORT_EOF"
+          printf '%s' "$report"
+          echo "REPORT_EOF"
+        } >> "$GITHUB_OUTPUT"
 
     - name: Run extra command
       id: extra
@@ -298,6 +368,8 @@ runs:
           ${{ steps.failure.outputs.report }}
 
           ${{ steps.bom.outputs.report }}
+
+          ${{ steps.migrations.outputs.report }}
 
           ${{ steps.hooks.outputs.report }}
         github-token: ${{ inputs.github-token }}
