@@ -186,7 +186,7 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
     val expected = List(
       "\"com.typesafe:config:=1.4.9\""                                       -> pinnedMessage,
       "\"org.typelevel::cats-core:^2.10.0\""                                 -> pinnedMessage,
-      "{ dependency = \"org.scalameta::munit:1.2.4\", intransitive = true }" -> intransitiveMessage
+      "{ dependency = \"org.scalameta::munit:1.3.5\", intransitive = true }" -> intransitiveMessage
     )
 
     assertEquals(result, expected)
