@@ -84,7 +84,7 @@ class SbtDependenciesFoldingBuilderSuite extends munit.FunSuite {
     val text =
       """example = [
         |  "org.typelevel::cats-core:2.10.0"
-        |  { dependency = "org.scalameta::munit:1.2.4", intransitive = true }
+        |  { dependency = "org.scalameta::munit:1.3.5", intransitive = true }
         |  {
         |    dependency = "com.typesafe:config:=1.4.9"
         |    note = "Pinned"

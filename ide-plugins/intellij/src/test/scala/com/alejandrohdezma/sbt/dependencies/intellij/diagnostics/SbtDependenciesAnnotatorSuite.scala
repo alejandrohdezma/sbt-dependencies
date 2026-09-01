@@ -171,7 +171,7 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
         |  "com.typesafe:config:=1.4.9"
         |  "org.typelevel::cats-core:^2.10.0"
         |  "org.typelevel::cats-effect:3.6.1"
-        |  { dependency = "org.scalameta::munit:1.2.4", intransitive = true }
+        |  { dependency = "org.scalameta::munit:1.3.5", intransitive = true }
         |  { dependency = "io.circe::circe-core:0.14.10", intransitive = true, note = "why" }
         |  { dependency = "com.typesafe:config:=1.4.9", note = "Pinned" }
         |]
@@ -213,7 +213,7 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
   test("AddNoteQuickFix.edit inserts the note after the dependency field of an object entry") {
     val text =
       """example = [
-        |  { dependency = "org.scalameta::munit:1.2.4", intransitive = true }
+        |  { dependency = "org.scalameta::munit:1.3.5", intransitive = true }
         |]
         |""".stripMargin
 
@@ -221,7 +221,7 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
 
     val expected =
       """example = [
-        |  { dependency = "org.scalameta::munit:1.2.4", note = "", intransitive = true }
+        |  { dependency = "org.scalameta::munit:1.3.5", note = "", intransitive = true }
         |]
         |""".stripMargin
 
