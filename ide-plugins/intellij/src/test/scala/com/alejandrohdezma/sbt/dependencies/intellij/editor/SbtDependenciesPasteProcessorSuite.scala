@@ -30,9 +30,9 @@ class SbtDependenciesPasteProcessorSuite extends munit.FunSuite {
   }
 
   test("convertSbtDependency converts a bare dependency with a named configuration") {
-    val result = SbtDependenciesPasteProcessor.convertSbtDependency(""""org.scalameta" %% "munit" % "1.2.4" % Test""")
+    val result = SbtDependenciesPasteProcessor.convertSbtDependency(""""org.scalameta" %% "munit" % "1.3.5" % Test""")
 
-    val expected = Some("org.scalameta::munit:1.2.4:test")
+    val expected = Some("org.scalameta::munit:1.3.5:test")
 
     assertEquals(result, expected)
   }
@@ -79,14 +79,14 @@ class SbtDependenciesPasteProcessorSuite extends munit.FunSuite {
         |libraryDependencies += "org.typelevel" %% "cats-core" % "2.10.0"
         |
         |# another one
-        |"org.scalameta" %% "munit" % "1.2.4" % Test
+        |"org.scalameta" %% "munit" % "1.3.5" % Test
         |""".stripMargin
 
     val result = SbtDependenciesPasteProcessor.convertPaste(text)
 
     val expected = Some(
       """"org.typelevel::cats-core:2.10.0"
-        |"org.scalameta::munit:1.2.4:test"""".stripMargin
+        |"org.scalameta::munit:1.3.5:test"""".stripMargin
     )
 
     assertEquals(result, expected)

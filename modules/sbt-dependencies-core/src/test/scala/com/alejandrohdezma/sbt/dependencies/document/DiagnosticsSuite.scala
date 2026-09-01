@@ -537,7 +537,7 @@ class DiagnosticsSuite extends munit.FunSuite {
       """|my-group = []
          |
          |sbt-build {
-         |  scala-version = "~2.12.21"
+         |  scala-version = "~2.13.18"
          |  dependencies = []
          |}""".stripMargin
 

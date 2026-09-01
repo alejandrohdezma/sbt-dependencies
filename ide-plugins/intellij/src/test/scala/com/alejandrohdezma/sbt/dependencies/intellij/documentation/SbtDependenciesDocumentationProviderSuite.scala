@@ -74,7 +74,7 @@ class SbtDependenciesDocumentationProviderSuite extends munit.FunSuite {
   test("hoverHtml works on the dependency field of an object entry") {
     val text =
       """example = [
-        |  { dependency = "com.typesafe:config:=1.4.5", note = "Pinned" }
+        |  { dependency = "com.typesafe:config:=1.4.9", note = "Pinned" }
         |]
         |""".stripMargin
 
