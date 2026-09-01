@@ -168,12 +168,12 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
   test("missingNotes flags pinned strings and intransitive objects without a note") {
     val text =
       """example = [
-        |  "com.typesafe:config:=1.4.5"
+        |  "com.typesafe:config:=1.4.9"
         |  "org.typelevel::cats-core:^2.10.0"
         |  "org.typelevel::cats-effect:3.6.1"
         |  { dependency = "org.scalameta::munit:1.2.4", intransitive = true }
         |  { dependency = "io.circe::circe-core:0.14.10", intransitive = true, note = "why" }
-        |  { dependency = "com.typesafe:config:=1.4.5", note = "Pinned" }
+        |  { dependency = "com.typesafe:config:=1.4.9", note = "Pinned" }
         |]
         |""".stripMargin
 
@@ -184,7 +184,7 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
     }
 
     val expected = List(
-      "\"com.typesafe:config:=1.4.5\""                                       -> pinnedMessage,
+      "\"com.typesafe:config:=1.4.9\""                                       -> pinnedMessage,
       "\"org.typelevel::cats-core:^2.10.0\""                                 -> pinnedMessage,
       "{ dependency = \"org.scalameta::munit:1.2.4\", intransitive = true }" -> intransitiveMessage
     )
@@ -195,7 +195,7 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
   test("AddNoteQuickFix.edit wraps a plain string in object form") {
     val text =
       """example = [
-        |  "com.typesafe:config:=1.4.5"
+        |  "com.typesafe:config:=1.4.9"
         |]
         |""".stripMargin
 
@@ -203,7 +203,7 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
 
     val expected =
       """example = [
-        |  { dependency = "com.typesafe:config:=1.4.5", note = "" }
+        |  { dependency = "com.typesafe:config:=1.4.9", note = "" }
         |]
         |""".stripMargin
 
@@ -231,7 +231,7 @@ class SbtDependenciesAnnotatorSuite extends munit.FunSuite {
   test("AddNoteQuickFix.edit places the caret inside the note quotes") {
     val text =
       """example = [
-        |  "com.typesafe:config:=1.4.5"
+        |  "com.typesafe:config:=1.4.9"
         |]
         |""".stripMargin
 

@@ -21,7 +21,7 @@ class SbtDependenciesFoldingBuilderSuite extends munit.FunSuite {
   test("foldings hides the object syntax around the dependency string") {
     val text =
       """example = [
-        |  { dependency = "com.typesafe:config:=1.4.5", note = "Pinned to the sbt version" }
+        |  { dependency = "com.typesafe:config:=1.4.9", note = "Pinned to the sbt version" }
         |]
         |""".stripMargin
 
@@ -38,7 +38,7 @@ class SbtDependenciesFoldingBuilderSuite extends munit.FunSuite {
   test("foldings leaves the quoted dependency string uncovered") {
     val text =
       """example = [
-        |  { dependency = "com.typesafe:config:=1.4.5", note = "Pinned" }
+        |  { dependency = "com.typesafe:config:=1.4.9", note = "Pinned" }
         |]
         |""".stripMargin
 
@@ -46,7 +46,7 @@ class SbtDependenciesFoldingBuilderSuite extends munit.FunSuite {
 
     val visible = text.substring(result.head.region.end, result.last.region.start)
 
-    val expected = "\"com.typesafe:config:=1.4.5\""
+    val expected = "\"com.typesafe:config:=1.4.9\""
 
     assertEquals(visible, expected)
   }
@@ -54,7 +54,7 @@ class SbtDependenciesFoldingBuilderSuite extends munit.FunSuite {
   test("foldings tags both regions with the same entry span") {
     val text =
       """example = [
-        |  { dependency = "com.typesafe:config:=1.4.5", note = "Pinned" }
+        |  { dependency = "com.typesafe:config:=1.4.9", note = "Pinned" }
         |]
         |""".stripMargin
 
@@ -62,7 +62,7 @@ class SbtDependenciesFoldingBuilderSuite extends munit.FunSuite {
 
     assertEquals(
       result.map(_.entry).distinct.map(span => text.substring(span.start, span.end)),
-      List("{ dependency = \"com.typesafe:config:=1.4.5\", note = \"Pinned\" }")
+      List("{ dependency = \"com.typesafe:config:=1.4.9\", note = \"Pinned\" }")
     )
   }
 
@@ -86,7 +86,7 @@ class SbtDependenciesFoldingBuilderSuite extends munit.FunSuite {
         |  "org.typelevel::cats-core:2.10.0"
         |  { dependency = "org.scalameta::munit:1.2.4", intransitive = true }
         |  {
-        |    dependency = "com.typesafe:config:=1.4.5"
+        |    dependency = "com.typesafe:config:=1.4.9"
         |    note = "Pinned"
         |  }
         |]
