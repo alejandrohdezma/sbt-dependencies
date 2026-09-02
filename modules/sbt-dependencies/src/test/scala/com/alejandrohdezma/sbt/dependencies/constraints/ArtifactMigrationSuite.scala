@@ -255,17 +255,11 @@ class ArtifactMigrationSuite extends munit.FunSuite {
       |  { foo = bar }
       |]
       |""".stripMargin
-  }.test("loadFromUrls warns and skips when changes key is missing") { urls =>
+  }.test("loadFromUrls returns empty list without warning when changes key is missing") { urls =>
     val migrations = ArtifactMigration.loadFromUrls(urls)
 
     assertEquals(migrations, Nil)
-
-    val expectedLogs = List(
-      s"⚠ Skipping malformed ${ArtifactMigration.name} from $CYAN${urls.head}$RESET: " +
-        "must have a 'changes' array"
-    )
-
-    assertEquals(logger.getLogs(Level.Warn), expectedLogs)
+    assertEquals(logger.getLogs(Level.Warn), Nil)
   }
 
   test("loadFromUrls returns empty list for empty URL list") {

@@ -20,7 +20,10 @@ import java.io.File
 import java.net.URI
 import java.nio.file.Files
 
+import scala.Console._
+
 import sbt.IO
+import sbt.util.Level
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 
@@ -86,6 +89,27 @@ class PostUpdateHookSuite extends munit.FunSuite {
     val hooks = PostUpdateHook.loadFromUrls(urls)
 
     assertEquals(hooks, Nil)
+    assertEquals(logger.getLogs(Level.Warn), Nil)
+  }
+
+  withHookFile {
+    """postUpdateHooks = [
+      |  {
+      |    command = ["sbt", "compile"]
+      |  }
+      |]
+      |""".stripMargin
+  }.test("loadFromUrls warns and skips when entry missing commitMessage") { urls =>
+    val hooks = PostUpdateHook.loadFromUrls(urls)
+
+    assertEquals(hooks, Nil)
+
+    val expectedLogs = List(
+      s"⚠ Skipping malformed ${PostUpdateHook.name} from $CYAN${urls.head}$RESET: entry at index 0: " +
+        "must have a 'commitMessage'"
+    )
+
+    assertEquals(logger.getLogs(Level.Warn), expectedLogs)
   }
 
   def withHookFile(contents: String*) = FunFixture[List[URI]](

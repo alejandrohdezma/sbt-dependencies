@@ -67,7 +67,7 @@ final case class ArtifactMigration(
 object ArtifactMigration extends Cached[ArtifactMigration] {
 
   implicit val ArtifactMigrationConfigDecoder: ConfigDecoder[List[ArtifactMigration]] =
-    ConfigDecoder.configList[ArtifactMigration] { config =>
+    ConfigDecoder.optionalConfigList[ArtifactMigration] { config =>
       for {
         _ <- if (config.hasPath("groupIdBefore") || config.hasPath("artifactIdBefore")) Right(())
              else Left("must have at least one of 'groupIdBefore' or 'artifactIdBefore'")
