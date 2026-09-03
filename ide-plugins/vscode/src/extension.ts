@@ -80,14 +80,10 @@ function readDump(filePath: string) {
 const freshBaselines = new Map<string, string>();
 
 /**
- * Returns a resolution lookup for a `dependencies.conf` document, or `undefined` when no dump exists (feature off).
- *
- * The parsed dumps are cached and only re-read when a dump's mtime changes. Staleness is an exact SHA-1 mismatch
- * between the current buffer and the hash the plugin recorded when it wrote the dump — except when the buffer differs
- * from the last matching text only in version tokens (a rewrite to `*`, a manual bump): pins are keyed by
- * group/org/artifact, so the dump stays usable until something other than a version changes.
+ * The parsed dumps for a `dependencies.conf` document, or `undefined` when neither exists (feature off). Cached and
+ * only re-read when a dump's mtime changes.
  */
-function getResolutions(document: vscode.TextDocument): ResolutionLookup | undefined {
+function resolutionsIndexFor(document: vscode.TextDocument): ResolutionsIndex | undefined {
   if (document.languageId !== "sbt-dependencies") return undefined;
 
   const conf = document.uri.fsPath;
@@ -110,10 +106,39 @@ function getResolutions(document: vscode.TextDocument): ResolutionLookup | undef
     resolutionsCache.set(conf, entry);
   }
 
-  if (!entry.index.hasData) return undefined;
+  return entry.index.hasData ? entry.index : undefined;
+}
 
-  const bufferHash = crypto.createHash("sha1").update(document.getText(), "utf8").digest("hex");
-  let stale = entry.index.sourceHash !== undefined && entry.index.sourceHash !== bufferHash;
+/** SHA-1 of a buffer, in the form the dump records it. */
+function hashOf(text: string): string {
+  return crypto.createHash("sha1").update(text, "utf8").digest("hex");
+}
+
+/**
+ * Whether the sbt build needs re-importing: the buffer no longer hashes to what the plugin recorded when it wrote the
+ * dump. Unlike `ResolutionLookup.stale` this counts version-only edits, which leave the dump's pins usable but still
+ * change the classpath.
+ */
+function needsBuildImport(document: vscode.TextDocument): boolean {
+  const index = resolutionsIndexFor(document);
+
+  return index?.sourceHash !== undefined && index.sourceHash !== hashOf(document.getText());
+}
+
+/**
+ * Returns a resolution lookup for a `dependencies.conf` document, or `undefined` when no dump exists (feature off).
+ *
+ * Staleness is an exact SHA-1 mismatch between the current buffer and the hash the plugin recorded when it wrote the
+ * dump — except when the buffer differs from the last matching text only in version tokens (a rewrite to `*`, a manual
+ * bump): pins are keyed by group/org/artifact, so the dump stays usable until something other than a version changes.
+ * Use `needsBuildImport` instead to tell whether the build itself is out of date.
+ */
+function getResolutions(document: vscode.TextDocument): ResolutionLookup | undefined {
+  const index = resolutionsIndexFor(document);
+  if (!index) return undefined;
+
+  const conf = document.uri.fsPath;
+  let stale = index.sourceHash !== undefined && index.sourceHash !== hashOf(document.getText());
 
   if (!stale) {
     freshBaselines.set(conf, document.getText());
@@ -122,7 +147,7 @@ function getResolutions(document: vscode.TextDocument): ResolutionLookup | undef
     if (baseline !== undefined && normalizeVersions(baseline) === normalizeVersions(document.getText())) stale = false;
   }
 
-  return entry.index.asLookup(stale);
+  return index.asLookup(stale);
 }
 
 /** The name of the group whose range contains `line`, or `undefined` when outside any group. */
@@ -1374,11 +1399,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(importStatusBarItem);
 
   const updateImportStatus = (editor: vscode.TextEditor | undefined) => {
-    const stale =
-      editor && editor.document.languageId === "sbt-dependencies"
-        ? getResolutions(editor.document)?.stale
-        : undefined;
-    if (stale) {
+    if (editor && needsBuildImport(editor.document)) {
       importStatusBarItem.show();
     } else {
       importStatusBarItem.hide();
@@ -1392,8 +1413,8 @@ export function activate(context: vscode.ExtensionContext): void {
       if (document.languageId !== "sbt-dependencies") return;
       if (!vscode.workspace.getConfiguration("sbt-dependencies").get("buildImportPrompt", true)) return;
 
-      const stale = getResolutions(document)?.stale;
-      const hash = crypto.createHash("sha1").update(document.getText(), "utf8").digest("hex");
+      const stale = needsBuildImport(document);
+      const hash = hashOf(document.getText());
       const metalsInstalled = vscode.extensions.getExtension("scalameta.metals") !== undefined;
 
       if (!shouldPromptImport(stale, metalsInstalled, promptedHashes.get(document.uri.fsPath), hash)) return;
