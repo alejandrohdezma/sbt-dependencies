@@ -25,7 +25,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.39.1")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.39.2")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -1075,7 +1075,7 @@ Pre-update migrations need the classpath the project had before the update, so f
 
 A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
 
-Reference it as `alejandrohdezma/sbt-dependencies@v0.39.1`:
+Reference it as `alejandrohdezma/sbt-dependencies@v0.39.2`:
 
 ```yaml
 name: Update Dependencies
@@ -1103,7 +1103,7 @@ jobs:
 
       - uses: sbt/setup-sbt@v1
 
-      - uses: alejandrohdezma/sbt-dependencies@v0.39.1
+      - uses: alejandrohdezma/sbt-dependencies@v0.39.2
         with:
           config-file: .github/.scala-steward.conf
 ```
