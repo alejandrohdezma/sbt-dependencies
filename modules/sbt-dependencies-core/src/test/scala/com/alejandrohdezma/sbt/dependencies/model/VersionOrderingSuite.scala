@@ -61,9 +61,9 @@ class VersionOrderingSuite extends munit.FunSuite {
     assert(v(3, 2, 14, 0) > v(3, 2, 13, 9))
   }
 
-  test("different number of parts (treat missing as 0)") {
-    assertEquals(Ordering[Numeric].compare(v(1, 0), v(1, 0, 0)), 0)
-    assertEquals(Ordering[Numeric].compare(v(1, 0, 0), v(1, 0)), 0)
+  test("different number of parts (treat missing as 0, longer wins on a tie)") {
+    assert(v(1, 0) < v(1, 0, 0))
+    assert(v(1, 0, 0) > v(1, 0))
     assert(v(1, 0) < v(1, 0, 1))
     assert(v(1, 0, 1) > v(1, 0))
   }

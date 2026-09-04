@@ -20,6 +20,7 @@ import sbt._
 import sbt.librarymanagement.DependencyBuilders.OrganizationArtifactName
 import sbt.util.Logger
 
+import com.alejandrohdezma.sbt.dependencies.PluginCompat
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
@@ -132,6 +133,39 @@ class DependencyParseSuite extends munit.FunSuite {
     )
 
     assertEquals(result, expected)
+  }
+
+  test("parseIncludingMissingVersion resolves java dependency published without a 3-part version") {
+    val versionFinder: VersionFinder = (_, _, _, _) =>
+      List(
+        Version.Numeric(List(0, 3), Some("m"), Version.Numeric.Marker.NoMarker),
+        Version.Numeric(List(0, 4), None, Version.Numeric.Marker.NoMarker)
+      )
+
+    implicit val finders: Finders = Finders.noop.withVersionFinder(versionFinder)
+
+    val result = Dependency.parseIncludingMissingVersion("org.mindrot:jbcrypt")
+
+    val expected = Dependency(
+      organization = "org.mindrot",
+      name = "jbcrypt",
+      version = Version.Numeric(List(0, 4), None, Version.Numeric.Marker.NoMarker),
+      crossVersion = Dependency.Cross.Disabled
+    )
+
+    assertEquals(result, expected)
+  }
+
+  test("parseIncludingMissingVersion failure names the queried coordinates") {
+    implicit val finders: Finders = Finders.noop
+
+    val pluginShape = "jbcrypt" + PluginCompat.sbtPluginArtifactSuffix
+
+    interceptMessage[Exception](
+      s"Could not resolve org.mindrot:jbcrypt (no stable versions found for jbcrypt, $pluginShape)"
+    ) {
+      Dependency.parseIncludingMissingVersion("org.mindrot:jbcrypt")
+    }
   }
 
   test("parse invalid dependency throws exception") {

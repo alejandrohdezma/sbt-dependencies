@@ -17,6 +17,7 @@
 package com.alejandrohdezma.sbt.dependencies.model
 
 import scala.Console._
+import scala.collection.mutable.ListBuffer
 
 import sbt.Defaults.sbtPluginExtra
 import sbt.librarymanagement.CrossVersion
@@ -28,6 +29,7 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
+import com.alejandrohdezma.sbt.dependencies.finders.VersionFinder
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Cross
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version
 import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
@@ -336,17 +338,23 @@ object DependencyOps {
         isCross: Boolean,
         configuration: String = "compile"
     )(implicit finders: Finders, logger: Logger): Dependency = {
+      val queried = ListBuffer.empty[String]
+
+      def latestStableVersion(configuration: String, crossVersion: CrossVersion): Option[Numeric] = {
+        queried += VersionFinder.mavenArtifactName(name, finders.scalaVersion.value)(configuration, crossVersion).value
+
+        Utils.findLatestVersion(organization, name, configuration, crossVersion)(_.isStableVersion)
+      }
+
       val (resolvedCrossVersion, version) = configuration match {
         case "sbt-plugin" =>
           // sbt-plugin queries don't actually use crossVersion (the shape is fixed); keep `Disabled` since plugins are
           // not cross-compiled deps in the dependencies.conf sense.
-          Cross.Disabled ->
-            Utils.findLatestVersion(organization, name, "sbt-plugin", CrossVersion.disabled)(_.isStableVersion)
+          Cross.Disabled -> latestStableVersion("sbt-plugin", CrossVersion.disabled)
 
         case "compiler-plugin" if isCross =>
-          val full   = Utils.findLatestVersion(organization, name, configuration, CrossVersion.full)(_.isStableVersion)
-          val binary =
-            Utils.findLatestVersion(organization, name, configuration, CrossVersion.binary)(_.isStableVersion)
+          val full   = latestStableVersion(configuration, CrossVersion.full)
+          val binary = latestStableVersion(configuration, CrossVersion.binary)
 
           (full, binary) match {
             case (Some(f), Some(b)) if Ordering[Numeric].gteq(f, b) => Cross.Full   -> full
@@ -357,17 +365,20 @@ object DependencyOps {
 
         case _ =>
           val regular: Cross = if (isCross) Cross.Binary else Cross.Disabled
-          Utils.findLatestVersion(organization, name, configuration, regular.toSbt)(_.isStableVersion) match {
-            case found @ Some(_) => regular -> found
-            case None            =>
-              Cross.Disabled ->
-                Utils.findLatestVersion(organization, name, "sbt-plugin", CrossVersion.disabled)(_.isStableVersion)
+          latestStableVersion(configuration, regular.toSbt) match {
+            case found @ Some(_) => regular        -> found
+            case None            => Cross.Disabled -> latestStableVersion("sbt-plugin", CrossVersion.disabled)
           }
       }
 
       version
         .map(v => Dependency(organization, name, v, configuration, crossVersion = resolvedCrossVersion))
-        .getOrElse(Utils.fail(s"Could not resolve $organization:$name"))
+        .getOrElse {
+          Utils.fail {
+            s"Could not resolve $organization:$name " +
+              s"(no stable versions found for ${queried.distinct.mkString(", ")})"
+          }
+        }
     }
 
     /** Parses a dependency line, resolving the latest stable version when no version is specified.

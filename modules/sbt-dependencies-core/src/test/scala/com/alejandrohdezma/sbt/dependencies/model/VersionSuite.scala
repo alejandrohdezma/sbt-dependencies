@@ -29,14 +29,19 @@ class VersionSuite extends munit.FunSuite {
     assert(version.isStableVersion)
   }
 
-  test("isStableVersion returns false for 2-part version") {
+  test("isStableVersion returns true for 2-part version") {
     val version = Version.Numeric(List(1, 2), None, Marker.NoMarker)
-    assert(!version.isStableVersion)
+    assert(version.isStableVersion)
   }
 
-  test("isStableVersion returns false for 4-part version") {
+  test("isStableVersion returns true for 4-part version") {
     val version = Version.Numeric(List(1, 2, 3, 4), None, Marker.NoMarker)
-    assert(!version.isStableVersion)
+    assert(version.isStableVersion)
+  }
+
+  test("isStableVersion returns true for single-part version") {
+    val version = Version.Numeric(List(20240303), None, Marker.NoMarker)
+    assert(version.isStableVersion)
   }
 
   test("isStableVersion returns false for version with suffix") {

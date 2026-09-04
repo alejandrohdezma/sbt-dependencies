@@ -334,8 +334,8 @@ object Dependency {
       /** Returns a copy of this version with the given marker, preserving parts and suffix. */
       def withMarker(marker: Numeric.Marker): Numeric = copy(marker = marker)
 
-      /** Checks if the version is a stable version (3 parts, no suffix). */
-      def isStableVersion: Boolean = suffix.isEmpty && parts.length === 3
+      /** Checks if the version is a stable version (no pre-release/qualifier suffix). */
+      def isStableVersion: Boolean = suffix.isEmpty && parts.nonEmpty
 
       override def isSameVersion(other: Version): Boolean = other match {
         case n: Numeric => parts === n.parts && suffix === n.suffix
@@ -391,7 +391,9 @@ object Dependency {
 
       implicit val NumericEq: Eq[Numeric] = (a, b) => VersionEq.eqv(a, b)
 
-      /** Ordering for versions: compares numeric parts left-to-right, then suffix numbers. */
+      /** Ordering for versions: compares numeric parts left-to-right, then suffix numbers, then part count (so `1.0.0`
+        * wins over `1.0` when an artifact publishes both shapes).
+        */
       implicit val NumericVersionOrdering: Ordering[Numeric] = (v1: Numeric, v2: Numeric) => {
         val maxLen  = math.max(v1.parts.length, v2.parts.length)
         val padded1 = v1.parts.padTo(maxLen, 0)
@@ -402,8 +404,11 @@ object Dependency {
           case (acc, (_, _)) => acc
         }
 
+        val suffixComparison = v1.suffixNumber.getOrElse(BigInt(0)).compareTo(v2.suffixNumber.getOrElse(BigInt(0)))
+
         if (partsComparison !== 0) partsComparison
-        else v1.suffixNumber.getOrElse(BigInt(0)).compareTo(v2.suffixNumber.getOrElse(BigInt(0)))
+        else if (suffixComparison !== 0) suffixComparison
+        else v1.parts.length.compareTo(v2.parts.length)
       }
 
       private val regex = """^(\d+(?:\.\d+)*)(.*)$""".r

@@ -1,5 +1,6 @@
 # Verify install without version resolves latest
 > compile
 > myproject/install org.typelevel::cats-effect
+> myproject/install org.mindrot:jbcrypt
 > reload
 > assertTest
