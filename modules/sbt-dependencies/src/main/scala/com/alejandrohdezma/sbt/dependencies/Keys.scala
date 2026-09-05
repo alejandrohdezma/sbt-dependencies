@@ -29,23 +29,13 @@ class Keys {
   val moduleIdsFromFile = settingKey[Seq[ModuleID]]("Module IDs read from the file `project/dependencies`")
 
   /** The flattened pins of every BOM visible to this project, one entry per `organization:name` (when two BOMs pin the
-    * same artifact the first-declared BOM wins). `*` versions resolve against it. It is not applied to
-    * `dependencyOverrides` by default: a forced version silently beats an explicit one declared in `dependencies.conf`
-    * and never shows up in sbt's eviction diagnostics.
-    *
-    * @example
-    *   {{{
-    * // Force transitive dependencies to the BOMs' versions
-    * dependencyOverrides ++= dependenciesFromBom.value
-    *
-    * // Or all but some pins
-    * dependencyOverrides ++= dependenciesFromBom.value.filterNot(_.organization == "com.google.protobuf")
-    *   }}}
+    * same artifact the first-declared BOM wins). `*` versions resolve against it. To force a BOM's pins across the
+    * whole dependency graph, mark its line with `overrides = true` in `dependencies.conf` — see
+    * [[dependencyOverridesFromFile]].
     */
   val dependenciesFromBom = settingKey[Seq[ModuleID]] {
     "Flattened managed dependencies read from the group's (and common-settings') `:bom` BOMs plus the ones" +
-      " inherited through dependsOn, one entry per module (the first-declared BOM wins). `*` versions resolve" +
-      " against it; append it to dependencyOverrides to force transitive dependencies to the BOMs' versions"
+      " inherited through dependsOn, one entry per module (the first-declared BOM wins). `*` versions resolve against it"
   }
 
   /** The `dependencyOverrides` entries declared in `dependencies.conf` with `overrides = true`: every pin of a flagged

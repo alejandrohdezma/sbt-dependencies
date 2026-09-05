@@ -240,9 +240,7 @@ class Settings {
     * Pins keep BOM declaration order — the project group's BOMs, then `common-settings`', then the groups of every
     * project this one depends on (transitively, via `dependsOn`) — each flattened to entries sorted by
     * organization/name, and deduplicated by `organization:name` keeping the first entry. So the closest BOM pinning an
-    * artifact wins (Maven's import semantics): the project's own BOMs take precedence over inherited ones, both for
-    * BOM-managed versions (`*`) and when the build appends the pins to `dependencyOverrides` (where coursier's
-    * force-versions map would otherwise let the last one win).
+    * artifact wins (Maven's import semantics): the project's own BOMs take precedence over inherited ones.
     *
     * Inheritance follows the project graph regardless of the `dependsOn` configuration mapping (a test-scoped
     * dependency contributes its pins to every scope): pins only select versions, they never add artifacts. Inherited

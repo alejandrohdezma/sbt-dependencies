@@ -135,8 +135,8 @@ class Commands {
     }
 
     // Write `sbt-build` only when it actually carries plugin dependencies. Annotations from the existing file (notes,
-    // intransitive flags, scala-filters, cross-version overrides) are merged onto the build-derived deps so re-runs
-    // of `init` don't clobber the user's hand-written annotations.
+    // intransitive and overrides flags, scala-filters, cross-version overrides) are merged onto the build-derived deps
+    // so re-runs of `init` don't clobber the user's hand-written annotations.
     val sbtBuildDeps = dependenciesByGroup.getOrElse(`sbt-build`, Nil)
     if (newGroups.contains(`sbt-build`) && sbtBuildDeps.nonEmpty) {
       file.write(`sbt-build`, file.applyExistingAnnotations(`sbt-build`, sbtBuildDeps))
