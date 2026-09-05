@@ -491,6 +491,39 @@ describe("formatDocument", () => {
     ].join("\n") + "\n");
   });
 
+  it("preserves overrides = true in single-line object", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "com.fasterxml.jackson:jackson-bom:2.17.0:bom", overrides = true }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "com.fasterxml.jackson:jackson-bom:2.17.0:bom", overrides = true }',
+      ']',
+    ].join("\n") + "\n");
+  });
+
+  it("normalizes multi-line overrides object to single-line and orders it after intransitive", () => {
+    const lines = [
+      'my-group = [',
+      '  {',
+      '    dependency = "org:name:1.0"',
+      '    overrides = true',
+      '    intransitive = true',
+      '    note = "reason"',
+      '  }',
+      ']',
+    ];
+    const result = formatDocument(lines);
+    expect(result).toBe([
+      'my-group = [',
+      '  { dependency = "org:name:1.0", note = "reason", intransitive = true, overrides = true }',
+      ']',
+    ].join("\n") + "\n");
+  });
+
   it("preserves both note and intransitive = true", () => {
     const lines = [
       'my-group = [',

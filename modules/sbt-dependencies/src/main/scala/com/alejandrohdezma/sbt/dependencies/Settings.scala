@@ -126,7 +126,7 @@ class Settings {
     }
   }
 
-  /** The list of library dependencies to add to the project.
+  /** The dependency lines this project contributes to `libraryDependencies`, with their versions resolved.
     *
     * Merges `common-settings.dependencies` with the project group's own dependencies. When both groups declare a
     * dependency with the same `(organization, name)`, the project entry wins regardless of configuration.
@@ -137,8 +137,7 @@ class Settings {
     *
     * In the meta-build, only the project group is read — `common-settings.dependencies` are not for plugins.
     */
-  val moduleIdsFromFile: Def.Initialize[Seq[ModuleID]] = Def.setting {
-    val sbtV                    = (pluginCrossBuild / sbtBinaryVersion).value
+  private[dependencies] val dependenciesForProject: Def.Initialize[Seq[Dependency]] = Def.setting {
     val scalaV                  = (update / scalaBinaryVersion).value
     implicit val logger: Logger = sLog.value
 
@@ -146,14 +145,13 @@ class Settings {
     val file              = dependenciesFile.value
     val bomPins           = Keys.dependenciesFromBom.value
 
-    def readGroup(group: Group): Seq[ModuleID] =
+    def readGroup(group: Group): Seq[Dependency] =
       file
         .read(group, variableResolvers)
         .filterNot(_.configuration === "bom") // `:bom` entries go to `dependenciesFromBom`, not `libraryDependencies`
         .filter(_.matchesScalaVersion(scalaV))
         .filter(dep => dep.scalaFilter.forall(scalaV.startsWith))
         .map(resolveBomVersion(_, bomPins, scalaV))
-        .map(_.toModuleID(sbtV, scalaV))
 
     val projectDeps = readGroup(currentGroup.value)
 
@@ -161,15 +159,78 @@ class Settings {
       if (isSbtBuild.value) Seq.empty
       else readGroup(`common-settings`)
 
-    val projectKeys = projectDeps.map(m => (m.organization, m.name)).toSet
-    val merged      = commonDeps.filterNot(m => projectKeys.contains((m.organization, m.name))) ++ projectDeps
+    val projectKeys = projectDeps.map(d => (d.organization, d.name)).toSet
+
+    commonDeps.filterNot(d => projectKeys.contains((d.organization, d.name))) ++ projectDeps
+  }
+
+  /** `dependenciesForProject` as `ModuleID`s, plus this plugin itself in the meta-build so it is available in the build
+    * definition.
+    */
+  val moduleIdsFromFile: Def.Initialize[Seq[ModuleID]] = Def.setting {
+    val sbtV   = (pluginCrossBuild / sbtBinaryVersion).value
+    val scalaV = (update / scalaBinaryVersion).value
 
     lazy val self =
       sbtPluginExtra("com.alejandrohdezma" % "sbt-dependencies" % BuildInfo.version, sbtV, scalaV)
 
-    // Add self when in meta-build so the plugin is available in the build definition
-    merged ++ (if (isSbtBuild.value) Seq(self) else Seq.empty)
+    dependenciesForProject.value.map(_.toModuleID(sbtV, scalaV)) ++ (if (isSbtBuild.value) Seq(self) else Seq.empty)
   }
+
+  /** The `dependencyOverrides` entries declared with `overrides = true` in the groups visible to this project (see
+    * `visibleGroups`): every pin of a flagged `:bom` line, filtered through `bomOverridesFilter`, and the resolved
+    * revision of every flagged dependency line. Within a group, flagged lines come before flagged BOMs; across groups,
+    * visibility order applies; the first entry per module wins.
+    *
+    * Modules the project declares itself without the flag (see `dependenciesForProject`) are removed, so an explicit
+    * line is never silently defeated by an inherited override — the post-`update` mismatch warning reports when a
+    * transitive dependency outvotes it instead. Names are made concrete (`cats-core_2.13`) so BOM pins and `::` lines
+    * dedupe together.
+    */
+  val dependencyOverridesFromFile: Def.Initialize[Seq[ModuleID]] = Def.setting {
+    val sbtV     = (pluginCrossBuild / sbtBinaryVersion).value
+    val scalaV   = (update / scalaBinaryVersion).value
+    val concrete = CrossVersion(scalaVersion.value, scalaV)
+
+    implicit val logger: Logger         = sLog.value
+    implicit val fetcher: ModuleFetcher = bomFetcher.value
+
+    val variableResolvers = Keys.dependencyVersionVariables.value
+    val file              = dependenciesFile.value
+    val bomPins           = Keys.dependenciesFromBom.value
+    val filter            = Keys.bomOverridesFilter.value
+
+    def flaggedIn(group: Group): Seq[ModuleID] = {
+      val (boms, lines) = file
+        .read(group, variableResolvers)
+        .filter(_.overrides)
+        .filter(_.matchesScalaVersion(scalaV))
+        .filter(dep => dep.scalaFilter.forall(scalaV.startsWith))
+        .partition(_.configuration === "bom")
+
+      val fromLines = lines.map(resolveBomVersion(_, bomPins, scalaV)).map(_.toModuleID(sbtV, scalaV)).map(concrete)
+
+      val fromBoms = boms
+        .map(_.toModuleID(sbtV, scalaV))
+        .flatMap(BomReader.read(_, scalaV))
+        .filter(pin => filter.applyOrElse(pin, (_: ModuleID) => true))
+
+      fromLines ++ fromBoms
+    }
+
+    val declared = dependenciesForProject.value.filterNot(_.overrides).map(_.toModuleID(sbtV, scalaV)).map(concrete)
+
+    overridesFrom(visibleGroups.value.flatMap(flaggedIn), declared)
+  }
+
+  /** Keeps the first of `flagged` per `organization:name`, drops the modules present in `declared` and strips
+    * configurations (overrides are not configuration-scoped).
+    */
+  private[dependencies] def overridesFrom(flagged: Seq[ModuleID], declared: Seq[ModuleID]): Seq[ModuleID] =
+    Bom
+      .dedupeByModule(flagged)
+      .filterNot(o => declared.exists(d => d.organization === o.organization && d.name === o.name))
+      .map(_.withConfigurations(None))
 
   /** The flattened managed dependencies of every BOM this project declares with the `bom` configuration — its own group
     * plus, for non-meta projects, `common-settings` (so an org-wide BOM in `common-settings` is inherited by every
@@ -179,9 +240,7 @@ class Settings {
     * Pins keep BOM declaration order — the project group's BOMs, then `common-settings`', then the groups of every
     * project this one depends on (transitively, via `dependsOn`) — each flattened to entries sorted by
     * organization/name, and deduplicated by `organization:name` keeping the first entry. So the closest BOM pinning an
-    * artifact wins (Maven's import semantics): the project's own BOMs take precedence over inherited ones, both for
-    * BOM-managed versions (`*`) and when the build appends the pins to `dependencyOverrides` (where coursier's
-    * force-versions map would otherwise let the last one win).
+    * artifact wins (Maven's import semantics): the project's own BOMs take precedence over inherited ones.
     *
     * Inheritance follows the project graph regardless of the `dependsOn` configuration mapping (a test-scoped
     * dependency contributes its pins to every scope): pins only select versions, they never add artifacts. Inherited
@@ -199,34 +258,38 @@ class Settings {
     Bom.dedupeByModule(visibleBoms.value.flatMap(BomReader.read(_, scalaV)))
   }
 
-  /** The `:bom` coordinates visible to this project, in precedence order: its own group, then (for non-meta projects)
-    * `common-settings`, then the groups of every project it depends on (transitively, via `dependsOn`), all flattened
-    * with this project's sbt/Scala versions.
+  /** The groups whose BOMs and `overrides = true` lines apply to this project, in precedence order: its own group, then
+    * (for non-meta projects) `common-settings`, then the groups of every project it depends on (transitively, via
+    * `dependsOn`).
     */
-  private def visibleBoms: Def.Initialize[Seq[ModuleID]] = Def.settingDyn {
+  private def visibleGroups: Def.Initialize[Seq[Group]] = Def.settingDyn {
     val dependencyRefs = buildDependencies.value.classpathTransitive.getOrElse(thisProjectRef.value, Nil)
 
     val inheritedGroups = dependencyRefs.map(ref => Def.setting(Group((ref / name).value))).join
 
     Def.setting {
-      val sbtV   = (pluginCrossBuild / sbtBinaryVersion).value
-      val scalaV = (update / scalaBinaryVersion).value
+      val common = if (isSbtBuild.value) Nil else List(`common-settings`)
 
-      val variableResolvers = Keys.dependencyVersionVariables.value
-
-      implicit val logger: Logger = sLog.value
-
-      def bomsOf(group: Group): Seq[ModuleID] =
-        dependenciesFile.value
-          .read(group, variableResolvers)
-          .filter(_.configuration === "bom")
-          .map(_.toModuleID(sbtV, scalaV))
-
-      bomsOf(currentGroup.value)
-        .++(if (isSbtBuild.value) Nil else bomsOf(`common-settings`))
-        .++(inheritedGroups.value.flatMap(bomsOf))
-        .distinct
+      (currentGroup.value +: common) ++ inheritedGroups.value
     }
+  }
+
+  /** The `:bom` coordinates of every `visibleGroups`, flattened with this project's sbt/Scala versions. */
+  private def visibleBoms: Def.Initialize[Seq[ModuleID]] = Def.setting {
+    val sbtV   = (pluginCrossBuild / sbtBinaryVersion).value
+    val scalaV = (update / scalaBinaryVersion).value
+
+    val variableResolvers = Keys.dependencyVersionVariables.value
+
+    implicit val logger: Logger = sLog.value
+
+    def bomsOf(group: Group): Seq[ModuleID] =
+      dependenciesFile.value
+        .read(group, variableResolvers)
+        .filter(_.configuration === "bom")
+        .map(_.toModuleID(sbtV, scalaV))
+
+    visibleGroups.value.flatMap(bomsOf).distinct
   }
 
   /** A pom fetcher over the project's `update` resolvers, with sbt's conventional credential files loaded first so BOMs

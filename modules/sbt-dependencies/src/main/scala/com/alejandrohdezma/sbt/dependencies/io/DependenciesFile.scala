@@ -99,7 +99,9 @@ final case class DependenciesFile(file: File) {
       case None => parsed.crossVersion
     }
 
-    val dep = parsed.withAnnotations(annotated.note, annotated.intransitive, annotated.scalaFilter, crossVersion)
+    val dep = parsed.withAnnotations(
+      annotated.note, annotated.intransitive, annotated.scalaFilter, crossVersion, annotated.overrides
+    )
 
     val supportedInVariable = List[Dependency.Cross](Dependency.Cross.Binary, Dependency.Cross.Disabled)
 
@@ -205,7 +207,9 @@ final case class DependenciesFile(file: File) {
       .get(group)
       .toList
       .flatMap(_.dependencies)
-      .filter(ad => ad.note.isDefined || ad.intransitive || ad.scalaFilter.isDefined || ad.crossVersion.isDefined)
+      .filter { ad =>
+        ad.note.isDefined || ad.intransitive || ad.overrides || ad.scalaFilter.isDefined || ad.crossVersion.isDefined
+      }
       .flatMap { ad =>
         ad.line match {
           case Dependency.dependencyRegex(org, _, name, _, config) =>
@@ -224,7 +228,8 @@ final case class DependenciesFile(file: File) {
             note = ann.note.orElse(dep.note),
             intransitive = ann.intransitive || dep.intransitive,
             scalaFilter = ann.scalaFilter.orElse(dep.scalaFilter),
-            crossVersion = crossVersion
+            crossVersion = crossVersion,
+            overrides = ann.overrides || dep.overrides
           )
       }
     }

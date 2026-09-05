@@ -140,16 +140,10 @@ describe("parseNoteDecorations", () => {
     expect(suffix).toBe(', note = "waiting" }');
   });
 
-  it("returns decoration data for object with both note and intransitive fields", () => {
+  it("leaves an object with both note and intransitive fields uncollapsed", () => {
     const line = '  { dependency = "org.http4s::http4s-core:=0.23.3", note = "reason", intransitive = true }';
     const lines = ['my-group = [', line, ']'];
-    const results = parseNoteDecorations(lines);
-    expect(results).toHaveLength(1);
-    expect(results[0].noteText).toBe("reason");
-
-    const r = results[0];
-    const visiblePart = line.slice(r.prefixRange.endCol, r.suffixRange.startCol);
-    expect(visiblePart).toBe('"org.http4s::http4s-core:=0.23.3"');
+    expect(parseNoteDecorations(lines)).toHaveLength(0);
   });
 
   it("returns decoration for scala-filter-only entry in simple group", () => {
@@ -185,15 +179,40 @@ describe("parseNoteDecorations", () => {
     expect(results[0].noteText).toBe("only for Scala 2.13");
   });
 
-  it("prefers note over scala-filter when both are present", () => {
+  it("leaves an object with both note and scala-filter uncollapsed", () => {
     const lines = [
       'my-group = [',
       '  { dependency = "org.scala-lang:scala-reflect:{{scala}}", note = "Not available for Scala 3", scala-filter = "2" }',
       ']',
     ];
+    expect(parseNoteDecorations(lines)).toHaveLength(0);
+  });
+
+  it("returns decoration for overrides-only entry", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "com.fasterxml.jackson:jackson-bom:2.17.0:bom", overrides = true }',
+      ']',
+    ];
     const results = parseNoteDecorations(lines);
     expect(results).toHaveLength(1);
-    expect(results[0].noteText).toBe("Not available for Scala 3");
+    expect(results[0].line).toBe(1);
+    expect(results[0].noteText).toBe("overrides");
+
+    const visiblePart = lines[1].slice(results[0].prefixRange.endCol, results[0].suffixRange.startCol);
+    expect(visiblePart).toBe('"com.fasterxml.jackson:jackson-bom:2.17.0:bom"');
+
+    const suffixText = lines[1].slice(results[0].suffixRange.startCol, results[0].suffixRange.endCol);
+    expect(suffixText).toBe(', overrides = true }');
+  });
+
+  it("leaves an object with both note and overrides uncollapsed", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.apache.kafka:kafka-clients:3.9.2", note = "Matches the broker", overrides = true }',
+      ']',
+    ];
+    expect(parseNoteDecorations(lines)).toHaveLength(0);
   });
 
   it("does not return decoration for intransitive-only object (no note)", () => {

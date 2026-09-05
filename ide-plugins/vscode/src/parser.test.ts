@@ -172,6 +172,25 @@ describe("walkDocument", () => {
       expect(objs[0].intransitive).toBe(true);
     });
 
+    it("detects overrides field", () => {
+      const objs = eventsOfType(
+        `group = [\n  { dependency = "org:bom:1.0:bom", overrides = true }\n  { dependency = "org:art:1.0", note = "reason" }\n]`,
+        "single-line-object"
+      );
+      expect(objs).toHaveLength(2);
+      expect(objs[0].overrides).toBe(true);
+      expect(objs[1].overrides).toBe(false);
+    });
+
+    it("aggregates overrides field in multi-line end event", () => {
+      const ends = eventsOfType(
+        `group = [\n  {\n    dependency = "org:bom:1.0:bom"\n    overrides = true\n  }\n]`,
+        "multi-line-object-end"
+      );
+      expect(ends).toHaveLength(1);
+      expect(ends[0].hasOverrides).toBe(true);
+    });
+
     it("detects scala-filter field", () => {
       const objs = eventsOfType(
         `group = [\n  { dependency = "org:art:1.0", scala-filter = "2.13" }\n]`,

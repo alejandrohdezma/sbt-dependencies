@@ -1,7 +1,7 @@
-import { walkDocument, objectDepFieldPattern, objectNoteFieldPattern, objectIntransitiveFieldPattern, objectScalaFilterFieldPattern, objectCrossVersionFieldPattern } from "./parser";
+import { walkDocument, objectDepFieldPattern, objectNoteFieldPattern, objectIntransitiveFieldPattern, objectOverridesFieldPattern, objectScalaFilterFieldPattern, objectCrossVersionFieldPattern } from "./parser";
 
 const legalCrossVersionValues = ["full", "binary", "patch", "disabled"] as const;
-const missingAnnotationMessage = "Object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field";
+const missingAnnotationMessage = "Object entry must have a 'note', 'intransitive', 'overrides', 'scala-filter', or 'cross-version' field";
 const invalidCrossVersionMessage = `Invalid cross-version value: must be one of ${legalCrossVersionValues.map(v => `"${v}"`).join(", ")}`;
 const wildcardBomConfigMessage = 'Version "*" cannot be combined with the "bom" configuration — a BOM coordinate cannot take its version from a BOM';
 const wildcardSbtPluginConfigMessage = 'Version "*" cannot be combined with the "sbt-plugin" configuration — BOMs cannot pin sbt plugin coordinates';
@@ -116,6 +116,7 @@ function validateObjectEntry(
   const depMatch = objectDepFieldPattern.exec(objectText);
   const hasNote = objectNoteFieldPattern.test(objectText);
   const hasIntransitive = objectIntransitiveFieldPattern.test(objectText);
+  const hasOverrides = objectOverridesFieldPattern.test(objectText);
   const hasScalaFilter = objectScalaFilterFieldPattern.test(objectText);
   const cvMatch = objectCrossVersionFieldPattern.exec(objectText);
   const hasCrossVersion = cvMatch !== null;
@@ -130,7 +131,7 @@ function validateObjectEntry(
     return { diagnostics, depKey };
   }
 
-  if (!hasNote && !hasIntransitive && !hasScalaFilter && !hasCrossVersion) {
+  if (!hasNote && !hasIntransitive && !hasOverrides && !hasScalaFilter && !hasCrossVersion) {
     diagnostics.push({
       message: missingAnnotationMessage,
       severity: "error",
@@ -277,7 +278,7 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
             source: "sbt-dependencies",
             range: { startLine: event.objectStartLine, startCol: 0, endLine: event.lineIndex, endCol: event.rawLine.length },
           });
-        } else if (!event.hasNote && !event.hasIntransitive && !event.hasScalaFilter && !event.hasCrossVersion) {
+        } else if (!event.hasNote && !event.hasIntransitive && !event.hasOverrides && !event.hasScalaFilter && !event.hasCrossVersion) {
           diagnostics.push({
             message: missingAnnotationMessage,
             severity: "error",

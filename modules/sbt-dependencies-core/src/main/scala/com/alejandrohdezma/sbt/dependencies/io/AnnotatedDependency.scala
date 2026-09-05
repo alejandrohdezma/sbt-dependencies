@@ -37,14 +37,15 @@ final case class AnnotatedDependency(
     note: Option[String] = None,
     intransitive: Boolean = false,
     scalaFilter: Option[String] = None,
-    crossVersion: Option[String] = None
+    crossVersion: Option[String] = None,
+    overrides: Boolean = false
 ) {
 
   /** Formats a single dependency entry as HOCON, using single-line object format if it fits within the max line length
     * (120 characters), or multi-line otherwise.
     */
   def format: String =
-    if (note.isEmpty && !intransitive && scalaFilter.isEmpty && crossVersion.isEmpty) s""""$line""""
+    if (note.isEmpty && !intransitive && !overrides && scalaFilter.isEmpty && crossVersion.isEmpty) s""""$line""""
     else if (singleLine.length <= 120) singleLine
     else multiLine
 
@@ -52,12 +53,13 @@ final case class AnnotatedDependency(
   lazy val multiLine = {
     val noteField         = note.map(n => s"""  note = "$n"\n""").getOrElse("")
     val intransitiveField = if (intransitive) "  intransitive = true\n" else ""
+    val overridesField    = if (overrides) "  overrides = true\n" else ""
     val scalaFilterField  = scalaFilter.map(f => s"""  scala-filter = "$f"\n""").getOrElse("")
     val crossVersionField = crossVersion.map(c => s"""  cross-version = "$c"\n""").getOrElse("")
 
     s"""{
        |  dependency = "$line"
-       |$noteField$intransitiveField$scalaFilterField$crossVersionField}""".stripMargin
+       |$noteField$intransitiveField$overridesField$scalaFilterField$crossVersionField}""".stripMargin
   }
 
   /** Formats a single dependency entry as a single-line object. */
@@ -66,10 +68,11 @@ final case class AnnotatedDependency(
   private def extraFields: String = {
     val noteField         = note.map(n => s"""note = "$n"""")
     val intransitiveField = if (intransitive) Some("intransitive = true") else None
+    val overridesField    = if (overrides) Some("overrides = true") else None
     val scalaFilterField  = scalaFilter.map(f => s"""scala-filter = "$f"""")
     val crossVersionField = crossVersion.map(c => s"""cross-version = "$c"""")
 
-    List(noteField, intransitiveField, scalaFilterField, crossVersionField).flatten.mkString(", ")
+    List(noteField, intransitiveField, overridesField, scalaFilterField, crossVersionField).flatten.mkString(", ")
   }
 
 }
@@ -106,18 +109,23 @@ object AnnotatedDependency {
                 val dependency     = obj.getString(Fields.Dependency)
                 val note           = if (obj.hasPath(Fields.Note)) Some(obj.getString(Fields.Note)) else None
                 val isIntransitive = obj.hasPath(Fields.Intransitive) && obj.getBoolean(Fields.Intransitive)
+                val isOverrides    = obj.hasPath(Fields.Overrides) && obj.getBoolean(Fields.Overrides)
                 val scalaFilter    = if (obj.hasPath(Fields.ScalaFilter)) Some(obj.getString(Fields.ScalaFilter)) else None
                 val crossVersion   =
                   if (obj.hasPath(Fields.CrossVersion)) Some(obj.getString(Fields.CrossVersion)) else None
 
                 val allowedCross = Set("full", "binary", "patch", "disabled")
 
-                if (note.isEmpty && !isIntransitive && scalaFilter.isEmpty && crossVersion.isEmpty)
-                  Left("object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field")
+                if (note.isEmpty && !isIntransitive && !isOverrides && scalaFilter.isEmpty && crossVersion.isEmpty)
+                  Left(
+                    "object entry must have a 'note', 'intransitive', 'overrides', 'scala-filter', or 'cross-version' field"
+                  )
                 else if (crossVersion.nonEmpty && !allowedCross.contains(crossVersion.get))
                   Left(s"'cross-version' must be one of ${allowedCross.mkString(", ")}, got '${crossVersion.get}'")
                 else
-                  Right(acc :+ AnnotatedDependency(dependency, note, isIntransitive, scalaFilter, crossVersion))
+                  Right(
+                    acc :+ AnnotatedDependency(dependency, note, isIntransitive, scalaFilter, crossVersion, isOverrides)
+                  )
               }
 
             case other =>
@@ -138,7 +146,7 @@ object AnnotatedDependency {
     val crossVersion   = Dependency.crossVersionKeyword(dep.crossVersion).filter(_ !== defaultKeyword)
 
     AnnotatedDependency(line = dep.toLine, note = dep.note, intransitive = dep.intransitive,
-      scalaFilter = dep.scalaFilter, crossVersion = crossVersion)
+      scalaFilter = dep.scalaFilter, crossVersion = crossVersion, overrides = dep.overrides)
   }
 
 }

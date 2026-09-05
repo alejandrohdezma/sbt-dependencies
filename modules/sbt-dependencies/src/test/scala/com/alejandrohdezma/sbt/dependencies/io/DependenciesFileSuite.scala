@@ -1589,6 +1589,46 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertNoDiff(content, expected)
   }
 
+  // --- overrides preservation tests ---
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "com.fasterxml.jackson:jackson-bom:2.17.0:bom", overrides = true }
+       |  { dependency = "org.http4s::http4s-core:0.23.3", overrides = true }
+       |]
+       |""".stripMargin
+  }.test("write preserves overrides flag through version update") { file =>
+    val newDeps = List(
+      Dependency(
+        "com.fasterxml.jackson",
+        "jackson-bom",
+        Version.Numeric(List(2, 17, 1), None, Version.Numeric.Marker.NoMarker),
+        "bom",
+        overrides = true
+      ),
+      Dependency(
+        "org.http4s",
+        "http4s-core",
+        Version.Numeric(List(0, 23, 4), None, Version.Numeric.Marker.NoMarker),
+        crossVersion = Dependency.Cross.Binary,
+        overrides = true
+      )
+    )
+
+    DependenciesFile(file).write(Group("my-project"), newDeps)
+
+    val content = IO.read(file)
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "com.fasterxml.jackson:jackson-bom:2.17.1:bom", overrides = true }
+         |  { dependency = "org.http4s::http4s-core:0.23.4", overrides = true }
+         |]
+         |""".stripMargin
+
+    assertNoDiff(content, expected)
+  }
+
   // --- intransitive preservation tests ---
 
   withDependenciesFile {

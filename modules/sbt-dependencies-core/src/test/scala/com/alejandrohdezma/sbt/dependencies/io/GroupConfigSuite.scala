@@ -248,7 +248,7 @@ class GroupConfigSuite extends munit.FunSuite {
     val result = parseGroup("""my-group = [{ dependency = "org::name:1.0" }]""", "my-group")
 
     assert(result.isLeft)
-    assert(result.left.exists(_.contains("'note', 'intransitive', 'scala-filter', or 'cross-version'")))
+    assert(result.left.exists(_.contains("'note', 'intransitive', 'overrides', 'scala-filter', or 'cross-version'")))
   }
 
   // --- parse() tests: Object format with intransitive ---
@@ -274,6 +274,40 @@ class GroupConfigSuite extends munit.FunSuite {
     assertEquals(
       result,
       Right(GroupConfig.Simple(List(AnnotatedDependency("org::name:=1.0.0", Some("reason"), intransitive = true))))
+    )
+  }
+
+  // --- parse() tests: Object format with overrides ---
+
+  test("parse simple format with object entry containing overrides flag") {
+    val result = parseGroup(
+      """my-group = [{ dependency = "org:bom:1.0.0:bom", overrides = true }]""",
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(GroupConfig.Simple(List(AnnotatedDependency("org:bom:1.0.0:bom", overrides = true))))
+    )
+  }
+
+  test("parse advanced format with object entry containing note and overrides") {
+    val result = parseGroup(
+      """|my-group {
+         |  dependencies = [
+         |    { dependency = "org::name:1.0.0", note = "reason", overrides = true }
+         |  ]
+         |}""".stripMargin,
+      "my-group"
+    )
+
+    assertEquals(
+      result,
+      Right(
+        GroupConfig.Advanced(
+          dependencies = List(AnnotatedDependency("org::name:1.0.0", Some("reason"), overrides = true))
+        )
+      )
     )
   }
 
@@ -528,6 +562,46 @@ class GroupConfigSuite extends munit.FunSuite {
          |]""".stripMargin
 
     assertEquals(result, expected)
+  }
+
+  test("format Simple with overrides only uses single-line object") {
+    val config = GroupConfig.Simple(List(AnnotatedDependency("org:bom:1.0.0:bom", overrides = true)))
+    val result = config.format(Group("my-project"))
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org:bom:1.0.0:bom", overrides = true }
+         |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("format Simple emits overrides after intransitive and before scala-filter") {
+    val config = GroupConfig.Simple(
+      List(
+        AnnotatedDependency("org::name:1.0.0", Some("reason"), intransitive = true, scalaFilter = Some("2.13"),
+          overrides = true)
+      )
+    )
+    val result = config.format(Group("my-project"))
+
+    val expected =
+      """|my-project = [
+         |  { dependency = "org::name:1.0.0", note = "reason", intransitive = true, overrides = true, scala-filter = "2.13" }
+         |]""".stripMargin
+
+    assertEquals(result, expected)
+  }
+
+  test("parse then format round-trips an overrides entry") {
+    val text =
+      """|my-project = [
+         |  { dependency = "org:bom:1.0.0:bom", overrides = true }
+         |]""".stripMargin
+
+    val result = parseGroup(text, "my-project").map(_.format(Group("my-project")))
+
+    assertEquals(result, Right(text))
   }
 
   test("format Simple with long note and intransitive uses multi-line object") {

@@ -370,13 +370,34 @@ describe("parseDiagnostics", () => {
       ];
       const result = parseDiagnostics(lines);
       expect(result).toHaveLength(1);
-      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field");
+      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', 'overrides', 'scala-filter', or 'cross-version' field");
     });
 
     it("returns no diagnostics for single-line object with intransitive = true", () => {
       const lines = [
         'my-group = [',
         '  { dependency = "org.http4s::http4s-core:=0.23.3", intransitive = true }',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("returns no diagnostics for single-line object with overrides = true", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "com.fasterxml.jackson:jackson-bom:2.17.0:bom", overrides = true }',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("returns no diagnostics for multi-line object with overrides = true", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "com.fasterxml.jackson:jackson-bom:2.17.0:bom"',
+        '    overrides = true',
+        '  }',
         ']',
       ];
       expect(parseDiagnostics(lines)).toEqual([]);
@@ -461,7 +482,7 @@ describe("parseDiagnostics", () => {
       ];
       const result = parseDiagnostics(lines);
       expect(result).toHaveLength(1);
-      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field");
+      expect(result[0].message).toBe("Object entry must have a 'note', 'intransitive', 'overrides', 'scala-filter', or 'cross-version' field");
     });
 
     it("returns no diagnostics for multi-line object with intransitive = true", () => {

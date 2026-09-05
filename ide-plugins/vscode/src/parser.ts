@@ -6,6 +6,7 @@ export const dependenciesArrayStartPattern = /^\s*dependencies\s*=\s*\[/;
 export const objectDepFieldPattern = /dependency\s*=\s*"([^"]*)"/;
 export const objectNoteFieldPattern = /note\s*=\s*"([^"]*)"/;
 export const objectIntransitiveFieldPattern = /intransitive\s*=\s*true/;
+export const objectOverridesFieldPattern = /overrides\s*=\s*true/;
 export const objectScalaFilterFieldPattern = /scala-filter\s*=\s*"([^"]*)"/;
 export const objectCrossVersionFieldPattern = /cross-version\s*=\s*"([^"]*)"/;
 export const singleLineObjectPattern = /\{(?:[^}"{]*(?:"[^"]*")?)*\}/g;
@@ -64,6 +65,7 @@ export interface SingleLineObjectEvent {
   dependencyStartCol: number | undefined;
   note: string | undefined;
   intransitive: boolean;
+  overrides: boolean;
   scalaFilter: string | undefined;
   crossVersion: string | undefined;
   rawLine: string;
@@ -83,7 +85,7 @@ export interface MultiLineObjectFieldEvent {
   lineIndex: number;
   rawLine: string;
   effectiveLine: string;
-  field: "dependency" | "note" | "intransitive" | "scala-filter" | "cross-version" | null;
+  field: "dependency" | "note" | "intransitive" | "overrides" | "scala-filter" | "cross-version" | null;
   fieldValue: string | undefined;
   fieldValueStartCol: number | undefined;
 }
@@ -101,6 +103,7 @@ export interface MultiLineObjectEndEvent {
   hasNote: boolean;
   noteValue: string | undefined;
   hasIntransitive: boolean;
+  hasOverrides: boolean;
   hasScalaFilter: boolean;
   scalaFilterValue: string | undefined;
   hasCrossVersion: boolean;
@@ -168,7 +171,7 @@ function stripQuotedStrings(line: string): string {
 function detectField(
   effectiveLine: string,
   rawLine: string
-): { field: "dependency" | "note" | "intransitive" | "scala-filter" | "cross-version" | null; fieldValue: string | undefined; fieldValueStartCol: number | undefined } {
+): { field: "dependency" | "note" | "intransitive" | "overrides" | "scala-filter" | "cross-version" | null; fieldValue: string | undefined; fieldValueStartCol: number | undefined } {
   const depMatch = objectDepFieldPattern.exec(rawLine);
   if (depMatch) {
     return {
@@ -183,6 +186,9 @@ function detectField(
   }
   if (objectIntransitiveFieldPattern.test(effectiveLine)) {
     return { field: "intransitive", fieldValue: undefined, fieldValueStartCol: undefined };
+  }
+  if (objectOverridesFieldPattern.test(effectiveLine)) {
+    return { field: "overrides", fieldValue: undefined, fieldValueStartCol: undefined };
   }
   const sfMatch = objectScalaFilterFieldPattern.exec(effectiveLine);
   if (sfMatch) {
@@ -215,6 +221,7 @@ export function* walkDocument(lines: string[]): Generator<DocumentEvent> {
   let objectHasNote = false;
   let objectNoteValue: string | undefined;
   let objectHasIntransitive = false;
+  let objectHasOverrides = false;
   let objectHasScalaFilter = false;
   let objectScalaFilterValue: string | undefined;
   let objectHasCrossVersion = false;
@@ -230,6 +237,7 @@ export function* walkDocument(lines: string[]): Generator<DocumentEvent> {
     objectHasNote = false;
     objectNoteValue = undefined;
     objectHasIntransitive = false;
+    objectHasOverrides = false;
     objectHasScalaFilter = false;
     objectScalaFilterValue = undefined;
     objectHasCrossVersion = false;
@@ -252,6 +260,9 @@ export function* walkDocument(lines: string[]): Generator<DocumentEvent> {
     }
     if (objectIntransitiveFieldPattern.test(effectiveLine)) {
       objectHasIntransitive = true;
+    }
+    if (objectOverridesFieldPattern.test(effectiveLine)) {
+      objectHasOverrides = true;
     }
     const sfMatch = objectScalaFilterFieldPattern.exec(effectiveLine);
     if (sfMatch) {
@@ -309,6 +320,7 @@ export function* walkDocument(lines: string[]): Generator<DocumentEvent> {
           hasNote: objectHasNote,
           noteValue: objectNoteValue,
           hasIntransitive: objectHasIntransitive,
+          hasOverrides: objectHasOverrides,
           hasScalaFilter: objectHasScalaFilter,
           scalaFilterValue: objectScalaFilterValue,
           hasCrossVersion: objectHasCrossVersion,
@@ -481,6 +493,7 @@ function* emitDependenciesOnLine(
       dependencyStartCol,
       note: noteMatch?.[1],
       intransitive: objectIntransitiveFieldPattern.test(objectText),
+      overrides: objectOverridesFieldPattern.test(objectText),
       scalaFilter: sfMatch?.[1],
       crossVersion: cvMatch?.[1],
       rawLine,

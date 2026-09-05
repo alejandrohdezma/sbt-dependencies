@@ -21,7 +21,8 @@ import scala.util.Try
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** A dependency entry: an artifact coordinate (`organization`, `name`, `version`) plus how it should be wired into the
-  * build (`crossVersion`, `configuration`) and any optional annotations (`note`, `intransitive`, `scalaFilter`).
+  * build (`crossVersion`, `configuration`) and any optional annotations (`note`, `intransitive`, `scalaFilter`,
+  * `overrides`).
   *
   * `version` is a sealed `Version` — either `Numeric` (a real version like `1.2.3`) or `Variable` (a `{{name}}`
   * placeholder, possibly carrying a resolved `Numeric` once the build's `dependencyVersionVariables` resolver was
@@ -39,7 +40,8 @@ final case class Dependency(
     note: Option[String] = None,
     intransitive: Boolean = false,
     scalaFilter: Option[String] = None,
-    crossVersion: Dependency.Cross = Dependency.Cross.Disabled
+    crossVersion: Dependency.Cross = Dependency.Cross.Disabled,
+    overrides: Boolean = false
 ) {
 
   /** Whether this dep is cross-compiled. Derived from `crossVersion`: anything other than `Disabled` is cross. */
@@ -59,12 +61,11 @@ final case class Dependency(
       note: Option[String],
       intransitive: Boolean,
       scalaFilter: Option[String],
-      crossVersion: Dependency.Cross
+      crossVersion: Dependency.Cross,
+      overrides: Boolean
   ): Dependency = copy(
-    note = note,
-    intransitive = intransitive,
-    scalaFilter = scalaFilter,
-    crossVersion = crossVersion
+    note = note, intransitive = intransitive, scalaFilter = scalaFilter, crossVersion = crossVersion,
+    overrides = overrides
   )
 
   /** Checks if the dependency is the same artifact as another dependency. Cross vs Java is part of the artifact
