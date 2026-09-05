@@ -93,21 +93,24 @@ object DependenciesPlugin extends AutoPlugin {
 
   /** Project settings: wires libraryDependencies and registers tasks. */
   override def projectSettings = Seq(
-    dependencyVersionVariables += "scala" -> { (oa: OrganizationArtifactName) => oa % scalaVersion.value },
-    dependenciesFromFile       := Settings.dependenciesFromFile.value,
-    moduleIdsFromFile          := Settings.moduleIdsFromFile.value,
-    dependenciesFromBom        := Settings.dependenciesFromBom.value,
-    dependencyResolutions      := Settings.dependencyResolutions.value,
-    libraryDependencies       ++= moduleIdsFromFile.value,
-    inheritedDependencies      := Settings.inheritedDependencies.value,
-    showLibraryDependencies    := Tasks.showLibraryDependencies.tag(Exclusive).value,
-    updateDependencies         := Tasks.updateDependencies.tag(Exclusive).evaluated,
-    useBomManagedVersions      := Tasks.useBomManagedVersions.tag(Exclusive).evaluated,
-    updateScalaVersions        := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
-    install                    := Tasks.install.tag(Exclusive).evaluated,
-    dependenciesCheck          := Nil,
-    install / aggregate        := false,
-    scalaVersion               := Def.settingDyn {
+    dependencyVersionVariables  += "scala" -> { (oa: OrganizationArtifactName) => oa % scalaVersion.value },
+    dependenciesFromFile        := Settings.dependenciesFromFile.value,
+    moduleIdsFromFile           := Settings.moduleIdsFromFile.value,
+    dependenciesFromBom         := Settings.dependenciesFromBom.value,
+    dependencyResolutions       := Settings.dependencyResolutions.value,
+    bomOverridesFilter          := PartialFunction.empty,
+    dependencyOverridesFromFile := Settings.dependencyOverridesFromFile.value,
+    libraryDependencies        ++= moduleIdsFromFile.value,
+    dependencyOverrides        ++= dependencyOverridesFromFile.value,
+    inheritedDependencies       := Settings.inheritedDependencies.value,
+    showLibraryDependencies     := Tasks.showLibraryDependencies.tag(Exclusive).value,
+    updateDependencies          := Tasks.updateDependencies.tag(Exclusive).evaluated,
+    useBomManagedVersions       := Tasks.useBomManagedVersions.tag(Exclusive).evaluated,
+    updateScalaVersions         := Tasks.updateScalaVersions.tag(Exclusive).evaluated,
+    install                     := Tasks.install.tag(Exclusive).evaluated,
+    dependenciesCheck           := Nil,
+    install / aggregate         := false,
+    scalaVersion                := Def.settingDyn {
       val file = Settings.dependenciesFile.value
       if (file.exists()) Def.setting {
         val versions =

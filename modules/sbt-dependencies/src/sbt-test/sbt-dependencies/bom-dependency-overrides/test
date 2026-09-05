@@ -1,4 +1,6 @@
-# BOM pins are exposed through `dependenciesFromBom` but only reach `dependencyOverrides` when the build
-# appends them, forcing transitive dependencies to the BOM's versions.
+# `overrides = true` on a `:bom` line forces every pin of the BOM (minus `bomOverridesFilter` and the modules the
+# project declares itself); on a dependency line it forces that revision. Plain lines add nothing.
 > assertNotOverridden
 > assertOverridden
+> assertFiltered
+> assertPinned

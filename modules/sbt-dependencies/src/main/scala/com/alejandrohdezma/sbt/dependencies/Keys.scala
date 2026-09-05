@@ -48,6 +48,39 @@ class Keys {
       " against it; append it to dependencyOverrides to force transitive dependencies to the BOMs' versions"
   }
 
+  /** The `dependencyOverrides` entries declared in `dependencies.conf` with `overrides = true`: every pin of a flagged
+    * `:bom` line (after [[bomOverridesFilter]]) and the revision of every flagged dependency line, collected from the
+    * groups visible to this project — its own, `common-settings` and the groups of the projects it depends on — with
+    * the first-declared entry winning per module. Modules this project declares without the flag are left out, so an
+    * explicit line always beats an inherited override. Appended to `dependencyOverrides`.
+    *
+    * @example
+    *   {{{
+    * my-project = [
+    *   { dependency = "com.example::my-bom:1.0.0:bom", overrides = true }
+    *   { dependency = "org.apache.kafka:kafka-clients:3.9.2", overrides = true }
+    * ]
+    *   }}}
+    */
+  val dependencyOverridesFromFile = settingKey[Seq[ModuleID]] {
+    "dependencyOverrides declared with `overrides = true` in dependencies.conf: every pin of a flagged `:bom` line" +
+      " (after bomOverridesFilter) and the revision of every flagged dependency line, first-declared wins, minus the" +
+      " modules this project declares without the flag"
+  }
+
+  /** Filters the pins a flagged `:bom` line contributes to [[dependencyOverridesFromFile]]: a pin is dropped when the
+    * function is defined for it and returns `false`. Defaults to `PartialFunction.empty`, keeping every pin.
+    *
+    * @example
+    *   {{{
+    * bomOverridesFilter := { case m if m.organization == "com.google.protobuf" => false }
+    *   }}}
+    */
+  val bomOverridesFilter = settingKey[PartialFunction[ModuleID, Boolean]] {
+    "Filters the pins a `:bom` line marked `overrides = true` adds to dependencyOverrides: a pin is dropped when the" +
+      " function is defined for it and returns false"
+  }
+
   val updateDependencies = inputKey[Unit]("Update dependencies to their latest versions")
 
   val useBomManagedVersions = inputKey[Unit] {
