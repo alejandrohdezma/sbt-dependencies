@@ -28,28 +28,24 @@ class Keys {
 
   val moduleIdsFromFile = settingKey[Seq[ModuleID]]("Module IDs read from the file `project/dependencies`")
 
-  val dependenciesFromBom = settingKey[Seq[ModuleID]] {
-    "Flattened managed dependencies read from the group's (and common-settings') `:bom` BOMs plus the ones" +
-      " inherited through dependsOn, in declaration order (`*` versions resolve to the first matching entry)"
-  }
-
-  /** BOM pins added to `dependencyOverrides` so transitive dependencies align with the BOMs visible to this project.
-    *
-    * Defaults to [[dependenciesFromBom]] deduplicated by `organization:name` keeping the first entry, so when two BOMs
-    * pin the same artifact the first-declared BOM wins — the same precedence `*` versions follow.
+  /** The flattened pins of every BOM visible to this project, one entry per `organization:name` (when two BOMs pin the
+    * same artifact the first-declared BOM wins). `*` versions resolve against it. It is not applied to
+    * `dependencyOverrides` by default: a forced version silently beats an explicit one declared in `dependencies.conf`
+    * and never shows up in sbt's eviction diagnostics.
     *
     * @example
     *   {{{
-    * // Opt out entirely
-    * dependencyOverridesFromBom := Nil
+    * // Force transitive dependencies to the BOMs' versions
+    * dependencyOverrides ++= dependenciesFromBom.value
     *
-    * // Drop just some pins
-    * dependencyOverridesFromBom ~= (_.filterNot(_.organization == "com.google.protobuf"))
+    * // Or all but some pins
+    * dependencyOverrides ++= dependenciesFromBom.value.filterNot(_.organization == "com.google.protobuf")
     *   }}}
     */
-  val dependencyOverridesFromBom = settingKey[Seq[ModuleID]] {
-    "BOM pins added to dependencyOverrides so transitive dependencies align with the BOMs. Defaults to" +
-      " dependenciesFromBom deduplicated by module (first BOM wins). Set to Nil to opt out."
+  val dependenciesFromBom = settingKey[Seq[ModuleID]] {
+    "Flattened managed dependencies read from the group's (and common-settings') `:bom` BOMs plus the ones" +
+      " inherited through dependsOn, one entry per module (the first-declared BOM wins). `*` versions resolve" +
+      " against it; append it to dependencyOverrides to force transitive dependencies to the BOMs' versions"
   }
 
   val updateDependencies = inputKey[Unit]("Update dependencies to their latest versions")
