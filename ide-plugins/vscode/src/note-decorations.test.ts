@@ -196,6 +196,35 @@ describe("parseNoteDecorations", () => {
     expect(results[0].noteText).toBe("Not available for Scala 3");
   });
 
+  it("returns decoration for overrides-only entry", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "com.fasterxml.jackson:jackson-bom:2.17.0:bom", overrides = true }',
+      ']',
+    ];
+    const results = parseNoteDecorations(lines);
+    expect(results).toHaveLength(1);
+    expect(results[0].line).toBe(1);
+    expect(results[0].noteText).toBe("overrides");
+
+    const visiblePart = lines[1].slice(results[0].prefixRange.endCol, results[0].suffixRange.startCol);
+    expect(visiblePart).toBe('"com.fasterxml.jackson:jackson-bom:2.17.0:bom"');
+
+    const suffixText = lines[1].slice(results[0].suffixRange.startCol, results[0].suffixRange.endCol);
+    expect(suffixText).toBe(', overrides = true }');
+  });
+
+  it("prefers note over overrides when both are present", () => {
+    const lines = [
+      'my-group = [',
+      '  { dependency = "org.apache.kafka:kafka-clients:3.9.2", note = "Matches the broker", overrides = true }',
+      ']',
+    ];
+    const results = parseNoteDecorations(lines);
+    expect(results).toHaveLength(1);
+    expect(results[0].noteText).toBe("Matches the broker");
+  });
+
   it("does not return decoration for intransitive-only object (no note)", () => {
     const lines = [
       'my-group = [',
