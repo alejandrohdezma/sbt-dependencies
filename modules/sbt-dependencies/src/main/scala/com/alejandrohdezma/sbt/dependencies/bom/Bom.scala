@@ -29,7 +29,7 @@ import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** A Maven BOM read for programmatic consumption from build code: its flattened managed dependencies (`pins`) and the
   * Scala binary version they were resolved for. Use [[Bom.read]] to obtain one, then look up a managed version with
-  * [[version]] / the `%` syntax, or feed [[dependencyOverrides]] into sbt's `dependencyOverrides`.
+  * [[version]] / the `%` syntax.
   *
   * This is the consumption counterpart to the declarative `:bom` + `*` workflow in `dependencies.conf`: same resolution
   * (via [[BomReader]]), exposed as an sbt-code API that works on both sbt 1.x and 2.x.
@@ -41,7 +41,6 @@ import com.alejandrohdezma.sbt.dependencies.model.Eq._
   * lazy val app = project
   *   .settings(bom := myBom.value)
   *   .settings(libraryDependencies += "com.example" %% "my-lib" % bom.value)
-  *   .settings(dependencyOverrides ++= bom.value.dependencyOverrides)
   *   }}}
   */
 final class Bom(pins: Seq[ModuleID], scalaBinaryVersion: String)(implicit logger: Logger) {
@@ -55,11 +54,6 @@ final class Bom(pins: Seq[ModuleID], scalaBinaryVersion: String)(implicit logger
         Utils.fail(s"${dep.toLine} is not managed by the BOM")
       case dep => dep.version.toVersionString
     }
-
-  /** The BOM's pins as `dependencyOverrides` entries, deduplicated by `organization:name` keeping the first (so the
-    * first BOM pinning an artifact wins, matching the declarative path).
-    */
-  def dependencyOverrides: Seq[ModuleID] = Bom.dedupeByModule(pins)
 
 }
 

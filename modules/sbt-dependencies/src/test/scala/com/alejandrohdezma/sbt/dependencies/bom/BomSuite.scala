@@ -47,15 +47,6 @@ class BomSuite extends munit.FunSuite {
     assert(error.getMessage.contains("is not managed by the BOM"), error.getMessage)
   }
 
-  test("dependencyOverrides keeps the first pin for each module") {
-    val duplicated = Seq(
-      ModuleID("com.fasterxml.jackson.core", "jackson-databind", "2.18.2"),
-      ModuleID("com.fasterxml.jackson.core", "jackson-databind", "2.16.0")
-    )
-
-    assertEquals(new Bom(duplicated, "2.13").dependencyOverrides, Seq(duplicated.head))
-  }
-
   test("the `%` syntax stamps the BOM-managed version onto an artifact") {
     val moduleID = ("org.typelevel" %% "cats-core") % bom
 
