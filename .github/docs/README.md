@@ -1033,10 +1033,10 @@ This is useful for programmatic access to dependencies in custom tasks or checks
 
 <details><summary><b id="validate-resolved-dependencies">Validate resolved dependencies</b></summary><br/>
 
-After `update`, every dependency declared in `dependencies.conf` that resolved to a version other than the declared one is reported with a warning — either another dependency requires a newer version, or a `dependencyOverrides` entry forces it:
+After `update`, every dependency declared in `dependencies.conf` that resolved to a version other than the declared one is reported with a warning — either another dependency requires a newer version, or an override forces it:
 
 ```
-[warn] com.typesafe.akka:akka-http_2.13 is declared at 10.1.15 but resolved to 10.2.0 — another dependency requires that version or a dependencyOverrides entry forces it. Hold the dependency pulling it in or add an explicit dependencyOverrides entry.
+[warn] com.typesafe.akka:akka-http_2.13 is declared at 10.1.15 but resolved to 10.2.0 — another dependency requires that version or an override forces it. Hold the dependency pulling it in or mark the line with `overrides = true`.
 ```
 
 Use `dependenciesCheck` to register custom check functions that validate resolved dependencies after `update`. If any check throws, the build fails.

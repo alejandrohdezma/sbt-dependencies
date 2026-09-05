@@ -255,7 +255,7 @@ class Tasks {
 
   /** Run all dependency check functions after resolution completes. If any check throws, the `update` task (and
     * anything depending on it) will fail. Also warns about every declared dependency that resolved to a version other
-    * than the declared one — a transitive dependency outvoting it, or a `dependencyOverrides` entry forcing it.
+    * than the declared one — a transitive dependency outvoting it, or an override forcing it.
     */
   def updateWithChecks = Def.task {
     val report = update.value
@@ -270,8 +270,8 @@ class Tasks {
     revisionChanges(declared, resolved).foreach { case (module, actual) =>
       log.warn {
         s"${module.organization}:${module.name} is declared at ${module.revision} but resolved to $actual — another " +
-          "dependency requires that version or a dependencyOverrides entry forces it. Hold the dependency pulling it " +
-          "in or add an explicit dependencyOverrides entry."
+          "dependency requires that version or an override forces it. Hold the dependency pulling it in or mark the " +
+          "line with `overrides = true`."
       }
     }
 
