@@ -217,6 +217,36 @@ class DependenciesDocumentSuite extends munit.FunSuite {
     assertEquals(result, List(true))
   }
 
+  test("parses overrides in a single-line object") {
+    val text =
+      """|my-group = [
+         |  { dependency = "org:bom:1.0.0:bom", overrides = true }
+         |  { dependency = "org:art:1.0.0", note = "reason" }
+         |]""".stripMargin
+
+    val result = DependenciesDocument.parse(text).groups.flatMap(_.entries).collect {
+      case obj: Entry.DependencyObject => obj.overrides
+    }
+
+    assertEquals(result, List(true, false))
+  }
+
+  test("parses overrides in a multi-line object") {
+    val text =
+      """|my-group = [
+         |  {
+         |    dependency = "org:bom:1.0.0:bom"
+         |    overrides = true
+         |  }
+         |]""".stripMargin
+
+    val result = DependenciesDocument.parse(text).groups.flatMap(_.entries).collect {
+      case obj: Entry.DependencyObject => (obj.dependency.map(_.value), obj.overrides)
+    }
+
+    assertEquals(result, List((Some("org:bom:1.0.0:bom"), true)))
+  }
+
   test("parses scala-filter in a single-line object") {
     val text =
       """|my-group = [

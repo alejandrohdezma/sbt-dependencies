@@ -271,16 +271,15 @@ class DiagnosticsSuite extends munit.FunSuite {
 
     val result = check(text).map(_.message)
 
-    val expected = List("object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field")
+    val expected =
+      List("object entry must have a 'note', 'intransitive', 'overrides', 'scala-filter', or 'cross-version' field")
 
     assertEquals(result, expected)
   }
 
   test("accepts object entries with each annotation") {
     val annotations = List(
-      """note = "reason"""",
-      "intransitive = true",
-      """scala-filter = "2.13"""",
+      """note = "reason"""", "intransitive = true", "overrides = true", """scala-filter = "2.13"""",
       """cross-version = "disabled""""
     )
 
@@ -358,7 +357,8 @@ class DiagnosticsSuite extends munit.FunSuite {
 
     val result = check(text).map(_.message)
 
-    val expected = List("object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field")
+    val expected =
+      List("object entry must have a 'note', 'intransitive', 'overrides', 'scala-filter', or 'cross-version' field")
 
     assertEquals(result, expected)
   }

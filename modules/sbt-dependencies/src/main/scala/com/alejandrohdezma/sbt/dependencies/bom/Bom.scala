@@ -51,7 +51,7 @@ final class Bom(pins: Seq[ModuleID], scalaBinaryVersion: String)(implicit logger
     */
   def version(artifact: OrganizationArtifactName): String =
     Dependency.fromModuleID(artifact % "*").get.resolveBom(pins, scalaBinaryVersion) match {
-      case dep @ Dependency(_, _, Dependency.Version.Bom(None), _, _, _, _, _) =>
+      case dep @ Dependency(_, _, Dependency.Version.Bom(None), _, _, _, _, _, _) =>
         Utils.fail(s"${dep.toLine} is not managed by the BOM")
       case dep => dep.version.toVersionString
     }

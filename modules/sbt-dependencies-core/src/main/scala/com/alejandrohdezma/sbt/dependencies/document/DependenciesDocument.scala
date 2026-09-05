@@ -95,7 +95,8 @@ object DependenciesDocument {
         intransitive: Boolean,
         scalaFilter: Option[Field],
         crossVersion: Option[Field],
-        span: Span
+        span: Span,
+        overrides: Boolean = false
     ) extends Entry
 
   }
@@ -113,6 +114,8 @@ object DependenciesDocument {
   private val noteField = (Fields.Note + """\s*=\s*"([^"]*)"""").r
 
   private val intransitiveField = (Fields.Intransitive + """\s*=\s*true""").r
+
+  private val overridesField = (Fields.Overrides + """\s*=\s*true""").r
 
   private val scalaFilterField = (Fields.ScalaFilter + """\s*=\s*"([^"]*)"""").r
 
@@ -162,6 +165,8 @@ object DependenciesDocument {
     private var objectNote = Option.empty[Field]
 
     private var objectIntransitive = false
+
+    private var objectOverrides = false
 
     private var objectScalaFilter = Option.empty[Field]
 
@@ -323,6 +328,7 @@ object DependenciesDocument {
       objectDependency = None
       objectNote = None
       objectIntransitive = false
+      objectOverrides = false
       objectScalaFilter = None
       objectCrossVersion = None
     }
@@ -334,6 +340,7 @@ object DependenciesDocument {
       objectDependency = objectDependency.orElse(field(dependencyField))
       objectNote = objectNote.orElse(field(noteField))
       objectIntransitive = objectIntransitive || intransitiveField.findFirstIn(line).isDefined
+      objectOverrides = objectOverrides || overridesField.findFirstIn(line).isDefined
       objectScalaFilter = objectScalaFilter.orElse(field(scalaFilterField))
       objectCrossVersion = objectCrossVersion.orElse(field(crossVersionField))
     }
@@ -345,7 +352,8 @@ object DependenciesDocument {
         objectIntransitive,
         objectScalaFilter,
         objectCrossVersion,
-        Span(objectStart, end)
+        Span(objectStart, end),
+        objectOverrides
       )
 
     /** Emits single-line object entries and plain string entries found on a line. Objects are detected first (skipping

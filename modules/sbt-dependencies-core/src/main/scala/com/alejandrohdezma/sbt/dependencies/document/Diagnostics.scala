@@ -62,13 +62,13 @@ object Diagnostics {
 
       val missingAnnotations =
         if (
-          obj.dependency.isDefined && obj.note.isEmpty && !obj.intransitive && obj.scalaFilter.isEmpty &&
-          obj.crossVersion.isEmpty
+          obj.dependency.isDefined && obj.note.isEmpty && !obj.intransitive && !obj.overrides &&
+          obj.scalaFilter.isEmpty && obj.crossVersion.isEmpty
         )
           Some(
             Diagnostic(
               obj.span,
-              "object entry must have a 'note', 'intransitive', 'scala-filter', or 'cross-version' field",
+              "object entry must have a 'note', 'intransitive', 'overrides', 'scala-filter', or 'cross-version' field",
               Diagnostic.Severity.Error
             )
           )
@@ -104,7 +104,7 @@ object Diagnostics {
         case Left(message) => Some(error(message))
         case Right(parsed) =>
           val dep = crossVersion.fold(parsed)(cross =>
-            parsed.withAnnotations(parsed.note, parsed.intransitive, parsed.scalaFilter, cross)
+            parsed.withAnnotations(parsed.note, parsed.intransitive, parsed.scalaFilter, cross, parsed.overrides)
           )
 
           val supportedInVariable = List[Dependency.Cross](Dependency.Cross.Binary, Dependency.Cross.Disabled)
