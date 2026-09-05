@@ -254,15 +254,39 @@ class Tasks {
   }
 
   /** Run all dependency check functions after resolution completes. If any check throws, the `update` task (and
-    * anything depending on it) will fail.
+    * anything depending on it) will fail. Also warns about every declared dependency that resolved to a version other
+    * than the declared one — a transitive dependency outvoting it, or a `dependencyOverrides` entry forcing it.
     */
   def updateWithChecks = Def.task {
     val report = update.value
+    val log    = streams.value.log
 
     Keys.dependenciesCheck.value.foreach(_(report.allModules.toList))
 
+    val declared =
+      Keys.moduleIdsFromFile.value.map(CrossVersion(scalaVersion.value, (update / scalaBinaryVersion).value))
+    val resolved = report.configurations.flatMap(_.modules).filterNot(_.evicted).map(_.module)
+
+    revisionChanges(declared, resolved).foreach { case (module, actual) =>
+      log.warn {
+        s"${module.organization}:${module.name} is declared at ${module.revision} but resolved to $actual — another " +
+          "dependency requires that version or a dependencyOverrides entry forces it. Hold the dependency pulling it " +
+          "in or add an explicit dependencyOverrides entry."
+      }
+    }
+
     report
   }
+
+  /** Modules of `from` whose `(organization, name)` appears in `to` at a different revision, paired with that revision.
+    * The first `to` entry for a module wins.
+    */
+  private[dependencies] def revisionChanges(from: Seq[ModuleID], to: Seq[ModuleID]): Seq[(ModuleID, String)] =
+    from.flatMap { module =>
+      to.find(m => m.organization === module.organization && m.name === module.name)
+        .filter(_.revision !== module.revision)
+        .map(module -> _.revision)
+    }
 
   def allProjectDependencies: Def.Initialize[Task[List[ModuleID]]] = Def.task {
     val report = update.value

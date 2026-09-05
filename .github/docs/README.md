@@ -435,7 +435,7 @@ lazy val otherproject = project
   .settings(dependencyOverrides ++= dependenciesFromBom.value.filterNot(_.organization == "com.google.protobuf"))
 ```
 
-This is opt-in because `dependencyOverrides` forces a version across the whole graph, direct dependencies included: a BOM pin would silently beat an explicit version declared in `dependencies.conf`, and forced versions never show up in sbt's eviction warnings or `dependencyTree`.
+This is opt-in because `dependencyOverrides` forces a version across the whole graph, direct dependencies included: a BOM pin would silently beat an explicit version declared in `dependencies.conf`, and forced versions never show up in sbt's eviction warnings or `dependencyTree`. Without the overrides, a declared dependency that resolves to another version is reported by the [mismatch warning](#user-content-validate-resolved-dependencies) after `update`.
 
 A dependency declaring `*` that no visible BOM pins fails the build with a descriptive error. `*` cannot be combined with the `bom` or `sbt-plugin` configurations, nor with `cross-version = "full"`/`"patch"`.
 
@@ -1032,6 +1032,12 @@ This is useful for programmatic access to dependencies in custom tasks or checks
 </details>
 
 <details><summary><b id="validate-resolved-dependencies">Validate resolved dependencies</b></summary><br/>
+
+After `update`, every dependency declared in `dependencies.conf` that resolved to a version other than the declared one is reported with a warning — either another dependency requires a newer version, or a `dependencyOverrides` entry forces it:
+
+```
+[warn] com.typesafe.akka:akka-http_2.13 is declared at 10.1.15 but resolved to 10.2.0 — another dependency requires that version or a dependencyOverrides entry forces it. Hold the dependency pulling it in or add an explicit dependencyOverrides entry.
+```
 
 Use `dependenciesCheck` to register custom check functions that validate resolved dependencies after `update`. If any check throws, the build fails.
 
