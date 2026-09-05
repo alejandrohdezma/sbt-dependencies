@@ -1,0 +1,3 @@
+# A BOM flagged `overrides = true` in common-settings forces its pins in every project, except for the modules a
+# project declares itself without the flag: an explicit line always wins over an inherited override.
+> assertShadowed
