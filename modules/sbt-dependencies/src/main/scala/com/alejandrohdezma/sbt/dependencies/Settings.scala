@@ -178,8 +178,10 @@ class Settings {
     *
     * Pins keep BOM declaration order — the project group's BOMs, then `common-settings`', then the groups of every
     * project this one depends on (transitively, via `dependsOn`) — each flattened to entries sorted by
-    * organization/name. BOM-managed versions (`*`) resolve to the first matching pin, so the closest BOM pinning an
-    * artifact wins (Maven's import semantics): the project's own BOMs take precedence over inherited ones.
+    * organization/name, and deduplicated by `organization:name` keeping the first entry. So the closest BOM pinning an
+    * artifact wins (Maven's import semantics): the project's own BOMs take precedence over inherited ones, both for
+    * BOM-managed versions (`*`) and when the build appends the pins to `dependencyOverrides` (where coursier's
+    * force-versions map would otherwise let the last one win).
     *
     * Inheritance follows the project graph regardless of the `dependsOn` configuration mapping (a test-scoped
     * dependency contributes its pins to every scope): pins only select versions, they never add artifacts. Inherited
@@ -194,7 +196,7 @@ class Settings {
     implicit val logger: Logger         = sLog.value
     implicit val fetcher: ModuleFetcher = bomFetcher.value
 
-    visibleBoms.value.flatMap(BomReader.read(_, scalaV)).distinct
+    Bom.dedupeByModule(visibleBoms.value.flatMap(BomReader.read(_, scalaV)))
   }
 
   /** The `:bom` coordinates visible to this project, in precedence order: its own group, then (for non-meta projects)
@@ -309,15 +311,6 @@ class Settings {
 
       List(own, common)
     }
-  }
-
-  /** The BOM pins added to `dependencyOverrides`: [[dependenciesFromBom]] deduplicated by `organization:name` keeping
-    * the first entry. The dedupe matters because [[dependenciesFromBom]] can carry the same module at two versions when
-    * two BOMs conflict, and coursier's force-versions map would let the last one win, inverting the first-BOM-wins
-    * contract `*` versions follow.
-    */
-  val dependencyOverridesFromBom: Def.Initialize[Seq[ModuleID]] = Def.setting {
-    Bom.dedupeByModule(Keys.dependenciesFromBom.value)
   }
 
   /** Resolves a BOM-managed version (`*`) against the group's flattened BOM pins, failing the build when no BOM pins

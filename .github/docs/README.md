@@ -16,7 +16,7 @@
 - Generate [post-update hooks](#user-content-configure-post-update-hooks) and [scalafix migrations](#user-content-configure-scalafix-migrations) for CI automation using Scala Steward's configuration.
 - Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
 - Share versions across dependencies with [version variables](#user-content-use-shared-version-variables).
-- Import [Maven BOMs](#user-content-use-bom-managed-versions) with the `bom` configuration, use `*` to take dependency versions from them and align transitive versions through `dependencyOverrides`.
+- Import [Maven BOMs](#user-content-use-bom-managed-versions) with the `bom` configuration and use `*` to take dependency versions from them.
 - [VS Code / Cursor and IntelliJ IDEA plugins](#ide-plugins) with syntax highlighting for `dependencies.conf`.
 - Automate the whole update flow on CI with the [GitHub Action](#github-action).
 
@@ -424,16 +424,18 @@ For unattended runs, `useBomManagedVersions --safe` treats a version marker or a
 - `my-project`: `com.example:lib:=1.0.0` left as is — `=` marker (BOM pins `1.2.0`)
 ```
 
-**Transitive dependencies** — the BOM pins are also added to sbt's `dependencyOverrides`, so *transitive* dependencies resolve to the BOM's versions too, matching Maven's `dependencyManagement` behavior. When two BOMs pin the same artifact, the first-declared BOM wins — the same precedence `*` versions follow. Opt out (or trim the pins) through the `dependencyOverridesFromBom` setting:
+**Transitive dependencies** — BOM pins only apply to the `*` lines you declare; *transitive* dependencies follow sbt's regular conflict resolution. The flattened pins are exposed through the `dependenciesFromBom` setting, one entry per module (when two BOMs pin the same artifact, the first-declared BOM wins — the same precedence `*` versions follow), so a project can opt in to Maven's `dependencyManagement` behavior by appending them to `dependencyOverrides`:
 
 ```scala
-// Opt out entirely
-lazy val myproject = project.settings(dependencyOverridesFromBom := Nil)
+// Force transitive dependencies to the BOM's versions
+lazy val myproject = project.settings(dependencyOverrides ++= dependenciesFromBom.value)
 
-// Or drop just some pins
+// Or all but some pins
 lazy val otherproject = project
-  .settings(dependencyOverridesFromBom ~= (_.filterNot(_.organization == "com.google.protobuf")))
+  .settings(dependencyOverrides ++= dependenciesFromBom.value.filterNot(_.organization == "com.google.protobuf"))
 ```
+
+This is opt-in because `dependencyOverrides` forces a version across the whole graph, direct dependencies included: a BOM pin would silently beat an explicit version declared in `dependencies.conf`, and forced versions never show up in sbt's eviction warnings or `dependencyTree`.
 
 A dependency declaring `*` that no visible BOM pins fails the build with a descriptive error. `*` cannot be combined with the `bom` or `sbt-plugin` configurations, nor with `cross-version = "full"`/`"patch"`.
 

@@ -98,8 +98,6 @@ object DependenciesPlugin extends AutoPlugin {
     moduleIdsFromFile          := Settings.moduleIdsFromFile.value,
     dependenciesFromBom        := Settings.dependenciesFromBom.value,
     dependencyResolutions      := Settings.dependencyResolutions.value,
-    dependencyOverridesFromBom := Settings.dependencyOverridesFromBom.value,
-    dependencyOverrides       ++= dependencyOverridesFromBom.value,
     libraryDependencies       ++= moduleIdsFromFile.value,
     inheritedDependencies      := Settings.inheritedDependencies.value,
     showLibraryDependencies    := Tasks.showLibraryDependencies.tag(Exclusive).value,
