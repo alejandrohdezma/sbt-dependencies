@@ -8,6 +8,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 - Control updates with [version markers](#user-content-pin-a-dependency): pin, restrict to major, or restrict to minor.
 - Document pinning decisions with [dependency notes](#user-content-add-a-note-to-a-pinned-dependency).
 - [Mark dependencies as intransitive](#user-content-mark-a-dependency-as-intransitive) to exclude transitive dependencies.
+- [Force versions across the whole graph](#user-content-force-versions-with-overrides) with `overrides = true`, on a BOM or on a single dependency.
 - Automatically [migrate renamed artifacts](#user-content-configure-artifact-migrations) using Scala Steward's migration list.
 - [Exclude known-bad versions](#user-content-configure-update-ignores) from updates using Scala Steward's ignore list.
 - Automatically exclude [retracted versions](#user-content-configure-retracted-versions) from updates using Scala Steward's retraction list.
@@ -16,7 +17,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 - Generate [post-update hooks](#user-content-configure-post-update-hooks) and [scalafix migrations](#user-content-configure-scalafix-migrations) for CI automation using Scala Steward's configuration.
 - Manage [Scala versions](#user-content-configure-scala-versions), [SBT version](#user-content-update-sbt-version), and [Scalafmt version](#user-content-update-scalafmt-version) from the same workflow.
 - Share versions across dependencies with [version variables](#user-content-use-shared-version-variables).
-- Import [Maven BOMs](#user-content-use-bom-managed-versions) with the `bom` configuration, use `*` to take dependency versions from them and align transitive versions through `dependencyOverrides`.
+- Import [Maven BOMs](#user-content-use-bom-managed-versions) with the `bom` configuration and use `*` to take dependency versions from them.
 - [VS Code / Cursor and IntelliJ IDEA plugins](#ide-plugins) with syntax highlighting for `dependencies.conf`.
 - Automate the whole update flow on CI with the [GitHub Action](#github-action).
 
@@ -25,7 +26,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.39.2")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.40.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -65,6 +66,7 @@ The plugin automatically populates `libraryDependencies` for each project based 
   + [Pin a dependency to a specific version](#user-content-pin-a-dependency)
   + [Add a note to a pinned dependency](#user-content-add-a-note-to-a-pinned-dependency)
   + [Mark a dependency as intransitive](#user-content-mark-a-dependency-as-intransitive)
+  + [Force versions with `overrides`](#user-content-force-versions-with-overrides)
   + [Use shared version variables](#user-content-use-shared-version-variables)
   + [Use BOM-managed versions](#user-content-use-bom-managed-versions)
   + [Configure Scala versions](#user-content-configure-scala-versions)
@@ -327,6 +329,33 @@ The `intransitive` flag is preserved through `updateDependencies` — only the v
 
 </details>
 
+<details><summary><b id="force-versions-with-overrides">Force versions with `overrides`</b></summary><br/>
+
+Use the object format with `overrides = true` to force a version across the whole dependency graph, transitive dependencies included — the declarative counterpart of sbt's `dependencyOverrides`:
+
+```hocon
+my-project = [
+  { dependency = "com.example::my-bom:1.0.0:bom", overrides = true }
+  { dependency = "org.apache.kafka:kafka-clients:3.9.2", overrides = true }
+]
+```
+
+On a `:bom` line every pin of the BOM is forced, matching Maven's `dependencyManagement` behavior. On a regular line the module is forced to the declared version (a `*` version forces the BOM-resolved one). Flagged lines are collected from the same groups whose BOMs are visible to a project — its own group, `common-settings` and the groups of the projects it depends on — and when several of them pin the same module, the first declared wins.
+
+A module the project declares itself without the flag is never overridden by an inherited flag: an explicit `"org.apache.kafka:kafka-clients:3.9.2:test"` in a project keeps its version even when `common-settings` forces a BOM that pins it elsewhere. If a transitive dependency then outvotes the explicit line, the [mismatch warning](#user-content-validate-resolved-dependencies) reports it after `update`.
+
+To leave some of a BOM's pins out, use the `bomOverridesFilter` setting in `build.sbt`:
+
+```scala
+bomOverridesFilter := { case m if m.organization == "com.google.protobuf" => false }
+```
+
+The resulting entries are exposed through the `dependencyOverridesFromFile` setting. The `overrides` flag is preserved through `updateDependencies` — only the version is updated.
+
+---
+
+</details>
+
 <details><summary><b id="use-shared-version-variables">Use shared version variables</b></summary><br/>
 
 You can use variable syntax to reference versions defined (or computed) in your build:
@@ -424,16 +453,15 @@ For unattended runs, `useBomManagedVersions --safe` treats a version marker or a
 - `my-project`: `com.example:lib:=1.0.0` left as is — `=` marker (BOM pins `1.2.0`)
 ```
 
-**Transitive dependencies** — the BOM pins are also added to sbt's `dependencyOverrides`, so *transitive* dependencies resolve to the BOM's versions too, matching Maven's `dependencyManagement` behavior. When two BOMs pin the same artifact, the first-declared BOM wins — the same precedence `*` versions follow. Opt out (or trim the pins) through the `dependencyOverridesFromBom` setting:
+**Transitive dependencies** — BOM pins only apply to the `*` lines you declare; *transitive* dependencies follow sbt's regular conflict resolution. To force every pin of a BOM across the whole graph (Maven's `dependencyManagement` behavior), mark its line with `overrides = true`:
 
-```scala
-// Opt out entirely
-lazy val myproject = project.settings(dependencyOverridesFromBom := Nil)
-
-// Or drop just some pins
-lazy val otherproject = project
-  .settings(dependencyOverridesFromBom ~= (_.filterNot(_.organization == "com.google.protobuf")))
+```hocon
+my-project = [
+  { dependency = "com.fasterxml.jackson:jackson-bom:2.17.0:bom", overrides = true }
+]
 ```
+
+See [Force versions with `overrides`](#user-content-force-versions-with-overrides) for the details. This is opt-in because a forced version wins across the whole graph, direct dependencies included: it would silently beat an explicit version declared in `dependencies.conf`, and forced versions never show up in sbt's eviction warnings or `dependencyTree`. A declared dependency that resolves to another version is reported by the [mismatch warning](#user-content-validate-resolved-dependencies) after `update`.
 
 A dependency declaring `*` that no visible BOM pins fails the build with a descriptive error. `*` cannot be combined with the `bom` or `sbt-plugin` configurations, nor with `cross-version = "full"`/`"patch"`.
 
@@ -1031,6 +1059,12 @@ This is useful for programmatic access to dependencies in custom tasks or checks
 
 <details><summary><b id="validate-resolved-dependencies">Validate resolved dependencies</b></summary><br/>
 
+After `update`, every dependency declared in `dependencies.conf` that resolved to a version other than the declared one is reported with a warning — either another dependency requires a newer version, or an [override](#user-content-force-versions-with-overrides) forces it:
+
+```
+[warn] com.typesafe.akka:akka-http_2.13 is declared at 10.1.15 but resolved to 10.2.0 — another dependency requires that version or an override forces it. Hold the dependency pulling it in or mark the line with `overrides = true`.
+```
+
 Use `dependenciesCheck` to register custom check functions that validate resolved dependencies after `update`. If any check throws, the build fails.
 
 ```scala
@@ -1075,7 +1109,7 @@ Pre-update migrations need the classpath the project had before the update, so f
 
 A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
 
-Reference it as `alejandrohdezma/sbt-dependencies@v0.39.2`:
+Reference it as `alejandrohdezma/sbt-dependencies@v0.40.0`:
 
 ```yaml
 name: Update Dependencies
@@ -1103,7 +1137,7 @@ jobs:
 
       - uses: sbt/setup-sbt@v1
 
-      - uses: alejandrohdezma/sbt-dependencies@v0.39.2
+      - uses: alejandrohdezma/sbt-dependencies@v0.40.0
         with:
           config-file: .github/.scala-steward.conf
 ```
