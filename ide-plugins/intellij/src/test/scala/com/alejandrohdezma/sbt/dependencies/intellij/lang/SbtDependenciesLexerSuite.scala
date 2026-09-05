@@ -94,6 +94,13 @@ class SbtDependenciesLexerSuite extends FunSuite {
     assertEquals(result, List("KEYWORD" -> "true"))
   }
 
+  test("overrides flag lexes as object key and keyword") {
+    val result = lex("""core = [{ dependency = "a:b:1.0.0:bom", overrides = true }]""")
+
+    assertEquals(result.filter(_._1 == "OBJECT_KEY").map(_._2), List("dependency", "overrides"))
+    assertEquals(result.filter(_._1 == "KEYWORD"), List("KEYWORD" -> "true"))
+  }
+
   test("line and block comments") {
     val result = lex("# hash\n// line\n/* block\nstill */\ncore = []").filter(_._1 == "COMMENT").map(_._2)
 

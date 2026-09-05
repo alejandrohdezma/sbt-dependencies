@@ -29,11 +29,12 @@ import com.intellij.openapi.util.TextRange
   * text: `{ dependency = "org::artifact:1.0.0", note = "why" }` shows as `"org::artifact:1.0.0" // why` — the IntelliJ
   * counterpart of the VSCode extension's note decorations. Each entry gets two regions: the `{ dependency = ` prefix
   * (collapsing to a space) and the `, note = "..." }` suffix (collapsing to a comment-style annotation), so the quoted
-  * dependency in between keeps its syntax colors.
+  * dependency in between keeps its syntax colors. Entries without a note fold the same way on their `scala-filter` or
+  * `overrides` annotation.
   */
 final class SbtDependenciesFoldingBuilder extends FoldingBuilder {
 
-  /** Two folding regions per single-line object entry with a note or scala-filter annotation. */
+  /** Two folding regions per single-line object entry with a note, scala-filter or overrides annotation. */
   override def buildFoldRegions(node: ASTNode, document: Document): Array[FoldingDescriptor] =
     SbtDependenciesFoldingBuilder
       .foldings(document.getText)
@@ -57,9 +58,10 @@ object SbtDependenciesFoldingBuilder {
     */
   final case class Folding(entry: Span, region: Span, placeholder: String)
 
-  /** The foldable regions of a document: for every single-line object entry that declares a dependency and a note (or a
-    * scala-filter), the `{ dependency = ` prefix before the opening quote and the `, note = "..." }` suffix after the
-    * closing quote.
+  /** The foldable regions of a document: for every single-line object entry that declares a dependency and exactly one
+    * annotation — a note, a scala-filter or `overrides = true` — the `{ dependency = ` prefix before the opening quote
+    * and the `, note = "..." }` suffix after the closing quote. Entries carrying several annotations stay expanded, so
+    * that none of them becomes invisible.
     */
   def foldings(text: String): List[Folding] =
     DependenciesDocument
@@ -67,11 +69,12 @@ object SbtDependenciesFoldingBuilder {
       .groups
       .flatMap(_.entries)
       .collect {
-        case entry: Entry.DependencyObject if singleLine(text, entry.span) =>
+        case entry: Entry.DependencyObject if singleLine(text, entry.span) && annotations(entry) == 1 =>
           entry.dependency.flatMap { dependency =>
             val annotation = entry.note
               .map(_.value)
               .orElse(entry.scalaFilter.map(filter => s"only for Scala ${filter.value}"))
+              .orElse(Option.when(entry.overrides)("overrides"))
 
             annotation.map { annotation =>
               List(
@@ -83,6 +86,10 @@ object SbtDependenciesFoldingBuilder {
       }
       .flatten
       .flatten
+
+  private def annotations(entry: Entry.DependencyObject): Int =
+    List(entry.note.isDefined, entry.intransitive, entry.overrides, entry.scalaFilter.isDefined,
+      entry.crossVersion.isDefined).count(identity)
 
   private def singleLine(text: String, span: Span): Boolean =
     !text.substring(span.start, span.end).contains("\n")

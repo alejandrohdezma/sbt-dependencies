@@ -80,6 +80,36 @@ class SbtDependenciesFoldingBuilderSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  test("foldings describes an overrides annotation") {
+    val text =
+      """example = [
+        |  { dependency = "com.fasterxml.jackson:jackson-bom:2.17.0:bom", overrides = true }
+        |]
+        |""".stripMargin
+
+    val result = SbtDependenciesFoldingBuilder.foldings(text).map(folded(text, _))
+
+    val expected = List("{ dependency = " -> "", ", overrides = true }" -> " // overrides")
+
+    assertEquals(result, expected)
+  }
+
+  test("foldings leaves entries with several annotations expanded") {
+    val text =
+      """example = [
+        |  { dependency = "org.apache.kafka:kafka-clients:3.9.2", note = "Matches the broker", overrides = true }
+        |  { dependency = "org.scala-lang:scala-reflect:2.13.16", note = "Only on 2.13", scala-filter = "2.13" }
+        |  { dependency = "org.scalameta::munit:1.3.5", note = "Core types only", intransitive = true }
+        |]
+        |""".stripMargin
+
+    val result = SbtDependenciesFoldingBuilder.foldings(text)
+
+    val expected = Nil
+
+    assertEquals(result, expected)
+  }
+
   test("foldings skips multi-line objects, plain entries and objects without annotations") {
     val text =
       """example = [
