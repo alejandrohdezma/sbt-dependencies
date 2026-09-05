@@ -22,7 +22,7 @@ const scalaFilterObjectPattern =
 const overridesObjectPattern =
   /(\{\s*dependency\s*=\s*)"([^"]*)"(\s*,\s*overrides\s*=\s*(true)[^}]*\})/;
 
-/** The collapsible annotations, in priority order, each with the text shown after the dependency string. */
+/** The collapsible annotations, each with the text shown after the dependency string. */
 const collapsible: { pattern: RegExp; text: (value: string) => string }[] = [
   { pattern: singleLineObjectPattern, text: value => value },
   { pattern: scalaFilterObjectPattern, text: value => `only for Scala ${value}` },
@@ -31,8 +31,9 @@ const collapsible: { pattern: RegExp; text: (value: string) => string }[] = [
 
 /**
  * Scans lines from a `dependencies.conf` file and returns decoration data
- * for single-line object entries whose annotation can be shown as a trailing comment:
- * a `note`, else a `scala-filter`, else `overrides = true`.
+ * for single-line object entries whose single annotation can be shown as a trailing
+ * comment: a `note`, a `scala-filter` or `overrides = true`. Entries carrying more than
+ * one annotation are left as they are, so that none of them becomes invisible.
  *
  * Only processes entries inside dependency array contexts (simple-group
  * `= [...]` or advanced-group `dependencies = [...]`).
@@ -42,6 +43,15 @@ export function parseNoteDecorations(lines: string[]): NoteDecorationData[] {
 
   for (const event of walkDocument(lines)) {
     if (event.type !== "single-line-object") continue;
+
+    const annotations = [
+      event.note !== undefined,
+      event.intransitive,
+      event.overrides,
+      event.scalaFilter !== undefined,
+      event.crossVersion !== undefined,
+    ].filter(Boolean).length;
+    if (annotations !== 1) continue;
 
     // Use the specialized regexes that capture prefix/suffix ranges for decoration hiding
     let match: RegExpExecArray | null = null;
