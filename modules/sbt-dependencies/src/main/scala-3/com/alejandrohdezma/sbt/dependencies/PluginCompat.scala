@@ -65,7 +65,7 @@ private[dependencies] object PluginCompat {
   val sbtPluginAttributes: Option[Map[String, String]] = None
 
   /** Scala version assumed for the meta-build when resolving `sbt-build` group dependencies. */
-  val metaBuildScalaVersion: String = "3.8.4"
+  val metaBuildScalaVersion: String = "3.9.0"
 
   /** Available version strings of a coursier version listing. sbt 1 bundles coursier 2.1.13, where `available` is the
     * only spelling; sbt 2 bundles 2.1.25+, where it is deprecated in favor of `available0`.

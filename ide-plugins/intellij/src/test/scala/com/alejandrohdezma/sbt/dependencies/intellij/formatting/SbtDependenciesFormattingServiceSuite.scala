@@ -32,12 +32,12 @@ class SbtDependenciesFormattingServiceSuite extends FunSuite {
   test("sorts groups (sbt-build, common-settings, then alphabetical) and dependencies") {
     val input =
       """zebra = [
-        |  "org.scalameta::munit:1.2.4:test"
+        |  "org.scalameta::munit:1.3.6:test"
         |  "io.circe::circe-core:{{circe}}"
         |]
         |
         |common-settings {
-        |  scala-version = "3.8.4"
+        |  scala-version = "3.9.0"
         |}
         |
         |sbt-build = [
@@ -53,12 +53,12 @@ class SbtDependenciesFormattingServiceSuite extends FunSuite {
         |]
         |
         |common-settings {
-        |  scala-version = "3.8.4"
+        |  scala-version = "3.9.0"
         |}
         |
         |zebra = [
         |  "io.circe::circe-core:{{circe}}"
-        |  "org.scalameta::munit:1.2.4:test"
+        |  "org.scalameta::munit:1.3.6:test"
         |]
         |""".stripMargin
 
