@@ -114,7 +114,7 @@
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.2",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.11",
     "vscode-tmgrammar-test": "^0.1.3"
   }
 }
