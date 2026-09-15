@@ -73,7 +73,7 @@ final class SbtDependenciesColorSettingsPage extends ColorSettingsPage {
       |
       |common-settings {
       |  java-version = "21"
-      |  scala-version = "3.8.4"
+      |  scala-version = "3.9.0"
       |  dependencies = [
       |    "com.permutive::scala-bom:1.2.0:bom"
       |  ]

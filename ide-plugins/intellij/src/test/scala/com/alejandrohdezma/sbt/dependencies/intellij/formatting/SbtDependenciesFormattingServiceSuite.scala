@@ -37,7 +37,7 @@ class SbtDependenciesFormattingServiceSuite extends FunSuite {
         |]
         |
         |common-settings {
-        |  scala-version = "3.8.4"
+        |  scala-version = "3.9.0"
         |}
         |
         |sbt-build = [
@@ -53,7 +53,7 @@ class SbtDependenciesFormattingServiceSuite extends FunSuite {
         |]
         |
         |common-settings {
-        |  scala-version = "3.8.4"
+        |  scala-version = "3.9.0"
         |}
         |
         |zebra = [
