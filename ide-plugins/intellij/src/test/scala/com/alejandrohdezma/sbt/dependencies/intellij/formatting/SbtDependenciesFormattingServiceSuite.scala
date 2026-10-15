@@ -32,7 +32,7 @@ class SbtDependenciesFormattingServiceSuite extends FunSuite {
   test("sorts groups (sbt-build, common-settings, then alphabetical) and dependencies") {
     val input =
       """zebra = [
-        |  "org.scalameta::munit:1.2.4:test"
+        |  "org.scalameta::munit:1.3.6:test"
         |  "io.circe::circe-core:{{circe}}"
         |]
         |
@@ -58,7 +58,7 @@ class SbtDependenciesFormattingServiceSuite extends FunSuite {
         |
         |zebra = [
         |  "io.circe::circe-core:{{circe}}"
-        |  "org.scalameta::munit:1.2.4:test"
+        |  "org.scalameta::munit:1.3.6:test"
         |]
         |""".stripMargin
 

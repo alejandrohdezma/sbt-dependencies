@@ -24,7 +24,7 @@ import munit.FunSuite
 class DependencyStringLexerSuite extends FunSuite {
 
   test("full dependency with version and configuration") {
-    val result = lex("\"org.scalameta::munit:1.2.4:test\"")
+    val result = lex("\"org.scalameta::munit:1.3.6:test\"")
 
     val expected = List(
       "QUOTE"         -> "\"",
@@ -88,7 +88,7 @@ class DependencyStringLexerSuite extends FunSuite {
 
   test("tokens always cover the whole fragment") {
     val fragments = List(
-      "\"org.scalameta::munit:1.2.4:test\"", "\"a:b:=1.0.0\"", "\"org.typelevel::cats-core:*\"",
+      "\"org.scalameta::munit:1.3.6:test\"", "\"a:b:=1.0.0\"", "\"org.typelevel::cats-core:*\"",
       "\"io.circe::circe-core:{{circe}}\"", "\"not a dependency\"", "\"\"", "\"unterminated"
     )
 
