@@ -40,7 +40,7 @@ class SbtDependenciesPasteProcessorSuite extends munit.FunSuite {
   test("convertSbtDependency converts an addSbtPlugin line") {
     val result =
       SbtDependenciesPasteProcessor.convertSbtDependency(
-        """addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.7")"""
+        """addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.9")"""
       )
 
     val expected = Some("ch.epfl.scala:sbt-scalafix:0.14.7:sbt-plugin")
@@ -50,7 +50,7 @@ class SbtDependenciesPasteProcessorSuite extends munit.FunSuite {
 
   test("convertSbtDependency detects sbt plugins by the artifact suffix") {
     val result =
-      SbtDependenciesPasteProcessor.convertSbtDependency(""""ch.epfl.scala" % "sbt-scalafix_2.12_1.0" % "0.14.7"""")
+      SbtDependenciesPasteProcessor.convertSbtDependency(""""ch.epfl.scala" % "sbt-scalafix_2.12_1.0" % "0.14.9"""")
 
     val expected = Some("ch.epfl.scala:sbt-scalafix:0.14.7:sbt-plugin")
 
