@@ -16,6 +16,9 @@
 
 package com.alejandrohdezma.sbt.dependencies.constraints
 
+import sbt.complete.DefaultParsers._
+import sbt.internal.util.complete.Parser
+
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
@@ -52,5 +55,19 @@ object UpdateFilter {
 
   /** Matches dependencies by organization and artifact name. */
   final case class ByOrgAndArtifact(organization: String, artifact: String) extends UpdateFilter
+
+  /** Parser for an optional filter argument: `[org:artifact]`, `[org:]`, `[:artifact]`, or empty for all. */
+  val parser: Parser[UpdateFilter] = {
+    val regex = """^([^:]+)?:([^:]+)?$""".r
+
+    val orgAndArtifact = token(NotSpace, "<org:artifact>").map {
+      case regex(org, null) => ByOrg(org)      // scalafix:ok
+      case regex(null, art) => ByArtifact(art) // scalafix:ok
+      case regex(org, art)  => ByOrgAndArtifact(org, art)
+      case _                => All
+    }
+
+    (Space ~> orgAndArtifact) ?? All
+  }
 
 }

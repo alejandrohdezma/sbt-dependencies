@@ -53,7 +53,7 @@ class Tasks {
 
     val raw = file.read(group, variables)
 
-    val filter = updateFilterParser.parsed
+    val filter = UpdateFilter.parser.parsed
 
     val isSbtBuild = Settings.isSbtBuild.value
     val sbtBinary  = (pluginCrossBuild / sbtBinaryVersion).value
@@ -308,20 +308,6 @@ class Tasks {
       val config = configByModule.getOrElse((m.organization, m.name), m.configurations.getOrElse("compile"))
       m.withConfigurations(Some(config))
     }
-  }
-
-  /** Parser for updateDependencies filter: `[org:artifact]`, `[org:]`, `[:artifact]`, or empty for all */
-  private val updateFilterParser: Parser[UpdateFilter] = {
-    val regex = """^([^:]+)?:([^:]+)?$""".r
-
-    val orgAndArtifact = token(NotSpace, "<org:artifact>").map {
-      case regex(org, null) => UpdateFilter.ByOrg(org)      // scalafix:ok
-      case regex(null, art) => UpdateFilter.ByArtifact(art) // scalafix:ok
-      case regex(org, art)  => UpdateFilter.ByOrgAndArtifact(org, art)
-      case _                => UpdateFilter.All
-    }
-
-    (Space ~> orgAndArtifact) ?? UpdateFilter.All
   }
 
   /** Parser for useBomManagedVersions: an optional `--safe` flag */

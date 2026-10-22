@@ -27,6 +27,7 @@ import com.alejandrohdezma.sbt.dependencies.constraints.ArtifactMigration
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.constraints.PostUpdateHook
 import com.alejandrohdezma.sbt.dependencies.constraints.ScalafixMigration
+import com.alejandrohdezma.sbt.dependencies.constraints.UpdateFilter
 import com.alejandrohdezma.sbt.dependencies.finders.Finders
 import com.alejandrohdezma.sbt.dependencies.finders.Utils
 import com.alejandrohdezma.sbt.dependencies.io.DependenciesFile
@@ -281,27 +282,35 @@ class Commands {
     *
     * Reads the file directly from the main build, resolves each dependency to its latest version using Coursier, and
     * writes the updated versions back. Retracted versions are warned about but not applied.
+    *
+    * Accepts the same optional filter as `updateDependencies` (`org:artifact`, `org:` or `:artifact`); only the
+    * dependencies it matches are updated.
     */
   lazy val updateBuildDependencies = updateGroupDependencies("updateBuildDependencies", `sbt-build`)
 
-  /** Resolves latest versions for dependencies in the `common-settings` group of `project/dependencies.conf`. */
+  /** Resolves latest versions for dependencies in the `common-settings` group of `project/dependencies.conf`.
+    *
+    * Accepts the same optional filter as `updateDependencies`; only the dependencies it matches are updated.
+    */
   lazy val updateCommonDependencies = updateGroupDependencies("updateCommonDependencies", `common-settings`)
 
   private def updateGroupDependencies(commandName: String, group: Group): Command =
-    Command.command(commandName) { state =>
+    Command(commandName)(_ => UpdateFilter.parser) { (state, filter) =>
       withDependenciesFile(state, group) { (project, file) => implicit finders =>
         implicit val logger: Logger = state.log
 
         val deps = file.read(group, Map.empty)
 
         if (deps.nonEmpty) {
-          logger.info(s"\n↻ Updating dependencies for `${group.name}` in project/dependencies.conf\n")
+          logger.info(s"\n↻ Updating ${filter.show} dependencies for `${group.name}` in project/dependencies.conf\n")
 
-          val updated = Utils.resolveLatestVersions(deps, project.get(ThisBuild / Keys.dependencyResolverParallelism))
+          val parallelism = project.get(ThisBuild / Keys.dependencyResolverParallelism)
+
+          val updated = Utils.resolveLatestVersions(deps.filter(filter.matches), parallelism)
 
           updated.foreach(finders.retractionFinder.warnIfRetracted(_))
 
-          file.write(group, updated)
+          file.write(group, deps.filterNot(filter.matches) ++ updated)
         }
 
         state
