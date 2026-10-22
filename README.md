@@ -27,7 +27,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.41.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.42.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -655,6 +655,12 @@ Use `updateBuildDependencies` to update dependencies in the meta-build (`project
 sbt> updateBuildDependencies
 ```
 
+It accepts the same filter as `updateDependencies`, so you can update a single plugin:
+
+```bash
+sbt> updateBuildDependencies com.alejandrohdezma:sbt-dependencies
+```
+
 ---
 
 </details>
@@ -666,6 +672,8 @@ Use `updateCommonDependencies` to update dependencies in the [`common-settings`]
 ```bash
 sbt> updateCommonDependencies
 ```
+
+It accepts the same filter as `updateDependencies` (`org:artifact`, `org:` or `:artifact`).
 
 This is also part of `updateAllDependencies`, which updates the common-settings group alongside the main and meta builds.
 
@@ -1170,7 +1178,7 @@ Pre-update migrations need the classpath the project had before the update, so f
 
 A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
 
-Reference it as `alejandrohdezma/sbt-dependencies@v0.41.0`:
+Reference it as `alejandrohdezma/sbt-dependencies@v0.42.0`:
 
 ```yaml
 name: Update Dependencies
@@ -1198,7 +1206,7 @@ jobs:
 
       - uses: sbt/setup-sbt@v1
 
-      - uses: alejandrohdezma/sbt-dependencies@v0.41.0
+      - uses: alejandrohdezma/sbt-dependencies@v0.42.0
         with:
           config-file: .github/.scala-steward.conf
 ```
