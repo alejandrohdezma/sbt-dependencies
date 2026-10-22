@@ -1,0 +1,4 @@
+# Verify updateBuildDependencies and updateCommonDependencies honour the update filter
+> updateBuildDependencies org.typelevel:cats-effect
+> updateCommonDependencies org.typelevel:cats-effect
+> assertTest

@@ -655,6 +655,12 @@ Use `updateBuildDependencies` to update dependencies in the meta-build (`project
 sbt> updateBuildDependencies
 ```
 
+It accepts the same filter as `updateDependencies`, so you can update a single plugin:
+
+```bash
+sbt> updateBuildDependencies com.alejandrohdezma:sbt-dependencies
+```
+
 ---
 
 </details>
@@ -666,6 +672,8 @@ Use `updateCommonDependencies` to update dependencies in the [`common-settings`]
 ```bash
 sbt> updateCommonDependencies
 ```
+
+It accepts the same filter as `updateDependencies` (`org:artifact`, `org:` or `:artifact`).
 
 This is also part of `updateAllDependencies`, which updates the common-settings group alongside the main and meta builds.
 
