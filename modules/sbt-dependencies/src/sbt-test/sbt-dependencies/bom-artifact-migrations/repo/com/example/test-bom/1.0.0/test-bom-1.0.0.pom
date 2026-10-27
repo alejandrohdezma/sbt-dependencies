@@ -17,6 +17,11 @@
         <artifactId>java-lib</artifactId>
         <version>1.0.0</version>
       </dependency>
+      <dependency>
+        <groupId>org.gone</groupId>
+        <artifactId>gone-lib</artifactId>
+        <version>1.2.3</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 </project>

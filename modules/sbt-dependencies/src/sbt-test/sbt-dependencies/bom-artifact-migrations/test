@@ -2,7 +2,7 @@
 # new version pins them. A migration from a Java artifact to a cross-built one switches the line from `:` to `::`,
 # since the BOM only pins the suffixed artifact. A filtered run that doesn't bump the BOM leaves the `*` lines
 # untouched (the old coordinates are still pinned), while any run that bumps the BOM — filtered to it or not —
-# migrates them.
+# migrates them. A `*` line the new BOM drops without a migration declares its previous version explicitly.
 
 > myproject/updateDependencies org.old:
 

@@ -167,16 +167,16 @@ object DependencyOps {
       }
 
     /** Applies an artifact migration to a BOM-managed (`*`) dependency once the new versions of the visible BOMs are
-      * known. `updateDependencies` never rewrites a `*` line's version, but when its coordinates match an artifact
-      * migration and a BOM's new version drops the old coordinates, leaving the line untouched breaks the build on the
-      * next reload — so:
+      * known. `updateDependencies` never rewrites a pinned `*` line's version, but when its coordinates match an
+      * artifact migration and a BOM's new version drops the old coordinates, leaving the line untouched breaks the
+      * build on the next reload — so:
       *
       *   - `newBomPins` pins the migrated coordinates → rewrite the line to them (the version stays `*`). Artifact
       *     migrations don't say whether the new artifact is cross-built, so when the line's own shape isn't pinned the
       *     other one is tried too, and the line switches between `:` and `::` to the one the BOM pins.
       *   - `newBomPins` still pins the old coordinates → keep the line (the BOMs haven't moved, the user decides).
       *   - `newBomPins` pins neither → keep the line and warn: the build needs manual attention once the BOM bump
-      *     lands.
+      *     lands, and [[pinIfDroppedFromBom]] keeps it loading meanwhile.
       *
       * `newBomPins` must be the flattened pins of every visible BOM at the version the current update run produces, in
       * BOM precedence order. A dependency that is not BOM-managed or matches no migration is returned unchanged.
@@ -208,11 +208,34 @@ object DependencyOps {
               logger.warn {
                 s"${dependency.organization}:${dependency.name} has migrated to " +
                   s"${migrated.organization}:${migrated.name}, but no visible BOM's new version pins either " +
-                  "coordinate — the `*` line was left untouched and will need manual attention"
+                  "coordinate — the line will need manual attention"
               }
 
               dependency
           }
+
+        case _ =>
+          dependency
+      }
+
+    /** Replaces a resolved BOM-managed (`*`) version with the version it resolved to when `newBomPins` no longer pins
+      * the artifact, and warns. Writing `*` back would break the build on the next reload, since no visible BOM would
+      * provide its version anymore.
+      *
+      * `newBomPins` must be the flattened pins of every visible BOM at the version the current update run produces. Any
+      * other dependency is returned unchanged.
+      */
+    def pinIfDroppedFromBom(newBomPins: Seq[ModuleID], scalaBinaryVersion: String)(implicit
+        logger: Logger
+    ): Dependency =
+      dependency.version match {
+        case Version.Bom(Some(previous)) if !dependency.isPinned(newBomPins, scalaBinaryVersion) =>
+          logger.warn {
+            s"No visible BOM's new version pins ${dependency.organization}:${dependency.name}, so " +
+              s"`${dependency.toLine}` now declares its previous version `${previous.toVersionString}` explicitly"
+          }
+
+          dependency.withVersion(previous)
 
         case _ =>
           dependency

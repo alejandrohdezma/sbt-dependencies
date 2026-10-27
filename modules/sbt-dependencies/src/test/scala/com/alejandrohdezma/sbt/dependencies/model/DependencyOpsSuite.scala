@@ -136,7 +136,7 @@ class DependencyOpsSuite extends munit.FunSuite {
       logger.getLogs(Level.Warn),
       List(
         "org.old:old-lib has migrated to org.new:new-lib, but no visible BOM's new version pins either " +
-          "coordinate — the `*` line was left untouched and will need manual attention"
+          "coordinate — the line will need manual attention"
       )
     )
   }

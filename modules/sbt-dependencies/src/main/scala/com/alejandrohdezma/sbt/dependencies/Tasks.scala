@@ -39,7 +39,10 @@ import com.alejandrohdezma.string.box._
 /** SBT input tasks for managing dependencies. */
 class Tasks {
 
-  /** Updates dependencies to their latest versions based on the filter and version constraints. */
+  /** Updates dependencies to their latest versions based on the filter and version constraints. A `*` line that no
+    * visible BOM's new version pins (and no artifact migration moves) is written with the version it resolved to before
+    * the update.
+    */
   val updateDependencies = Def.inputTask {
     implicit val logger: Logger   = streams.value.log
     implicit val finders: Finders = Finders.fromState(state.value, scalaVersion.value, crossScalaVersions.value)
@@ -80,7 +83,7 @@ class Tasks {
       // independent of aggregation ordering; common-settings comes from the file, already bumped by
       // updateCommonDependencies when part of updateAllDependencies. `*` lines resolve against these pins so their
       // "resolves to" reflects the BOM bump happening in this very run, falling back to the load-time pins for
-      // artifacts the new BOM no longer provides (the migration step below deals with those).
+      // artifacts the new BOM no longer provides (the migration and pinning steps below deal with those).
       def predicted(boms: Seq[Dependency]): Seq[Dependency] =
         boms.map(dep => if (filter.matches(dep)) dep.findLatestVersion else dep)
 
@@ -112,7 +115,7 @@ class Tasks {
         if (toWrite.exists(_.hasBomManagedMigration)) toWrite.map(_.migrateBomManaged(newPins, scalaBinary))
         else toWrite
 
-      file.write(group, migrated)
+      file.write(group, migrated.map(_.pinIfDroppedFromBom(newPins, scalaBinary)))
     }
   }
 
