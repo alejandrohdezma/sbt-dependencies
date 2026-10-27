@@ -41,7 +41,8 @@ class Tasks {
 
   /** Updates dependencies to their latest versions based on the filter and version constraints. A `*` line that no
     * visible BOM's new version pins (and no artifact migration moves) is written with the version it resolved to before
-    * the update.
+    * the update, and listed in `target/sbt-dependencies/bom-dropped/<group>.md` for the GitHub Action's report — one
+    * file per group, deleted when there is nothing to report.
     */
   val updateDependencies = Def.inputTask {
     implicit val logger: Logger   = streams.value.log
@@ -53,6 +54,9 @@ class Tasks {
     val bomPins     = Keys.dependenciesFromBom.value
     val scalaBinary = (update / scalaBinaryVersion).value
     val variables   = Keys.dependencyVersionVariables.value
+
+    val droppedReport =
+      (ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "bom-dropped" / s"$group.md"
 
     val raw = file.read(group, variables)
 
@@ -115,7 +119,16 @@ class Tasks {
         if (toWrite.exists(_.hasBomManagedMigration)) toWrite.map(_.migrateBomManaged(newPins, scalaBinary))
         else toWrite
 
-      file.write(group, migrated.map(_.pinIfDroppedFromBom(newPins, scalaBinary)))
+      val pinned = migrated.map(_.pinIfDroppedFromBom(newPins, scalaBinary))
+
+      file.write(group, pinned)
+
+      val dropped = migrated.zip(pinned).collect {
+        case (before, after) if before.version.isBom && !after.version.isBom =>
+          s"- `$group`: `${before.toLine}` → `${after.toLine}`\n"
+      }
+
+      if (dropped.isEmpty) IO.delete(droppedReport) else IO.write(droppedReport, dropped.mkString)
     }
   }
 

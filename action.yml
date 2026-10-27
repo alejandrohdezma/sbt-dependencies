@@ -53,7 +53,7 @@ inputs:
     required: false
     default: Update dependencies
   pr-body:
-    description: "Body for the created/updated pull request. The failure report (when an sbt step fails), the BOM-managed versions report, the pre-update migrations report and the post-update hooks report are appended to it."
+    description: "Body for the created/updated pull request. The failure report (when an sbt step fails), the dependencies dropped from BOMs report, the BOM-managed versions report, the pre-update migrations report and the post-update hooks report are appended to it."
     required: false
     default: "Automated dependency updates from [`sbt-dependencies`](https://github.com/alejandrohdezma/sbt-dependencies)."
   github-token:
@@ -62,6 +62,9 @@ inputs:
     default: ${{ github.token }}
 
 outputs:
+  bom-dropped-report:
+    description: "Markdown report of the `*` dependencies that a BOM bump dropped, which now declare their previous version explicitly. Empty when no BOM dropped a dependency."
+    value: ${{ steps.bom-dropped.outputs.report }}
   bom-report:
     description: "Markdown report of the BOM-managed versions adopted (and, in safe mode, left as is) by `useBomManagedVersions`. Empty when the task didn't run or had nothing to report."
     value: ${{ steps.bom.outputs.report }}
@@ -238,6 +241,29 @@ runs:
           git commit -m "Run \`$EXTRA_COMMAND\`"
         fi
 
+    # `updateDependencies` writes one markdown file per project group under target/sbt-dependencies/bom-dropped, listing
+    # the `*` lines whose BOM bump dropped them; concatenating and sorting them gives a deterministic report.
+    - name: Report dependencies dropped from BOMs
+      id: bom-dropped
+      shell: bash
+      run: |
+        dir=target/sbt-dependencies/bom-dropped
+        report=""
+        if [ -d "$dir" ] && [ -n "$(ls -A "$dir")" ]; then
+          report="## :warning: Dependencies dropped from BOMs
+
+        A BOM bumped by this update no longer manages these \`*\` dependencies, and no artifact migration moved them. Each line now declares the version it had before the update, so the build keeps working. Decide whether to keep the dependency, replace it, or remove it.
+
+        $(cat "$dir"/*.md | sort)
+        "
+          printf '%s' "$report" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        {
+          echo "report<<BOM_DROPPED_EOF"
+          printf '%s' "$report"
+          echo "BOM_DROPPED_EOF"
+        } >> "$GITHUB_OUTPUT"
+
     # `useBomManagedVersions` (typically run through `extra-command`) writes one markdown file per project group under
     # target/sbt-dependencies/bom-managed; concatenating and sorting them gives a deterministic report regardless of
     # sbt's aggregation order.
@@ -366,6 +392,8 @@ runs:
           ${{ inputs.pr-body }}
 
           ${{ steps.failure.outputs.report }}
+
+          ${{ steps.bom-dropped.outputs.report }}
 
           ${{ steps.bom.outputs.report }}
 
