@@ -1,3 +1,5 @@
+ThisBuild / scalaVersion := "2.13.16"
+
 ThisBuild / resolvers += "Test Repo" at ((ThisBuild / baseDirectory).value / "repo").toURI.toString
 
 ThisBuild / dependencyMigrations := List(file("project/artifact-migrations.conf").toURI)

@@ -1,4 +1,5 @@
 myproject = [
   "com.example:test-bom:1.0.0:bom"
+  "org.old:java-lib:*"
   "org.old:old-lib:*"
 ]

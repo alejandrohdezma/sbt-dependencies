@@ -171,7 +171,9 @@ object DependencyOps {
       * migration and a BOM's new version drops the old coordinates, leaving the line untouched breaks the build on the
       * next reload — so:
       *
-      *   - `newBomPins` pins the migrated coordinates → rewrite the line to them (the version stays `*`).
+      *   - `newBomPins` pins the migrated coordinates → rewrite the line to them (the version stays `*`). Artifact
+      *     migrations don't say whether the new artifact is cross-built, so when the line's own shape isn't pinned the
+      *     other one is tried too, and the line switches between `:` and `::` to the one the BOM pins.
       *   - `newBomPins` still pins the old coordinates → keep the line (the BOMs haven't moved, the user decides).
       *   - `newBomPins` pins neither → keep the line and warn: the build needs manual attention once the BOM bump
       *     lands.
@@ -190,20 +192,26 @@ object DependencyOps {
             .withName(migration.artifactIdAfter)
             .withVersion(Version.Bom(None))
 
-          if (migrated.isPinned(newBomPins, scalaBinaryVersion)) {
-            logger.info(s" ↳ $YELLOW🔀$RESET $YELLOW${dependency.toLine}$RESET -> $CYAN${migrated.toLine}$RESET")
+          val otherShape =
+            migrated.copy(crossVersion = if (migrated.isCross) Cross.Disabled else Cross.Binary)
 
-            migrated
-          } else if (dependency.isPinned(newBomPins, scalaBinaryVersion)) {
-            dependency
-          } else {
-            logger.warn {
-              s"${dependency.organization}:${dependency.name} has migrated to " +
-                s"${migrated.organization}:${migrated.name}, but no visible BOM's new version pins either " +
-                "coordinate — the `*` line was left untouched and will need manual attention"
-            }
+          List(migrated, otherShape).find(_.isPinned(newBomPins, scalaBinaryVersion)) match {
+            case Some(pinned) =>
+              logger.info(s" ↳ $YELLOW🔀$RESET $YELLOW${dependency.toLine}$RESET -> $CYAN${pinned.toLine}$RESET")
 
-            dependency
+              pinned
+
+            case None if dependency.isPinned(newBomPins, scalaBinaryVersion) =>
+              dependency
+
+            case None =>
+              logger.warn {
+                s"${dependency.organization}:${dependency.name} has migrated to " +
+                  s"${migrated.organization}:${migrated.name}, but no visible BOM's new version pins either " +
+                  "coordinate — the `*` line was left untouched and will need manual attention"
+              }
+
+              dependency
           }
 
         case _ =>

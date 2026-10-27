@@ -79,6 +79,34 @@ class DependencyOpsSuite extends munit.FunSuite {
     assertEquals(result, bomDep("org.new", "new-lib", crossVersion = CrossVersion.disabled))
   }
 
+  test("migrateBomManaged switches a Java dependency to `::` when the new BOM only pins the cross-built artifact") {
+    val pins = Seq(ModuleID("org.new", "new-lib_2.13", "2.0.0"))
+
+    val result = bomDep("org.old", "old-lib", crossVersion = CrossVersion.disabled).migrateBomManaged(pins, "2.13")
+
+    assertEquals(result, bomDep("org.new", "new-lib"))
+    assertEquals(
+      logger.getLogs(Level.Info),
+      List(s" ↳ $YELLOW🔀$RESET ${YELLOW}org.old:old-lib:*$RESET -> ${CYAN}org.new::new-lib:*$RESET")
+    )
+  }
+
+  test("migrateBomManaged switches a cross dependency to `:` when the new BOM only pins the Java artifact") {
+    val pins = Seq(ModuleID("org.new", "new-lib", "2.0.0"))
+
+    val result = bomDep("org.old", "old-lib").migrateBomManaged(pins, "2.13")
+
+    assertEquals(result, bomDep("org.new", "new-lib", crossVersion = CrossVersion.disabled))
+  }
+
+  test("migrateBomManaged keeps the line's shape when the new BOM pins both artifacts") {
+    val pins = Seq(ModuleID("org.new", "new-lib", "2.0.0"), ModuleID("org.new", "new-lib_2.13", "2.0.0"))
+
+    val result = bomDep("org.old", "old-lib", crossVersion = CrossVersion.disabled).migrateBomManaged(pins, "2.13")
+
+    assertEquals(result, bomDep("org.new", "new-lib", crossVersion = CrossVersion.disabled))
+  }
+
   test("migrateBomManaged preserves note, intransitive and configuration on rewrite") {
     val pins = Seq(ModuleID("org.new", "new-lib_2.13", "2.0.0"))
 
