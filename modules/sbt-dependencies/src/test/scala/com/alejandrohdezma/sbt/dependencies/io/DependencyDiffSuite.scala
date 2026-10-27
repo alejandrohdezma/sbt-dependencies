@@ -598,6 +598,34 @@ class DependencyDiffSuite extends munit.FunSuite {
     assertEquals(result.updated, Nil)
   }
 
+  test("withMigratedUpdates pairs a removed Java artifact with an added cross-built one") {
+    val migration = ArtifactMigration(Some("org.old"), "org.new", Some("old-lib"), "new-lib")
+
+    val diff = ProjectDiff(
+      updated = Nil,
+      added = List(ResolvedDep("org.new", "new-lib_3", "2.0.0")),
+      removed = List(ResolvedDep("org.old", "old-lib", "1.0.0"))
+    )
+
+    val result = diff.withMigratedUpdates(List(migration))
+
+    assertEquals(result.updated, List(UpdatedDep("org.old", "old-lib", "1.0.0", "2.0.0")))
+  }
+
+  test("withMigratedUpdates pairs a removed cross-built artifact with an added Java one") {
+    val migration = ArtifactMigration(Some("org.old"), "org.new", Some("old-lib"), "new-lib")
+
+    val diff = ProjectDiff(
+      updated = Nil,
+      added = List(ResolvedDep("org.new", "new-lib", "2.0.0")),
+      removed = List(ResolvedDep("org.old", "old-lib_2.13", "1.0.0"))
+    )
+
+    val result = diff.withMigratedUpdates(List(migration))
+
+    assertEquals(result.updated, List(UpdatedDep("org.old", "old-lib_2.13", "1.0.0", "2.0.0")))
+  }
+
   test("withMigratedUpdates does not pair dependencies with different configurations") {
     val diff = ProjectDiff(
       updated = Nil,
