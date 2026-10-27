@@ -856,12 +856,14 @@ class Commands {
   private def generateSnapshot(state: State): Map[Group, Set[DependencyDiff.ResolvedDep]] = {
     val project = Project.extract(state)
 
+    val unchecked = state.put(Tasks.skipDependenciesCheck, true)
+
     val snapshot = project.structure.allProjectRefs.flatMap { ref =>
       val group = Group(ref.project)
 
-      Try(project.runTask(ref / Keys.allProjectDependencies, state)).toOption.toList.map { case (_, deps) =>
-        group -> deps.map(DependencyDiff.ResolvedDep.fromModuleID).toSet
-      }
+      Try(project.runTask(ref / Keys.allProjectDependencies, unchecked)).onError { case _ =>
+        state.log.warn(s"Unable to resolve `${group.name}`, so its changes are missing from the dependency snapshot")
+      }.toOption.toList.map { case (_, deps) => group -> deps.map(DependencyDiff.ResolvedDep.fromModuleID).toSet }
     }.toMap
 
     snapshot.foreach { case (group, deps) =>

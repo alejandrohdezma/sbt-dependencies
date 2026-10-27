@@ -253,15 +253,23 @@ class Tasks {
     }
   }
 
+  /** When set on the state, [[updateWithChecks]] skips `dependenciesCheck`. Set by the update snapshots, which only
+    * record what resolves: a check failing on the updated dependencies must not hide them from the diff.
+    */
+  val skipDependenciesCheck = AttributeKey[Boolean]("sbtDependenciesSkipDependenciesCheck")
+
   /** Run all dependency check functions after resolution completes. If any check throws, the `update` task (and
-    * anything depending on it) will fail. Also warns about every declared dependency that resolved to a version other
-    * than the declared one — a transitive dependency outvoting it, or an override forcing it.
+    * anything depending on it) will fail. The checks are skipped when the state carries [[skipDependenciesCheck]]. Also
+    * warns about every declared dependency that resolved to a version other than the declared one — a transitive
+    * dependency outvoting it, or an override forcing it.
     */
   def updateWithChecks = Def.task {
     val report = update.value
     val log    = streams.value.log
+    val checks = Keys.dependenciesCheck.value
+    val skip   = state.value.get(skipDependenciesCheck).contains(true)
 
-    Keys.dependenciesCheck.value.foreach(_(report.allModules.toList))
+    if (!skip) checks.foreach(_(report.allModules.toList))
 
     val declared =
       Keys.moduleIdsFromFile.value.map(CrossVersion(scalaVersion.value, (update / scalaBinaryVersion).value))
