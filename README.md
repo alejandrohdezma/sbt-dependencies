@@ -27,7 +27,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.42.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.43.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -775,6 +775,8 @@ Migrated dependencies are shown with a `🔀` indicator:
  ↳ 🔀 org.tpolecat::doobie-hikari:* -> org.typelevel::doobie-hikari:*
 ```
 
+When a BOM's new version drops a `*` dependency and no migration moves it, the line declares the version it had before the update instead, so the build keeps loading. `updateDependencies` warns about it and lists it in `target/sbt-dependencies/bom-dropped/<group>.md`, which the [GitHub Action](#github-action) appends to the pull request.
+
 You can customize the migration sources using the `dependencyMigrations` setting:
 
 ```scala
@@ -1178,7 +1180,7 @@ Pre-update migrations need the classpath the project had before the update, so f
 
 A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
 
-Reference it as `alejandrohdezma/sbt-dependencies@v0.42.0`:
+Reference it as `alejandrohdezma/sbt-dependencies@v0.43.0`:
 
 ```yaml
 name: Update Dependencies
@@ -1206,7 +1208,7 @@ jobs:
 
       - uses: sbt/setup-sbt@v1
 
-      - uses: alejandrohdezma/sbt-dependencies@v0.42.0
+      - uses: alejandrohdezma/sbt-dependencies@v0.43.0
         with:
           config-file: .github/.scala-steward.conf
 ```
@@ -1223,13 +1225,14 @@ The action assumes sbt (and any repository credentials) are already set up.
 | `branch` | Branch to push the updates to. | `updates/dependencies` |
 | `base` | Base branch for the created pull request. | the default branch detected from `origin` |
 | `pr-title` | Title for the pull request. Also used as the update commit's message. | `Update dependencies` |
-| `pr-body` | Body for the pull request. The failure, BOM-managed versions, pre-update migrations and post-update hooks reports are appended to it. | short default text |
+| `pr-body` | Body for the pull request. The failure, dependencies dropped from BOMs, BOM-managed versions, pre-update migrations and post-update hooks reports are appended to it. | short default text |
 | `github-token` | Token used to create/update the pull request. | `github.token` |
 
 ### Outputs
 
 | Output | Description |
 | :--- | :--- |
+| `bom-dropped-report` | Markdown report of the `*` dependencies that a BOM bump dropped, which now declare their previous version explicitly. Empty when no BOM dropped a dependency. |
 | `bom-report` | Markdown report of the BOM-managed versions adopted (and, in safe mode, left as is) by `useBomManagedVersions`. Empty when the task didn't run or had nothing to report. |
 | `migrations-report` | Markdown report of executed and failed pre-update scalafix migrations. Empty when no migration matched. |
 | `hooks-report` | Markdown report of executed and failed post-update hooks. Empty when no hooks matched. |
