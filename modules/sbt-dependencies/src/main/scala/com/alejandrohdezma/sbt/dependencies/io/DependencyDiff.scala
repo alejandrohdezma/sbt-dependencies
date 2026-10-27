@@ -50,6 +50,8 @@ object DependencyDiff {
         .find(suffix => name.endsWith(s"_$suffix"))
         .fold(name)(suffix => name.dropRight(suffix.length + 1))
 
+    val scalaSuffix = name.drop(baseName.length)
+
   }
 
   object ResolvedDep {
@@ -119,6 +121,9 @@ object DependencyDiff {
       * removed and the new ones added — never as an update. Hooks and scalafix migrations are declared against the old
       * coordinates (Scala Steward matches them on the update's original groupId), so without this step they would never
       * match a migrated artifact.
+      *
+      * Both sides must share the Scala version suffix, unless one of them is a Java artifact: a migration can move a
+      * Java artifact to a cross-built one or the other way round.
       */
     def withMigratedUpdates(artifactMigrations: List[ArtifactMigration]): ProjectDiff = {
       val migrated = removed.flatMap { removedDep =>
@@ -129,9 +134,9 @@ object DependencyDiff {
           added.find { addedDep =>
             addedDep.organization === migration.groupIdAfter &&
             addedDep.baseName === migration.artifactIdAfter &&
-            addedDep.name.drop(addedDep.baseName.length) ===
-              removedDep.name.drop(removedDep.baseName.length) &&
-              addedDep.configuration === removedDep.configuration
+            (addedDep.scalaSuffix === removedDep.scalaSuffix || addedDep.scalaSuffix.isEmpty ||
+              removedDep.scalaSuffix.isEmpty) &&
+            addedDep.configuration === removedDep.configuration
           }
         }.map { addedDep =>
           UpdatedDep(removedDep.organization, removedDep.name, removedDep.revision, addedDep.revision,

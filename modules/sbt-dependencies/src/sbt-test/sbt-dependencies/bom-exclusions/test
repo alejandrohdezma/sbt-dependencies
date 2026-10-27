@@ -1,6 +1,10 @@
 # An `<exclusions>` block on a BOM's `<dependencyManagement>` entry travels to every consumer that takes its
 # version from the BOM (`*`), without any local annotation: the module keeps the excluded coordinate out of its
 # graph, the consumer's own `exclude` entries are merged with the BOM's, and a `*:*` wildcard becomes intransitive.
+# An update never writes the inherited exclusions back to the dependencies file.
 > assertInheritedFromBom
 > assertMergedWithOwnExclusions
 > assertWildcardBecomesIntransitive
+
+> updateDependencies
+$ must-mirror project/dependencies.conf project/dependencies.conf.expected

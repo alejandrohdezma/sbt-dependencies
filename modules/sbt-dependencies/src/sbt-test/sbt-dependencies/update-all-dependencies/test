@@ -1,4 +1,6 @@
-# Run the full update flow (http4s-core 0.21.0 -> 0.21.34, sbt 1.10.0 -> 1.10.11)
+# Run the full update flow (http4s-core 0.21.0 -> 0.21.34, sbt 1.10.0 -> 1.10.11). The project's
+# dependenciesCheck rejects the updated http4s-core, but the snapshots skip the checks, so the diff
+# still records the update.
 > updateAllDependencies
 
 # Verify snapshots were cleaned up
@@ -15,3 +17,6 @@ $ must-mirror target/sbt-dependencies/.sbt-dependency-diff expected-diff
 # post-update hooks keep the hooks file
 $ must-mirror target/sbt-dependencies/.sbt-pre-update-migrations expected-migrations
 $ must-mirror target/sbt-dependencies/.sbt-post-update-hooks expected-scripts
+
+# The check is still active outside the snapshots
+-> myproject/update

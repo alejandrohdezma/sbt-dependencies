@@ -775,6 +775,8 @@ Migrated dependencies are shown with a `🔀` indicator:
  ↳ 🔀 org.tpolecat::doobie-hikari:* -> org.typelevel::doobie-hikari:*
 ```
 
+When a BOM's new version drops a `*` dependency and no migration moves it, the line declares the version it had before the update instead, so the build keeps loading. `updateDependencies` warns about it and lists it in `target/sbt-dependencies/bom-dropped/<group>.md`, which the [GitHub Action](#github-action) appends to the pull request.
+
 You can customize the migration sources using the `dependencyMigrations` setting:
 
 ```scala
@@ -1223,13 +1225,14 @@ The action assumes sbt (and any repository credentials) are already set up.
 | `branch` | Branch to push the updates to. | `updates/dependencies` |
 | `base` | Base branch for the created pull request. | the default branch detected from `origin` |
 | `pr-title` | Title for the pull request. Also used as the update commit's message. | `Update dependencies` |
-| `pr-body` | Body for the pull request. The failure, BOM-managed versions, pre-update migrations and post-update hooks reports are appended to it. | short default text |
+| `pr-body` | Body for the pull request. The failure, dependencies dropped from BOMs, BOM-managed versions, pre-update migrations and post-update hooks reports are appended to it. | short default text |
 | `github-token` | Token used to create/update the pull request. | `github.token` |
 
 ### Outputs
 
 | Output | Description |
 | :--- | :--- |
+| `bom-dropped-report` | Markdown report of the `*` dependencies that a BOM bump dropped, which now declare their previous version explicitly. Empty when no BOM dropped a dependency. |
 | `bom-report` | Markdown report of the BOM-managed versions adopted (and, in safe mode, left as is) by `useBomManagedVersions`. Empty when the task didn't run or had nothing to report. |
 | `migrations-report` | Markdown report of executed and failed pre-update scalafix migrations. Empty when no migration matched. |
 | `hooks-report` | Markdown report of executed and failed post-update hooks. Empty when no hooks matched. |

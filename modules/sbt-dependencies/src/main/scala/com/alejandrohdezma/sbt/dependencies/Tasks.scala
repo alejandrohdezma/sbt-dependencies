@@ -39,7 +39,11 @@ import com.alejandrohdezma.string.box._
 /** SBT input tasks for managing dependencies. */
 class Tasks {
 
-  /** Updates dependencies to their latest versions based on the filter and version constraints. */
+  /** Updates dependencies to their latest versions based on the filter and version constraints. A `*` line that no
+    * visible BOM's new version pins (and no artifact migration moves) is written with the version it resolved to before
+    * the update, and listed in `target/sbt-dependencies/bom-dropped/<group>.md` for the GitHub Action's report — one
+    * file per group, deleted when there is nothing to report.
+    */
   val updateDependencies = Def.inputTask {
     implicit val logger: Logger   = streams.value.log
     implicit val finders: Finders = Finders.fromState(state.value, scalaVersion.value, crossScalaVersions.value)
@@ -50,6 +54,9 @@ class Tasks {
     val bomPins     = Keys.dependenciesFromBom.value
     val scalaBinary = (update / scalaBinaryVersion).value
     val variables   = Keys.dependencyVersionVariables.value
+
+    val droppedReport =
+      (ThisBuild / baseDirectory).value / "target" / "sbt-dependencies" / "bom-dropped" / s"$group.md"
 
     val raw = file.read(group, variables)
 
@@ -80,7 +87,7 @@ class Tasks {
       // independent of aggregation ordering; common-settings comes from the file, already bumped by
       // updateCommonDependencies when part of updateAllDependencies. `*` lines resolve against these pins so their
       // "resolves to" reflects the BOM bump happening in this very run, falling back to the load-time pins for
-      // artifacts the new BOM no longer provides (the migration step below deals with those).
+      // artifacts the new BOM no longer provides (the migration and pinning steps below deal with those).
       def predicted(boms: Seq[Dependency]): Seq[Dependency] =
         boms.map(dep => if (filter.matches(dep)) dep.findLatestVersion else dep)
 
@@ -91,7 +98,9 @@ class Tasks {
         .map(_.toModuleID(sbtBinary, scalaBinary))
         .flatMap(BomReader.read(_, scalaBinary))
 
-      val dependencies = raw.map(_.resolveBom(newPins, scalaBinary)).map(_.resolveBom(bomPins, scalaBinary))
+      val dependencies = raw.map { dependency =>
+        dependency.withVersion(dependency.resolveBom(newPins, scalaBinary).resolveBom(bomPins, scalaBinary).version)
+      }
 
       val filtered = dependencies.filterNot(filter.matches)
 
@@ -110,7 +119,16 @@ class Tasks {
         if (toWrite.exists(_.hasBomManagedMigration)) toWrite.map(_.migrateBomManaged(newPins, scalaBinary))
         else toWrite
 
-      file.write(group, migrated)
+      val pinned = migrated.map(_.pinIfDroppedFromBom(newPins, scalaBinary))
+
+      file.write(group, pinned)
+
+      val dropped = migrated.zip(pinned).collect {
+        case (before, after) if before.version.isBom && !after.version.isBom =>
+          s"- `$group`: `${before.toLine}` → `${after.toLine}`\n"
+      }
+
+      if (dropped.isEmpty) IO.delete(droppedReport) else IO.write(droppedReport, dropped.mkString)
     }
   }
 
@@ -253,15 +271,23 @@ class Tasks {
     }
   }
 
+  /** When set on the state, [[updateWithChecks]] skips `dependenciesCheck`. Set by the update snapshots, which only
+    * record what resolves: a check failing on the updated dependencies must not hide them from the diff.
+    */
+  val skipDependenciesCheck = AttributeKey[Boolean]("sbtDependenciesSkipDependenciesCheck")
+
   /** Run all dependency check functions after resolution completes. If any check throws, the `update` task (and
-    * anything depending on it) will fail. Also warns about every declared dependency that resolved to a version other
-    * than the declared one — a transitive dependency outvoting it, or an override forcing it.
+    * anything depending on it) will fail. The checks are skipped when the state carries [[skipDependenciesCheck]]. Also
+    * warns about every declared dependency that resolved to a version other than the declared one — a transitive
+    * dependency outvoting it, or an override forcing it.
     */
   def updateWithChecks = Def.task {
     val report = update.value
     val log    = streams.value.log
+    val checks = Keys.dependenciesCheck.value
+    val skip   = state.value.get(skipDependenciesCheck).contains(true)
 
-    Keys.dependenciesCheck.value.foreach(_(report.allModules.toList))
+    if (!skip) checks.foreach(_(report.allModules.toList))
 
     val declared =
       Keys.moduleIdsFromFile.value.map(CrossVersion(scalaVersion.value, (update / scalaBinaryVersion).value))

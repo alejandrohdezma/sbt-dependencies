@@ -1,4 +1,6 @@
 myproject = [
   "com.example:test-bom:2.0.0:bom"
+  "org.gone:gone-lib:1.2.3"
   "org.new:new-lib:*"
+  "org.new::scala-lib:*"
 ]
