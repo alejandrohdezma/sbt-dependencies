@@ -91,7 +91,9 @@ class Tasks {
         .map(_.toModuleID(sbtBinary, scalaBinary))
         .flatMap(BomReader.read(_, scalaBinary))
 
-      val dependencies = raw.map(_.resolveBom(newPins, scalaBinary)).map(_.resolveBom(bomPins, scalaBinary))
+      val dependencies = raw.map { dependency =>
+        dependency.withVersion(dependency.resolveBom(newPins, scalaBinary).resolveBom(bomPins, scalaBinary).version)
+      }
 
       val filtered = dependencies.filterNot(filter.matches)
 

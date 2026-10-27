@@ -1,0 +1,18 @@
+common-settings {
+  scala-version = "2.13.16"
+}
+
+inherited = [
+  "com.example:test-bom:1.0.0:bom"
+  "com.fasterxml.jackson.core:jackson-databind:*"
+]
+
+merged = [
+  "com.example:test-bom:1.0.0:bom"
+  { dependency = "com.fasterxml.jackson.core:jackson-databind:*", exclude = ["com.google.guava"] }
+]
+
+wildcard = [
+  "com.example:test-bom:1.0.0:bom"
+  "org.json:json:*"
+]
