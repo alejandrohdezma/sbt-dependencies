@@ -27,7 +27,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.43.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.44.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -1136,6 +1136,22 @@ After `update`, every dependency declared in `dependencies.conf` that resolved t
 [warn] com.typesafe.akka:akka-http_2.13 is declared at 10.1.15 but resolved to 10.2.0 — another dependency requires that version or an override forces it. Hold the dependency pulling it in or mark the line with `overrides = true`.
 ```
 
+Projects with `overrides = true` lines are resolved a second time without them, and every forced module that the dependency graph would otherwise resolve to a newer version is reported too. Forcing a module below what its dependents were compiled against can fail at runtime, for example with a `NoSuchMethodError` or a protobuf gencode/runtime version check:
+
+```
+[warn] com.fasterxml.jackson.core:jackson-databind is forced to 2.17.0 by an `overrides = true` line, below the 2.17.2 the dependency graph requires. Code compiled against 2.17.2 can fail at runtime. Raise the pinned version or stop overriding it.
+```
+
+The `dependencyOverridesLoweringCheck` setting controls this check: `LoweringCheck.Warn` (the default) logs the warning, `LoweringCheck.Error` fails `update` instead, and `LoweringCheck.Off` skips the check together with the second resolution it needs:
+
+```scala
+// fail CI when a forced version is too low for the graph
+ThisBuild / dependencyOverridesLoweringCheck := LoweringCheck.Error
+
+// or skip the second resolution in a large build
+ThisBuild / dependencyOverridesLoweringCheck := LoweringCheck.Off
+```
+
 Use `dependenciesCheck` to register custom check functions that validate resolved dependencies after `update`. If any check throws, the build fails.
 
 ```scala
@@ -1180,7 +1196,7 @@ Pre-update migrations need the classpath the project had before the update, so f
 
 A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
 
-Reference it as `alejandrohdezma/sbt-dependencies@v0.43.0`:
+Reference it as `alejandrohdezma/sbt-dependencies@v0.44.0`:
 
 ```yaml
 name: Update Dependencies
@@ -1208,7 +1224,7 @@ jobs:
 
       - uses: sbt/setup-sbt@v1
 
-      - uses: alejandrohdezma/sbt-dependencies@v0.43.0
+      - uses: alejandrohdezma/sbt-dependencies@v0.44.0
         with:
           config-file: .github/.scala-steward.conf
 ```
