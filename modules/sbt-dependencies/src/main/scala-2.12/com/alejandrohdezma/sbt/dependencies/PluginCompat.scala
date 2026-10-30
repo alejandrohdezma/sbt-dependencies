@@ -81,4 +81,13 @@ private[dependencies] object PluginCompat {
   def availableVersions(versions: lmcoursier.internal.shaded.coursier.core.Versions): List[String] =
     versions.available
 
+  /** Whether `version` sorts before `other` under coursier's version ordering. sbt 1 bundles coursier 2.1.13, where the
+    * ordering lives in `coursier.core.Version`; sbt 2 bundles 2.1.25+, where it moved to `coursier.version.Version`.
+    */
+  def isLowerVersion(version: String, other: String): Boolean = {
+    import lmcoursier.internal.shaded.coursier.core.Version
+
+    Version(version) < Version(other)
+  }
+
 }

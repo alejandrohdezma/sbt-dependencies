@@ -142,6 +142,23 @@ class Keys {
     "Check functions that validate resolved dependencies after update"
   }
 
+  /** What `update` does when an `overrides = true` pin forces a module below the version the dependency graph would
+    * resolve to without it: `LoweringCheck.Warn` (the default) logs a warning, `LoweringCheck.Error` fails `update` and
+    * `LoweringCheck.Off` skips the check. The check resolves the project a second time without those pins, so it only
+    * costs something in projects that inherit them, and `Off` avoids that cost.
+    *
+    * @example
+    *   {{{
+    * dependencyOverridesLoweringCheck := LoweringCheck.Error
+    *   }}}
+    */
+  val dependencyOverridesLoweringCheck = settingKey[LoweringCheck] {
+    "What update does when an `overrides = true` pin forces a module below the version the dependency graph" +
+      " resolves to without it: LoweringCheck.Warn (default), LoweringCheck.Error or LoweringCheck.Off"
+  }
+
+  val LoweringCheck = com.alejandrohdezma.sbt.dependencies.LoweringCheck
+
   /** URLs pointing to artifact migration files in Scala Steward's HOCON format.
     *
     * When `updateDependencies` runs, it loads migrations from these URLs and automatically migrates dependencies to new
