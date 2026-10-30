@@ -1136,6 +1136,22 @@ After `update`, every dependency declared in `dependencies.conf` that resolved t
 [warn] com.typesafe.akka:akka-http_2.13 is declared at 10.1.15 but resolved to 10.2.0 — another dependency requires that version or an override forces it. Hold the dependency pulling it in or mark the line with `overrides = true`.
 ```
 
+Projects with `overrides = true` lines are resolved a second time without them, and every forced module that the dependency graph would otherwise resolve to a newer version is reported too. Forcing a module below what its dependents were compiled against can fail at runtime, for example with a `NoSuchMethodError` or a protobuf gencode/runtime version check:
+
+```
+[warn] com.fasterxml.jackson.core:jackson-databind is forced to 2.17.0 by an `overrides = true` line, below the 2.17.2 the dependency graph requires. Code compiled against 2.17.2 can fail at runtime. Raise the pinned version or stop overriding it.
+```
+
+The `dependencyOverridesLoweringCheck` setting controls this check: `LoweringCheck.Warn` (the default) logs the warning, `LoweringCheck.Error` fails `update` instead, and `LoweringCheck.Off` skips the check together with the second resolution it needs:
+
+```scala
+// fail CI when a forced version is too low for the graph
+ThisBuild / dependencyOverridesLoweringCheck := LoweringCheck.Error
+
+// or skip the second resolution in a large build
+ThisBuild / dependencyOverridesLoweringCheck := LoweringCheck.Off
+```
+
 Use `dependenciesCheck` to register custom check functions that validate resolved dependencies after `update`. If any check throws, the build fails.
 
 ```scala

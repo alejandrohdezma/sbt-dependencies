@@ -21,6 +21,7 @@ import scala.Console._
 import sbt.Keys._
 import sbt.complete.DefaultParsers._
 import sbt.internal.util.complete.Parser
+import sbt.librarymanagement.UnresolvedWarningConfiguration
 import sbt.{Keys => _, _}
 
 import com.alejandrohdezma.sbt.dependencies.bom.BomReader
@@ -35,6 +36,7 @@ import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Group
 import com.alejandrohdezma.string.box._
+import lmcoursier.CoursierDependencyResolution
 
 /** SBT input tasks for managing dependencies. */
 class Tasks {
@@ -279,7 +281,8 @@ class Tasks {
   /** Run all dependency check functions after resolution completes. If any check throws, the `update` task (and
     * anything depending on it) will fail. The checks are skipped when the state carries [[skipDependenciesCheck]]. Also
     * warns about every declared dependency that resolved to a version other than the declared one — a transitive
-    * dependency outvoting it, or an override forcing it.
+    * dependency outvoting it, or an override forcing it — and, following `dependencyOverridesLoweringCheck`, about
+    * every `overrides = true` pin below the version the dependency graph resolves to without it.
     */
   def updateWithChecks = Def.task {
     val report = update.value
@@ -301,8 +304,75 @@ class Tasks {
       }
     }
 
+    val lowered = loweredOverrides(Keys.dependencyOverridesFromFile.value, resolvedWithoutFileOverrides.value).map {
+      case (module, required) =>
+        s"${module.organization}:${module.name} is forced to ${module.revision} by an `overrides = true` line, " +
+          s"below the $required the dependency graph requires. Code compiled against $required can fail at " +
+          "runtime. Raise the pinned version or stop overriding it."
+    }
+
+    Keys.dependencyOverridesLoweringCheck.value match {
+      case LoweringCheck.Error if lowered.nonEmpty && !skip => sys.error(lowered.mkString("\n"))
+      case _                                                => lowered.foreach(log.warn(_))
+    }
+
     report
   }
+
+  /** The modules this project resolves to once the `overrides = true` pins are lifted (every other
+    * `dependencyOverrides` entry stays). A second coursier resolution, so it only runs for projects inheriting such
+    * pins, and not at all when `dependencyOverridesLoweringCheck` is `Off`. Coursier reads overrides from
+    * `csrConfiguration`'s force versions rather than from the module descriptor, so the pins are lifted from both.
+    */
+  private def resolvedWithoutFileOverrides: Def.Initialize[Task[Seq[ModuleID]]] = Def.taskDyn {
+    val fromFile = Keys.dependencyOverridesFromFile.value
+
+    Keys.dependencyOverridesLoweringCheck.value match {
+      case LoweringCheck.Off                        => Def.task(Seq.empty[ModuleID])
+      case _ if fromFile.isEmpty                    => Def.task(Seq.empty[ModuleID])
+      case LoweringCheck.Warn | LoweringCheck.Error =>
+        Def.task {
+          val log    = streams.value.log
+          val config = updateConfiguration.value
+
+          def fromFileOverride(organization: String, name: String) =
+            fromFile.exists(o => o.organization === organization && o.name === name)
+
+          val coursier = csrConfiguration.value
+
+          val resolution = CoursierDependencyResolution(coursier.withForceVersions(coursier.forceVersions.filterNot {
+            case (module, _) => fromFileOverride(module.organization.value, module.name.value)
+          }))
+
+          moduleSettings.value match {
+            case settings: ModuleDescriptorConfiguration =>
+              val module = resolution.moduleDescriptor(
+                settings.withOverrides(settings.overrides.filterNot(o => fromFileOverride(o.organization, o.name)))
+              )
+
+              resolution.update(module, config, UnresolvedWarningConfiguration(), log) match {
+                case Right(report) => report.configurations.flatMap(_.modules).filterNot(_.evicted).map(_.module)
+                case Left(_)       => Seq.empty
+              }
+
+            case _ => Seq.empty
+          }
+        }
+    }
+  }
+
+  /** Modules of `forced` whose `(organization, name)` resolves to a higher revision in `unforced`, paired with the
+    * highest such revision.
+    */
+  private[dependencies] def loweredOverrides(forced: Seq[ModuleID], unforced: Seq[ModuleID]): Seq[(ModuleID, String)] =
+    forced.flatMap { module =>
+      unforced
+        .filter(m => m.organization === module.organization && m.name === module.name)
+        .map(_.revision)
+        .reduceOption((a, b) => if (PluginCompat.isLowerVersion(a, b)) b else a)
+        .filter(PluginCompat.isLowerVersion(module.revision, _))
+        .map(module -> _)
+    }
 
   /** Modules of `from` whose `(organization, name)` appears in `to` at a different revision, paired with that revision.
     * The first `to` entry for a module wins.

@@ -4,3 +4,12 @@
 > assertOverridden
 > assertFiltered
 > assertPinned
+
+# The BOM forces jackson-databind 2.17.0 below the 2.17.2 jackson-module-scala requires: `LoweringCheck.Error` fails
+# `update`, `LoweringCheck.Off` skips the check, and projects without overrides are never affected.
+> set optin / dependencyOverridesLoweringCheck := LoweringCheck.Error
+-> optin/update
+> set optin / dependencyOverridesLoweringCheck := LoweringCheck.Off
+> optin/update
+> set myproject / dependencyOverridesLoweringCheck := LoweringCheck.Error
+> myproject/update

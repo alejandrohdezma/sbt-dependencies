@@ -50,4 +50,27 @@ class TasksSuite extends munit.FunSuite {
     assertEquals(Tasks.revisionChanges(declared, resolved), Nil)
   }
 
+  test("loweredOverrides reports an override below the highest revision resolved without it") {
+    val forced = Seq(
+      ModuleID("com.google.protobuf", "protobuf-java", "4.33.6"),
+      ModuleID("org.typelevel", "cats-core_2.13", "2.13.0")
+    )
+
+    val unforced = Seq(
+      ModuleID("com.google.protobuf", "protobuf-java", "4.35.0"),
+      ModuleID("com.google.protobuf", "protobuf-java", "4.36.1"),
+      ModuleID("org.typelevel", "cats-core_2.13", "2.10.0")
+    )
+
+    assertEquals(Tasks.loweredOverrides(forced, unforced), Seq(forced.head -> "4.36.1"))
+  }
+
+  test("loweredOverrides orders pre-releases below their release") {
+    val forced = Seq(ModuleID("com.example", "lib", "1.0.0"))
+
+    val unforced = Seq(ModuleID("com.example", "lib", "1.0.0-RC1"))
+
+    assertEquals(Tasks.loweredOverrides(forced, unforced), Nil)
+  }
+
 }
