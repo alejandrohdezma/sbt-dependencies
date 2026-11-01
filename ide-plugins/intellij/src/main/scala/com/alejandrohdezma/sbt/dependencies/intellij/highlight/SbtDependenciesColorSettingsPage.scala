@@ -84,7 +84,7 @@ final class SbtDependenciesColorSettingsPage extends ColorSettingsPage {
       |  "org.typelevel::cats-core:*"
       |  "io.circe::circe-core:{{circeVersion}}"
       |  "com.example:legacy:=1.0.0"
-      |  "org.scalameta::munit:~1.2.4:test"
+      |  "org.scalameta::munit:~1.3.6:test"
       |  { dependency = "com.example::pinned:^2.0.0", note = "Newer versions break the API" }
       |]
       |""".stripMargin
