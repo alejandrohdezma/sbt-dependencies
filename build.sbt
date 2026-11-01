@@ -1,7 +1,7 @@
 ThisBuild / scalaVersion                  := _root_.scalafix.sbt.BuildInfo.scala212
-ThisBuild / crossScalaVersions            := Seq(scalaVersion.value, "3.8.4")
+ThisBuild / crossScalaVersions            := Seq(scalaVersion.value, "3.10.0")
 ThisBuild / organization                  := "com.alejandrohdezma"
-ThisBuild / pluginCrossBuild / sbtVersion := scalaVersion.value.on(2)("1.13.0").getOrElse("2.0.0")
+ThisBuild / pluginCrossBuild / sbtVersion := scalaVersion.value.on(2)("1.13.1").getOrElse("2.0.0")
 ThisBuild / versionPolicyIntention        := Compatibility.BinaryAndSourceCompatible
 
 ThisBuild / fileTransformers += ".github/workflows/release.yml" -> { (content: String) =>
