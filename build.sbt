@@ -39,6 +39,7 @@ lazy val `sbt-dependencies-core` = module
 lazy val `sbt-dependencies` = module
   .dependsOn(`sbt-dependencies-core`)
   .enablePlugins(SbtPlugin)
+  .settings(scriptedSbt := scalaVersion.value.on(2)("1.13.0").getOrElse("2.1.0"))
   .settings(
     Compile / doc / sources := scalaVersion.value.on(3)(Seq.empty[File]).getOrElse((Compile / doc / sources).value)
   )
