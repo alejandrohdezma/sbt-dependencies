@@ -2,7 +2,7 @@ ThisBuild / scalaVersion                  := _root_.scalafix.sbt.BuildInfo.scala
 ThisBuild / crossScalaVersions            := Seq(scalaVersion.value, "3.8.4")
 ThisBuild / organization                  := "com.alejandrohdezma"
 ThisBuild / pluginCrossBuild / sbtVersion := scalaVersion.value.on(2)("1.13.0").getOrElse("2.0.0")
-ThisBuild / versionPolicyIntention        := Compatibility.BinaryAndSourceCompatible
+ThisBuild / versionPolicyIntention        := Compatibility.None
 
 ThisBuild / fileTransformers += ".github/workflows/release.yml" -> { (content: String) =>
   content.replace(
@@ -39,6 +39,10 @@ lazy val `sbt-dependencies-core` = module
 lazy val `sbt-dependencies` = module
   .dependsOn(`sbt-dependencies-core`)
   .enablePlugins(SbtPlugin)
+  .settings(scriptedSbt := scalaVersion.value.on(2)("1.13.0").getOrElse("2.1.0"))
+  .settings(
+    Compile / doc / sources := scalaVersion.value.on(3)(Seq.empty[File]).getOrElse((Compile / doc / sources).value)
+  )
   .settings(scriptedLaunchOpts += s"-Dplugin.version=${version.value}")
   .settings(scriptedBufferLog := true)
   .settings(scriptedBatchExecution := true)

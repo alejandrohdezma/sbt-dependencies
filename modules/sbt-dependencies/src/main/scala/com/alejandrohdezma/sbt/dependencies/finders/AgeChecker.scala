@@ -27,10 +27,10 @@ import scala.util.Try
 
 import sbt.util.Logger
 
-import lmcoursier.internal.shaded.coursier.MavenRepository
-import lmcoursier.internal.shaded.coursier.cache.ConnectionBuilder
-import lmcoursier.internal.shaded.coursier.cache.FileCache
-import lmcoursier.internal.shaded.coursier.credentials.DirectCredentials
+import com.alejandrohdezma.sbt.dependencies.PluginCompat
+import coursier.MavenRepository
+import coursier.cache.FileCache
+import coursier.credentials.DirectCredentials
 
 /** Abstraction for deciding whether a published artifact is old enough to satisfy a configured cooldown.
   *
@@ -115,11 +115,7 @@ object AgeChecker {
       val base = if (repo.root.endsWith("/")) repo.root else repo.root + "/"
       val url  = base + pomPath
 
-      val connectionBuilder = ConnectionBuilder(url)
-        .withAuthentication(repo.authentication)
-        .withAutoCredentials(credentials)
-        .withMethod("HEAD")
-        .withFollowHttpToHttpsRedirections(true)
+      val connectionBuilder = PluginCompat.headConnection(url, repo.authentication, credentials)
 
       Try[Option[Instant]] {
         connectionBuilder.connection() match {

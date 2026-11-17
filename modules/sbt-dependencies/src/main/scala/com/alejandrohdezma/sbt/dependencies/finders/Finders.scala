@@ -22,8 +22,8 @@ import sbt.{Keys => _, _}
 import com.alejandrohdezma.sbt.dependencies._
 import com.alejandrohdezma.sbt.dependencies.constraints.ConfigCache
 import com.alejandrohdezma.sbt.dependencies.model.ScalaVersion
-import lmcoursier.internal.shaded.coursier.MavenRepository
-import lmcoursier.internal.shaded.coursier.Resolve
+import coursier.MavenRepository
+import coursier.Resolve
 
 /** Bundle of every resolver-pipeline component needed for one command/task invocation.
   *
