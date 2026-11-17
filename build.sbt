@@ -39,6 +39,9 @@ lazy val `sbt-dependencies-core` = module
 lazy val `sbt-dependencies` = module
   .dependsOn(`sbt-dependencies-core`)
   .enablePlugins(SbtPlugin)
+  .settings(
+    Compile / doc / sources := scalaVersion.value.on(3)(Seq.empty[File]).getOrElse((Compile / doc / sources).value)
+  )
   .settings(scriptedLaunchOpts += s"-Dplugin.version=${version.value}")
   .settings(scriptedBufferLog := true)
   .settings(scriptedBatchExecution := true)
