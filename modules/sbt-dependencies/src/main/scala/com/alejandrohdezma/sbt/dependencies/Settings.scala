@@ -292,19 +292,15 @@ class Settings {
     visibleGroups.value.flatMap(bomsOf).distinct
   }
 
-  /** A pom fetcher over the project's `update` resolvers, with sbt's conventional credential files loaded first so BOMs
-    * on authenticated repositories resolve.
+  /** A pom fetcher over the project's `update` resolvers, with sbt's conventional credential files loaded so BOMs on
+    * authenticated repositories resolve.
     */
   private[dependencies] def bomFetcher: Def.Initialize[ModuleFetcher] = Def.setting {
     val repositories = (update / resolvers).value ++ (update / appResolvers).value.getOrElse(Seq.empty)
-    val options      = (update / updateOptions).value
-    val paths        = (update / ivyPaths).value
 
     implicit val logger: Logger = sLog.value
 
-    BomReader.loadCredentials
-
-    ModuleFetcher.fromIvy(PluginCompat.ivySbt(repositories, options, paths, logger))
+    ModuleFetcher.fromCoursier(repositories)
   }
 
   /** The structured data behind `target/sbt-dependencies/.sbt-resolutions`: this project's visible BOMs (in precedence

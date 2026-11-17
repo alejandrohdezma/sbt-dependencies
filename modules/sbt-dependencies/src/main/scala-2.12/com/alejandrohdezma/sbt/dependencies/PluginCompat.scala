@@ -17,46 +17,10 @@
 package com.alejandrohdezma.sbt.dependencies
 
 import sbt.Keys.update
-import sbt.internal.librarymanagement.IvySbt
-import sbt.librarymanagement.ivy.InlineIvyConfiguration
-import sbt.util.Logger
 import sbt.{Keys => _, _}
-
-import org.apache.ivy.util.url.CredentialsStore
 
 /** Constants and settings that depend on the sbt axis this plugin is built for. This is the sbt 1.x (Scala 2.12) side. */
 private[dependencies] object PluginCompat {
-
-  type IvyPaths = sbt.librarymanagement.ivy.IvyPaths
-
-  type UpdateOptions = sbt.librarymanagement.ivy.UpdateOptions
-
-  /** An `IvySbt` over the given resolvers, from which pom files can be downloaded directly. Ivy (not coursier) because
-    * coursier does not report pom-type artifacts, which `BomReader` needs. On sbt 1 the ivy configuration is public
-    * API.
-    */
-  def ivySbt(
-      resolvers: Seq[Resolver],
-      updateOptions: UpdateOptions,
-      ivyPaths: IvyPaths,
-      log: Logger
-  ): IvySbt =
-    new IvySbt(
-      InlineIvyConfiguration()
-        .withResolvers(resolvers.toVector)
-        .withUpdateOptions(updateOptions)
-        .withPaths(ivyPaths)
-        .withLog(log)
-    )
-
-  /** Registers credentials from the given file into Ivy's global store. On sbt 1 there is no combined loader, so load
-    * then push into `CredentialsStore` (the same path `here-sbt-bom` uses).
-    */
-  def registerCredentials(file: File, log: Logger): Unit =
-    Credentials.loadCredentials(file) match {
-      case Right(c)    => CredentialsStore.INSTANCE.addCredentials(c.realm, c.host, c.userName, c.passwd)
-      case Left(error) => log.warn(s"Failed to load credentials from $file: $error")
-    }
 
   /** Task overrides whose values sbt 2 cannot cache (no `JsonFormat`); sbt 1 has no task caching, so they are plain
     * assignments here.
