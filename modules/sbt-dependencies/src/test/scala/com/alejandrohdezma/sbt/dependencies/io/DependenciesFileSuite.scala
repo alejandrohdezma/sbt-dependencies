@@ -555,6 +555,36 @@ class DependenciesFileSuite extends munit.FunSuite {
     assertEquals(depCount, 2) // Only 2 unique artifacts
   }
 
+  withDependenciesFile("").test("write keeps the same artifact once per non-overlapping scala-filter") { file =>
+    val dependencies = List(
+      Dependency(
+        "io.get-coursier",
+        "coursier",
+        Version.Numeric(List(2, 1, 24), None, Version.Numeric.Marker.NoMarker),
+        crossVersion = Dependency.Cross.Binary,
+        scalaFilter = Some("2.12")
+      ),
+      Dependency(
+        "io.get-coursier",
+        "coursier",
+        Version.Numeric(List(2, 1, 26), None, Version.Numeric.Marker.NoMarker),
+        crossVersion = Dependency.Cross.Binary,
+        scalaFilter = Some("3")
+      )
+    )
+
+    DependenciesFile(file).write(Group("group"), dependencies)
+
+    val expected =
+      """|group = [
+         |  { dependency = "io.get-coursier::coursier:2.1.24", scala-filter = "2.12" }
+         |  { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "3" }
+         |]
+         |""".stripMargin
+
+    assertNoDiff(IO.read(file), expected)
+  }
+
   withDependenciesFile("").test("write keeps same artifact with different configurations") { file =>
     val dependencies = List(
       Dependency(
@@ -1815,6 +1845,38 @@ class DependenciesFileSuite extends munit.FunSuite {
     }
     assert(ex.getMessage.contains("cross-version"))
     assert(ex.getMessage.contains("invalid"))
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "io.get-coursier::coursier:2.1.24", scala-filter = "2.12" }
+       |  { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "3" }
+       |]
+       |""".stripMargin
+  }.test("read accepts the same artifact once per Scala version with non-overlapping scala-filters") { file =>
+    val dependencies = DependenciesFile(file).read(Group("my-project"), variableResolvers)
+
+    assertEquals(
+      dependencies.map(d => (d.toLine, d.scalaFilter)),
+      List(
+        ("io.get-coursier::coursier:2.1.24", Some("2.12")),
+        ("io.get-coursier::coursier:2.1.26", Some("3"))
+      )
+    )
+  }
+
+  withDependenciesFile {
+    """|my-project = [
+       |  { dependency = "io.get-coursier::coursier:2.1.24", scala-filter = "2" }
+       |  { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "2.13" }
+       |]
+       |""".stripMargin
+  }.test("read rejects the same artifact twice when the scala-filters overlap") { file =>
+    val ex = intercept[Exception] {
+      DependenciesFile(file).read(Group("my-project"), variableResolvers)
+    }
+
+    assert(ex.getMessage.contains("duplicate dependency entries: io.get-coursier:coursier (compile)"), ex.getMessage)
   }
 
   withDependenciesFile {

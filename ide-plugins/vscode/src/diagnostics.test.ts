@@ -443,6 +443,76 @@ describe("parseDiagnostics", () => {
       expect(parseDiagnostics(lines)).toEqual([]);
     });
 
+    it("does not warn on the same artifact once per non-overlapping scala-filter", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "io.get-coursier::coursier:2.1.24", scala-filter = "2.12" }',
+        '  { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "3" }',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("warns on the same artifact when the scala-filters overlap", () => {
+      const lines = [
+        'my-group = [',
+        '  { dependency = "io.get-coursier::coursier:2.1.24", scala-filter = "2" }',
+        '  { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "2.13" }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe("Duplicate dependency in group");
+      expect(result[0].range.startLine).toBe(2);
+    });
+
+    it("does not warn on multi-line objects whose scala-filter follows the dependency and never overlaps", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "io.get-coursier::coursier:2.1.24"',
+        '    scala-filter = "2.12"',
+        '  }',
+        '  {',
+        '    dependency = "io.get-coursier::coursier:2.1.26"',
+        '    scala-filter = "3"',
+        '  }',
+        ']',
+      ];
+      expect(parseDiagnostics(lines)).toEqual([]);
+    });
+
+    it("warns on the dependency line of a multi-line object whose scala-filter overlaps an earlier one", () => {
+      const lines = [
+        'my-group = [',
+        '  {',
+        '    dependency = "io.get-coursier::coursier:2.1.24"',
+        '    scala-filter = "2"',
+        '  }',
+        '  {',
+        '    dependency = "io.get-coursier::coursier:2.1.26"',
+        '    scala-filter = "2.13"',
+        '  }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe("Duplicate dependency in group");
+      expect(result[0].range.startLine).toBe(6);
+    });
+
+    it("warns when a scala-filtered entry repeats an unfiltered one", () => {
+      const lines = [
+        'my-group = [',
+        '  "io.get-coursier::coursier:2.1.24"',
+        '  { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "3" }',
+        ']',
+      ];
+      const result = parseDiagnostics(lines);
+      expect(result).toHaveLength(1);
+      expect(result[0].message).toBe("Duplicate dependency in group");
+    });
+
     it("detects duplicates across string and object entries", () => {
       const lines = [
         'my-group = [',

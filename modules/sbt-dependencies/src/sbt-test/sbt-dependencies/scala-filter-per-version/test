@@ -1,0 +1,6 @@
+# Each Scala version loads only the entry its scala-filter selects
+> +myproject/assertTest
+
+# updateDependencies keeps both entries and updates each one against its own Scala version
+> myproject/updateDependencies
+> assertUpdated

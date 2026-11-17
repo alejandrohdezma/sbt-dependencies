@@ -281,6 +281,28 @@ class DependencySuite extends munit.FunSuite {
     assert(!dep1.isSameArtifact(dep2))
   }
 
+  test("isSameArtifact returns false when the scala-filters never match the same Scala version") {
+    val version = Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
+
+    val scala212 =
+      Dependency("org", "name", version, crossVersion = Dependency.Cross.Binary, scalaFilter = Some("2.12"))
+    val scala3 = Dependency("org", "name", version, crossVersion = Dependency.Cross.Binary, scalaFilter = Some("3"))
+
+    assert(!scala212.isSameArtifact(scala3))
+  }
+
+  test("isSameArtifact returns true when the scala-filters overlap or one is missing") {
+    val version = Version.Numeric(List(1, 0, 0), None, Version.Numeric.Marker.NoMarker)
+
+    val scala2   = Dependency("org", "name", version, crossVersion = Dependency.Cross.Binary, scalaFilter = Some("2"))
+    val scala213 =
+      Dependency("org", "name", version, crossVersion = Dependency.Cross.Binary, scalaFilter = Some("2.13"))
+    val any = Dependency("org", "name", version, crossVersion = Dependency.Cross.Binary)
+
+    assert(scala2.isSameArtifact(scala213))
+    assert(scala213.isSameArtifact(any))
+  }
+
   // --- fromModuleID tests ---
 
   test("fromModuleID preserves custom configuration") {
