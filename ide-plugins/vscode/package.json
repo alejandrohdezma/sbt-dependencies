@@ -2,7 +2,7 @@
   "name": "sbt-dependencies",
   "displayName": "sbt-dependencies",
   "description": "Syntax highlighting for sbt-dependencies configuration files",
-  "version": "0.25.0",
+  "version": "0.25.1",
   "publisher": "alejandrohdezma",
   "license": "Apache-2.0",
   "repository": {
@@ -114,7 +114,7 @@
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.2",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.12",
     "vscode-tmgrammar-test": "^0.1.3"
   }
 }
