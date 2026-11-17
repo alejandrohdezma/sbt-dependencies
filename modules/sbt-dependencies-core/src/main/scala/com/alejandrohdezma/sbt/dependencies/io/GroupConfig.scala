@@ -23,6 +23,7 @@ import com.alejandrohdezma.sbt.dependencies.model.Dependency.Version.Numeric
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 import com.alejandrohdezma.sbt.dependencies.model.Fields
 import com.alejandrohdezma.sbt.dependencies.model.Group
+import com.alejandrohdezma.sbt.dependencies.model.ScalaFilter
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigList
 import com.typesafe.config.ConfigObject
@@ -196,19 +197,26 @@ object GroupConfig {
       } yield parsed :: versions
     }
 
-  /** Rejects two entries that share the same `(organization, name, configuration)`. The merge in
-    * `DependenciesFile.write` keys on this triple, so duplicates would silently lose the second entry; failing at parse
-    * time surfaces the user error instead.
+  /** Rejects two entries that share the same `(organization, name, configuration)` and whose `scala-filter`s can match
+    * the same Scala version. The merge in `DependenciesFile.write` treats such entries as the same artifact, so
+    * duplicates would silently lose the second entry; failing at parse time surfaces the user error instead. Entries
+    * whose filters never overlap (e.g. `"2.12"` and `"3"`) declare one artifact per Scala version and are allowed.
     */
   private def checkDuplicates(deps: List[AnnotatedDependency]): Either[String, List[AnnotatedDependency]] = {
     val keys = deps.flatMap { ad =>
       ad.line match {
         case Dependency.dependencyRegex(org, _, name, _, config) =>
-          List((org, name, Option(config).getOrElse("compile")))
+          List((org, name, Option(config).getOrElse("compile")) -> ad.scalaFilter)
         case _ => Nil
       }
     }
-    val duplicates = keys.groupBy(identity).collect { case (k, vs) if vs.size > 1 => k }.toList
+
+    val duplicates = keys
+      .groupBy(_._1)
+      .collect {
+        case (k, entries) if overlapping(entries.map(_._2)) => k
+      }
+      .toList
     if (duplicates.isEmpty) Right(deps)
     else
       Left(
@@ -216,6 +224,13 @@ object GroupConfig {
           duplicates.map { case (o, n, c) => s"$o:$n ($c)" }.mkString(", ")
       )
   }
+
+  /** Whether any two of `filters` can match the same Scala version. */
+  private def overlapping(filters: List[Option[String]]): Boolean =
+    filters.tails.exists {
+      case filter :: rest => rest.exists(ScalaFilter.overlap(filter, _))
+      case Nil            => false
+    }
 
   /** Simple format: just a list of dependencies.
     *
