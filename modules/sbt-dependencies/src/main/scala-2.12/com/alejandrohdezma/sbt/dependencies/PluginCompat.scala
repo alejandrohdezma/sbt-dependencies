@@ -75,19 +75,37 @@ private[dependencies] object PluginCompat {
   /** Scala version assumed for the meta-build when resolving `sbt-build` group dependencies. */
   val metaBuildScalaVersion: String = "2.12.0"
 
-  /** Available version strings of a coursier version listing. sbt 1 bundles coursier 2.1.13, where `available` is the
-    * only spelling; sbt 2 bundles 2.1.25+, where it is deprecated in favor of `available0`.
+  /** Available version strings of a coursier version listing. The sbt 1 build uses coursier 2.1.24, where `available`
+    * is the only spelling; the sbt 2 build uses 2.1.26, where it is deprecated in favor of `available0`.
     */
-  def availableVersions(versions: lmcoursier.internal.shaded.coursier.core.Versions): List[String] =
+  def availableVersions(versions: coursier.core.Versions): List[String] =
     versions.available
 
-  /** Whether `version` sorts before `other` under coursier's version ordering. sbt 1 bundles coursier 2.1.13, where the
-    * ordering lives in `coursier.core.Version`; sbt 2 bundles 2.1.25+, where it moved to `coursier.version.Version`.
+  /** Whether `version` sorts before `other` under coursier's version ordering. The sbt 1 build uses coursier 2.1.24,
+    * where the ordering lives in `coursier.core.Version`; the sbt 2 build uses 2.1.26, where it moved to
+    * `coursier.version.Version`.
     */
   def isLowerVersion(version: String, other: String): Boolean = {
-    import lmcoursier.internal.shaded.coursier.core.Version
+    import coursier.core.Version
 
     Version(version) < Version(other)
   }
+
+  /** A coursier version lister whose cache never expires changing metadata. */
+  def versionsWithoutTtl(): coursier.Versions[coursier.util.Task] =
+    coursier.Versions().withCache(coursier.cache.FileCache().withTtl(None))
+
+  /** A `HEAD` request builder for `url` that authenticates with `authentication` or any of `credentials`. */
+  def headConnection(
+      url: String,
+      authentication: Option[coursier.core.Authentication],
+      credentials: Seq[coursier.credentials.DirectCredentials]
+  ): coursier.cache.ConnectionBuilder =
+    coursier.cache
+      .ConnectionBuilder(url)
+      .withAuthentication(authentication)
+      .withAutoCredentials(credentials)
+      .withMethod("HEAD")
+      .withFollowHttpToHttpsRedirections(true)
 
 }

@@ -29,8 +29,8 @@ import sbt.util.Logger
 
 import com.alejandrohdezma.sbt.dependencies.TestLogger
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
-import lmcoursier.internal.shaded.coursier.MavenRepository
-import lmcoursier.internal.shaded.coursier.core.Authentication
+import coursier.MavenRepository
+import coursier.core.Authentication
 import munit.AnyFixture
 
 import com.sun.net.httpserver.HttpExchange

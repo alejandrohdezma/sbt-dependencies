@@ -30,8 +30,7 @@ import sbt.util.Logger
 import com.alejandrohdezma.sbt.dependencies.PluginCompat
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
 import com.alejandrohdezma.sbt.dependencies.model.DependencyOps._
-import lmcoursier.internal.shaded.coursier.cache.FileCache
-import lmcoursier.internal.shaded.coursier.{Dependency => _, _}
+import coursier.{Dependency => _, _}
 
 /** Abstraction for finding available versions of a dependency. */
 trait VersionFinder {
@@ -74,8 +73,8 @@ object VersionFinder {
     logger.debug(s"Repositories: ${repositories.map(_.repr).mkString(", ")}")
 
     try {
-      val result = Versions()
-        .withCache(FileCache().withTtl(None))
+      val result = PluginCompat
+        .versionsWithoutTtl()
         .withModule(module)
         .addRepositories(repositories *)
         .versions()
