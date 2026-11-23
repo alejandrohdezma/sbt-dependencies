@@ -22,7 +22,6 @@ import scala.annotation.tailrec
 
 import sbt._
 
-import com.alejandrohdezma.sbt.dependencies.PluginCompat
 import com.alejandrohdezma.sbt.dependencies.model.Eq._
 
 /** Reads an external Maven BOM and returns its flattened, effective managed dependencies.
@@ -35,7 +34,7 @@ import com.alejandrohdezma.sbt.dependencies.model.Eq._
   * Maven.
   *
   * The algorithm is a port of `BomReader` from HERE's plugin (https://github.com/heremaps/here-sbt-bom, Apache-2.0),
-  * reimplemented on scala-xml and sbt's `DependencyResolution` instead of Apache Ivy internals.
+  * reimplemented on scala-xml and coursier's file cache instead of Apache Ivy internals.
   */
 object BomReader {
 
@@ -43,7 +42,7 @@ object BomReader {
 
   /** Resolves `bom`'s parent chains and `<scope>import</scope>` tree into a flat, de-duplicated list of managed
     * dependencies, sorted by organization then name. A cross-versioned `bom` gets its artifact name suffixed with
-    * `scalaBinaryVersion` before resolving. For BOMs on authenticated repositories, call [[loadCredentials]] first.
+    * `scalaBinaryVersion` before resolving.
     *
     * Results are served from a JVM-wide cache keyed by the BOM coordinate and Scala binary version: released poms are
     * immutable (the same assumption `Pom.fetch` makes), so a BOM flattened once is reused across projects — and its
@@ -105,16 +104,5 @@ object BomReader {
 
       extract(rest ++ newImports, properties, visited ++ resolved.map(_.pom.coords), acc ++ artifacts)
   }
-
-  /** Registers the first existing credential file into Ivy's global store, checking sbt's conventional locations in the
-    * order sbt itself consults them, so `read` can resolve BOMs living on authenticated repositories.
-    */
-  def loadCredentials(implicit log: Logger): Unit =
-    Seq(
-      sys.props.get("sbt.boot.credentials").filter(_.nonEmpty),
-      sys.env.get("SBT_CREDENTIALS"),
-      Some(s"${sys.props("user.home")}/.ivy2/.credentials"),
-      Some(s"${sys.props("user.home")}/.sbt/.credentials")
-    ).flatten.map(new File(_)).find(_.exists()).foreach(PluginCompat.registerCredentials(_, log))
 
 }

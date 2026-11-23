@@ -27,7 +27,7 @@ Manage SBT dependencies from a single HOCON file with version markers, auto-upda
 Add the following line to your `project/project/plugins.sbt` file:
 
 ```sbt
-addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.44.0")
+addSbtPlugin("com.alejandrohdezma" % "sbt-dependencies" % "0.46.0")
 ```
 
 > Adding the plugin to `project/project/plugins.sbt` (meta-build) allows it to
@@ -237,6 +237,20 @@ The `scala-filter` value is matched as a prefix against the Scala binary version
 ```hocon
 { dependency = "org.scala-lang:scala-reflect:{{scala}}", scala-filter = "2", note = "Not available for Scala 3" }
 ```
+
+A group can declare the same artifact more than once when every entry has a `scala-filter` and no two filters match the same Scala version. Use this to keep a different version per Scala version, for example when an artifact is no longer published for one of them:
+
+```hocon
+my-project {
+  scala-versions = ["2.12.21", "3.3.7"]
+  dependencies = [
+    { dependency = "io.get-coursier::coursier:2.1.24", scala-filter = "2.12" }
+    { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "3" }
+  ]
+}
+```
+
+`updateDependencies` updates each entry against its own Scala version. Entries whose filters overlap (such as `"2"` and `"2.13"`), or a filtered entry next to an unfiltered one, are still rejected as duplicates.
 
 ---
 
@@ -1196,7 +1210,7 @@ Pre-update migrations need the classpath the project had before the update, so f
 
 A failing sbt step (e.g. a dependency bump that breaks the build load) doesn't stop the flow: whatever changed is still committed and the pull request is still created or updated, with a warning in its body explaining how to finish the update manually. The job itself still fails at the end so the failure stays visible.
 
-Reference it as `alejandrohdezma/sbt-dependencies@v0.44.0`:
+Reference it as `alejandrohdezma/sbt-dependencies@v0.46.0`:
 
 ```yaml
 name: Update Dependencies
@@ -1224,7 +1238,7 @@ jobs:
 
       - uses: sbt/setup-sbt@v1
 
-      - uses: alejandrohdezma/sbt-dependencies@v0.44.0
+      - uses: alejandrohdezma/sbt-dependencies@v0.46.0
         with:
           config-file: .github/.scala-steward.conf
 ```

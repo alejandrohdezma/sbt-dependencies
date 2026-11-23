@@ -20,6 +20,7 @@ import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument.Entry
 import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument.Group
 import com.alejandrohdezma.sbt.dependencies.document.DependenciesDocument.Span
 import com.alejandrohdezma.sbt.dependencies.model.Dependency
+import com.alejandrohdezma.sbt.dependencies.model.ScalaFilter
 
 /** A problem found in a `dependencies.conf` document, positioned at the text it refers to. */
 final case class Diagnostic(span: Span, message: String, severity: Diagnostic.Severity)
@@ -121,30 +122,33 @@ object Diagnostics {
       }
   }
 
-  /** Flags every repetition of an `(organization, name, configuration)` key already seen in the group, mirroring the
-    * key `GroupConfig.checkDuplicates` fails on — but per-entry and as a warning, so editors can point at the exact
-    * repeated entry.
+  /** Flags every entry whose `(organization, name, configuration)` key and `scala-filter` overlap an earlier entry in
+    * the group, mirroring what `GroupConfig.checkDuplicates` fails on — but per-entry and as a warning, so editors can
+    * point at the exact repeated entry. Entries whose filters never match the same Scala version are not duplicates.
     */
   private def duplicates(group: Group): List[Diagnostic] = {
     val keyed = group.entries.flatMap(entry => entry.dependency.map(entry -> _)).flatMap { case (entry, field) =>
       field.value match {
         case Dependency.dependencyRegex(org, _, name, _, config) =>
-          List((entry, field, (org, name, Option(config).getOrElse("compile"))))
+          List((field, scalaFilter(entry), (org, name, Option(config).getOrElse("compile"))))
         case _ => Nil
       }
     }
 
-    keyed.groupBy { case (_, _, key) => key }.collect {
-      case ((org, name, config), entries) if entries.lengthCompare(1) > 0 =>
-        entries.drop(1).map { case (_, field, _) =>
-          Diagnostic(
-            field.valueSpan,
-            s"duplicate dependency entry: $org:$name ($config)",
-            Diagnostic.Severity.Warning
-          )
-        }
-    }.toList.flatten
+    keyed.groupBy { case (_, _, key) => key }.toList.flatMap { case ((org, name, config), entries) =>
+      entries.zipWithIndex.collect {
+        case ((field, filter, _), index)
+            if entries.take(index).exists { case (_, earlier, _) => ScalaFilter.overlap(earlier, filter) } =>
+          Diagnostic(field.valueSpan, s"duplicate dependency entry: $org:$name ($config)", Diagnostic.Severity.Warning)
+      }
+    }
       .sortBy(_.span.start)
+  }
+
+  /** The entry's `scala-filter` value, if it has one. */
+  private def scalaFilter(entry: Entry): Option[String] = entry match {
+    case obj: Entry.DependencyObject => obj.scalaFilter.map(_.value)
+    case _                           => None
   }
 
 }

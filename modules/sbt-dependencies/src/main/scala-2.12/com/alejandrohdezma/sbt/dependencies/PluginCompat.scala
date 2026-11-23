@@ -17,46 +17,10 @@
 package com.alejandrohdezma.sbt.dependencies
 
 import sbt.Keys.update
-import sbt.internal.librarymanagement.IvySbt
-import sbt.librarymanagement.ivy.InlineIvyConfiguration
-import sbt.util.Logger
 import sbt.{Keys => _, _}
-
-import org.apache.ivy.util.url.CredentialsStore
 
 /** Constants and settings that depend on the sbt axis this plugin is built for. This is the sbt 1.x (Scala 2.12) side. */
 private[dependencies] object PluginCompat {
-
-  type IvyPaths = sbt.librarymanagement.ivy.IvyPaths
-
-  type UpdateOptions = sbt.librarymanagement.ivy.UpdateOptions
-
-  /** An `IvySbt` over the given resolvers, from which pom files can be downloaded directly. Ivy (not coursier) because
-    * coursier does not report pom-type artifacts, which `BomReader` needs. On sbt 1 the ivy configuration is public
-    * API.
-    */
-  def ivySbt(
-      resolvers: Seq[Resolver],
-      updateOptions: UpdateOptions,
-      ivyPaths: IvyPaths,
-      log: Logger
-  ): IvySbt =
-    new IvySbt(
-      InlineIvyConfiguration()
-        .withResolvers(resolvers.toVector)
-        .withUpdateOptions(updateOptions)
-        .withPaths(ivyPaths)
-        .withLog(log)
-    )
-
-  /** Registers credentials from the given file into Ivy's global store. On sbt 1 there is no combined loader, so load
-    * then push into `CredentialsStore` (the same path `here-sbt-bom` uses).
-    */
-  def registerCredentials(file: File, log: Logger): Unit =
-    Credentials.loadCredentials(file) match {
-      case Right(c)    => CredentialsStore.INSTANCE.addCredentials(c.realm, c.host, c.userName, c.passwd)
-      case Left(error) => log.warn(s"Failed to load credentials from $file: $error")
-    }
 
   /** Task overrides whose values sbt 2 cannot cache (no `JsonFormat`); sbt 1 has no task caching, so they are plain
     * assignments here.
@@ -75,19 +39,37 @@ private[dependencies] object PluginCompat {
   /** Scala version assumed for the meta-build when resolving `sbt-build` group dependencies. */
   val metaBuildScalaVersion: String = "2.12.0"
 
-  /** Available version strings of a coursier version listing. sbt 1 bundles coursier 2.1.13, where `available` is the
-    * only spelling; sbt 2 bundles 2.1.25+, where it is deprecated in favor of `available0`.
+  /** Available version strings of a coursier version listing. The sbt 1 build uses coursier 2.1.24, where `available`
+    * is the only spelling; the sbt 2 build uses 2.1.26, where it is deprecated in favor of `available0`.
     */
-  def availableVersions(versions: lmcoursier.internal.shaded.coursier.core.Versions): List[String] =
+  def availableVersions(versions: coursier.core.Versions): List[String] =
     versions.available
 
-  /** Whether `version` sorts before `other` under coursier's version ordering. sbt 1 bundles coursier 2.1.13, where the
-    * ordering lives in `coursier.core.Version`; sbt 2 bundles 2.1.25+, where it moved to `coursier.version.Version`.
+  /** Whether `version` sorts before `other` under coursier's version ordering. The sbt 1 build uses coursier 2.1.24,
+    * where the ordering lives in `coursier.core.Version`; the sbt 2 build uses 2.1.26, where it moved to
+    * `coursier.version.Version`.
     */
   def isLowerVersion(version: String, other: String): Boolean = {
-    import lmcoursier.internal.shaded.coursier.core.Version
+    import coursier.core.Version
 
     Version(version) < Version(other)
   }
+
+  /** A coursier version lister whose cache never expires changing metadata. */
+  def versionsWithoutTtl(): coursier.Versions[coursier.util.Task] =
+    coursier.Versions().withCache(coursier.cache.FileCache().withTtl(None))
+
+  /** A `HEAD` request builder for `url` that authenticates with `authentication` or any of `credentials`. */
+  def headConnection(
+      url: String,
+      authentication: Option[coursier.core.Authentication],
+      credentials: Seq[coursier.credentials.DirectCredentials]
+  ): coursier.cache.ConnectionBuilder =
+    coursier.cache
+      .ConnectionBuilder(url)
+      .withAuthentication(authentication)
+      .withAutoCredentials(credentials)
+      .withMethod("HEAD")
+      .withFollowHttpToHttpsRedirections(true)
 
 }

@@ -72,10 +72,12 @@ final case class Dependency(
 
   /** Checks if the dependency is the same artifact as another dependency. Cross vs Java is part of the artifact
     * identity, but `binary`/`full`/`patch` (all cross-compiled) are not — they all map to the same Maven coordinate.
+    * Two entries whose `scala-filter`s can never match the same Scala version are different artifacts, so a group can
+    * declare one artifact per Scala version.
     */
   def isSameArtifact(other: Dependency): Boolean =
     organization === other.organization && name === other.name && isCross === other.isCross &&
-      configuration === other.configuration
+      configuration === other.configuration && ScalaFilter.overlap(scalaFilter, other.scalaFilter)
 
   /** Converts the dependency to a line. The separator is `::` for cross-compiled deps and `:` only when
     * `crossVersion == Cross.Disabled`.

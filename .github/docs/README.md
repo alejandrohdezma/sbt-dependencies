@@ -238,6 +238,20 @@ The `scala-filter` value is matched as a prefix against the Scala binary version
 { dependency = "org.scala-lang:scala-reflect:{{scala}}", scala-filter = "2", note = "Not available for Scala 3" }
 ```
 
+A group can declare the same artifact more than once when every entry has a `scala-filter` and no two filters match the same Scala version. Use this to keep a different version per Scala version, for example when an artifact is no longer published for one of them:
+
+```hocon
+my-project {
+  scala-versions = ["2.12.21", "3.3.7"]
+  dependencies = [
+    { dependency = "io.get-coursier::coursier:2.1.24", scala-filter = "2.12" }
+    { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "3" }
+  ]
+}
+```
+
+`updateDependencies` updates each entry against its own Scala version. Entries whose filters overlap (such as `"2"` and `"2.13"`), or a filtered entry next to an unfiltered one, are still rejected as duplicates.
+
 ---
 
 </details>

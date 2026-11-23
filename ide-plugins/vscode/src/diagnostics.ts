@@ -44,6 +44,24 @@ function scopeFamily(config: string | undefined): string {
  * Extracts a dependency key (`org + separator + artifact + scope family`) from a
  * dependency string, or `undefined` if the string doesn't match the pattern.
  */
+/**
+ * Whether some Scala version matches both `scala-filter`s, mirroring Scala-side `ScalaFilter.overlap`.
+ * Filters match as prefixes of the Scala binary version; a missing filter matches every version.
+ */
+function scalaFiltersOverlap(a: string | undefined, b: string | undefined): boolean {
+  return a === undefined || b === undefined || a.startsWith(b) || b.startsWith(a);
+}
+
+/**
+ * Records an entry's key and `scala-filter` in `seen`, returning whether an earlier entry with the same key has an
+ * overlapping filter. Entries whose filters never match the same Scala version are not duplicates.
+ */
+function isDuplicate(seen: Map<string, (string | undefined)[]>, key: string, scalaFilter: string | undefined): boolean {
+  const filters = seen.get(key) ?? [];
+  seen.set(key, [...filters, scalaFilter]);
+  return filters.some((filter) => scalaFiltersOverlap(filter, scalaFilter));
+}
+
 function extractDepKey(content: string): string | undefined {
   const m = dependencyValidationPattern.exec(content);
   if (!m) return undefined;
@@ -183,7 +201,7 @@ function validateObjectEntry(
  */
 export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
   const diagnostics: DiagnosticResult[] = [];
-  let seenInGroup = new Map<string, number>();
+  let seenInGroup = new Map<string, (string | undefined)[]>();
 
   for (const event of walkDocument(lines)) {
     switch (event.type) {
@@ -197,17 +215,13 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
           diagnostics.push(diag);
         } else {
           const key = extractDepKey(event.content);
-          if (key) {
-            if (seenInGroup.has(key)) {
-              diagnostics.push({
-                message: "Duplicate dependency in group",
-                severity: "warning",
-                source: "sbt-dependencies",
-                range: { startLine: event.lineIndex, startCol: event.startCol, endLine: event.lineIndex, endCol: event.startCol + event.content.length },
-              });
-            } else {
-              seenInGroup.set(key, event.lineIndex);
-            }
+          if (key && isDuplicate(seenInGroup, key, undefined)) {
+            diagnostics.push({
+              message: "Duplicate dependency in group",
+              severity: "warning",
+              source: "sbt-dependencies",
+              range: { startLine: event.lineIndex, startCol: event.startCol, endLine: event.lineIndex, endCol: event.startCol + event.content.length },
+            });
           }
         }
         break;
@@ -215,21 +229,17 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
       case "single-line-object": {
         const { diagnostics: objDiags, depKey } = validateObjectEntry(event.objectText, event.lineIndex, event.objectStartCol);
         diagnostics.push(...objDiags);
-        if (depKey) {
-          if (seenInGroup.has(depKey)) {
-            const depMatch = objectDepFieldPattern.exec(event.objectText);
-            if (depMatch) {
-              const depContent = depMatch[1];
-              const depStartCol = event.objectStartCol + depMatch.index + depMatch[0].indexOf('"') + 1;
-              diagnostics.push({
-                message: "Duplicate dependency in group",
-                severity: "warning",
-                source: "sbt-dependencies",
-                range: { startLine: event.lineIndex, startCol: depStartCol, endLine: event.lineIndex, endCol: depStartCol + depContent.length },
-              });
-            }
-          } else {
-            seenInGroup.set(depKey, event.lineIndex);
+        if (depKey && isDuplicate(seenInGroup, depKey, event.scalaFilter)) {
+          const depMatch = objectDepFieldPattern.exec(event.objectText);
+          if (depMatch) {
+            const depContent = depMatch[1];
+            const depStartCol = event.objectStartCol + depMatch.index + depMatch[0].indexOf('"') + 1;
+            diagnostics.push({
+              message: "Duplicate dependency in group",
+              severity: "warning",
+              source: "sbt-dependencies",
+              range: { startLine: event.lineIndex, startCol: depStartCol, endLine: event.lineIndex, endCol: depStartCol + depContent.length },
+            });
           }
         }
         break;
@@ -240,20 +250,6 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
           const diag = validateDependencyString(event.fieldValue, event.lineIndex, event.fieldValueStartCol);
           if (diag) {
             diagnostics.push(diag);
-          } else {
-            const key = extractDepKey(event.fieldValue);
-            if (key) {
-              if (seenInGroup.has(key)) {
-                diagnostics.push({
-                  message: "Duplicate dependency in group",
-                  severity: "warning",
-                  source: "sbt-dependencies",
-                  range: { startLine: event.lineIndex, startCol: event.fieldValueStartCol, endLine: event.lineIndex, endCol: event.fieldValueStartCol + event.fieldValue.length },
-                });
-              } else {
-                seenInGroup.set(key, event.lineIndex);
-              }
-            }
           }
         }
         if (
@@ -272,6 +268,27 @@ export function parseDiagnostics(lines: string[]): DiagnosticResult[] {
         break;
       }
       case "multi-line-object-end": {
+        if (
+          event.dependencyValue !== undefined &&
+          event.dependencyStartCol !== undefined &&
+          event.dependencyLineIndex !== undefined &&
+          !validateDependencyString(event.dependencyValue, event.dependencyLineIndex, event.dependencyStartCol)
+        ) {
+          const key = extractDepKey(event.dependencyValue);
+          if (key && isDuplicate(seenInGroup, key, event.scalaFilterValue)) {
+            diagnostics.push({
+              message: "Duplicate dependency in group",
+              severity: "warning",
+              source: "sbt-dependencies",
+              range: {
+                startLine: event.dependencyLineIndex,
+                startCol: event.dependencyStartCol,
+                endLine: event.dependencyLineIndex,
+                endCol: event.dependencyStartCol + event.dependencyValue.length,
+              },
+            });
+          }
+        }
         if (!event.hasDependency) {
           diagnostics.push({
             message: "Object entry must have a 'dependency' field",

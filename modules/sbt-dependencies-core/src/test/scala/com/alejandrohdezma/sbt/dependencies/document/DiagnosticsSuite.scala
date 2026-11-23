@@ -486,6 +486,38 @@ class DiagnosticsSuite extends munit.FunSuite {
     assertEquals(result, expected)
   }
 
+  test("does not flag the same artifact once per non-overlapping scala-filter") {
+    val text =
+      """|my-group = [
+         |  { dependency = "io.get-coursier::coursier:2.1.24", scala-filter = "2.12" }
+         |  { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "3" }
+         |]""".stripMargin
+
+    assertEquals(check(text), Nil)
+  }
+
+  test("flags the same artifact when the scala-filters overlap") {
+    val text =
+      """|my-group = [
+         |  { dependency = "io.get-coursier::coursier:2.1.24", scala-filter = "2" }
+         |  { dependency = "io.get-coursier::coursier:2.1.26", scala-filter = "2.13" }
+         |]""".stripMargin
+
+    val result = check(text).map { diagnostic =>
+      (diagnostic.message, diagnostic.severity, slice(text, diagnostic.span))
+    }
+
+    val expected = List(
+      (
+        "duplicate dependency entry: io.get-coursier:coursier (compile)",
+        Diagnostic.Severity.Warning,
+        "io.get-coursier::coursier:2.1.26"
+      )
+    )
+
+    assertEquals(result, expected)
+  }
+
   test("detects duplicates across string and object entries") {
     val text =
       """|my-group = [
